@@ -4,9 +4,9 @@ import UsernamePrompt from './components/UsernamePrompt';
 import { useUser } from './hooks/useUser';
 import {
   Dashboard,
-  UseCaseList,
-  UseCaseDetail,
-  UseCaseForm,
+  FactsheetList,
+  FactsheetDetail,
+  FactsheetForm,
   DependencyForm,
   PropertiesEditor,
   DependenciesPage,
@@ -26,30 +26,18 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
-          <Route path="use-cases" element={<UseCaseList />} />
-          <Route path="use-cases/new" element={<UseCaseForm />} />
-          <Route path="use-cases/:id" element={<UseCaseDetail />} />
-          <Route path="use-cases/:id/edit" element={<UseCaseForm />} />
-          <Route path="use-cases/:id/dependencies/new" element={<DependencyForm />} />
-          <Route path="use-cases/:id/properties" element={<PropertiesEditor />} />
+          <Route path="factsheets" element={<FactsheetList />} />
+          <Route path="factsheets/new" element={<FactsheetForm />} />
+          <Route path="factsheets/:id" element={<FactsheetDetail />} />
+          <Route path="factsheets/:id/edit" element={<FactsheetForm />} />
+          <Route path="factsheets/:id/dependencies/new" element={<DependencyForm />} />
+          <Route path="factsheets/:id/properties" element={<PropertiesEditor />} />
           <Route path="dependencies" element={<DependenciesPage />} />
           <Route path="matrix" element={<MatrixPage />} />
           <Route path="settings" element={<SettingsPage />} />
-          {/* Placeholder routes */}
-          <Route path="data-sources" element={<PlaceholderPage title="Data Sources" />} />
-          <Route path="knowledge" element={<PlaceholderPage title="Knowledge Base" />} />
         </Route>
       </Routes>
     </BrowserRouter>
-  );
-}
-
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="text-center py-16">
-      <h1 className="text-2xl font-bold text-primary-900">{title}</h1>
-      <p className="text-gray-500 mt-2">This page is under construction</p>
-    </div>
   );
 }
 

@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardTitle, Select } from '../components/ui';
 import { PropertyMatrix } from '../components/visualizations';
 import { useRealtime } from '../hooks/useRealtime';
-import type { UseCase, PropertyDefinition, UseCasePropertyExpanded } from '../types';
+import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded } from '../types';
 
 export default function MatrixPage() {
   const navigate = useNavigate();
   const [xAxis, setXAxis] = useState('');
   const [yAxis, setYAxis] = useState('');
 
-  const { records: useCases, loading: loadingUseCases } = useRealtime<UseCase>({
-    collection: 'use_cases',
+  const { records: factsheets, loading: loadingFactsheets } = useRealtime<FactsheetExpanded>({
+    collection: 'factsheets',
+    expand: 'type',
   });
 
   const { records: propertyDefinitions, loading: loadingDefs } = useRealtime<PropertyDefinition>({
@@ -19,23 +20,22 @@ export default function MatrixPage() {
     sort: 'order',
   });
 
-  const { records: properties, loading: loadingProps } = useRealtime<UseCasePropertyExpanded>({
-    collection: 'use_case_properties',
+  const { records: properties, loading: loadingProps } = useRealtime<FactsheetPropertyExpanded>({
+    collection: 'factsheet_properties',
     expand: 'property',
   });
 
-  const handleUseCaseClick = (useCaseId: string) => {
-    navigate(`/use-cases/${useCaseId}`);
+  const handleFactsheetClick = (factsheetId: string) => {
+    navigate(`/factsheets/${factsheetId}`);
   };
 
-  const loading = loadingUseCases || loadingDefs || loadingProps;
+  const loading = loadingFactsheets || loadingDefs || loadingProps;
 
-  const propertyOptions = propertyDefinitions
-    .filter((p) => p.type === 'enum')
-    .map((p) => ({
-      value: p.id,
-      label: p.name,
-    }));
+  // All properties are now enum type
+  const propertyOptions = propertyDefinitions.map((p) => ({
+    value: p.id,
+    label: p.name,
+  }));
 
   return (
     <div className="space-y-6">
@@ -43,7 +43,7 @@ export default function MatrixPage() {
       <div>
         <h1 className="text-2xl font-bold text-primary-900">Matrix View</h1>
         <p className="text-gray-500 mt-1">
-          Plot use cases on a matrix based on their properties
+          Plot factsheets on a matrix based on their properties
         </p>
       </div>
 
@@ -70,7 +70,7 @@ export default function MatrixPage() {
           </div>
           {xAxis && yAxis && (
             <div className="text-sm text-gray-500">
-              Showing {useCases.length} use cases
+              Showing {factsheets.length} factsheets
             </div>
           )}
         </div>
@@ -97,12 +97,12 @@ export default function MatrixPage() {
         </Card>
       ) : (
         <PropertyMatrix
-          useCases={useCases}
+          factsheets={factsheets}
           properties={properties}
           propertyDefinitions={propertyDefinitions}
           xAxisProperty={xAxis}
           yAxisProperty={yAxis}
-          onUseCaseClick={handleUseCaseClick}
+          onFactsheetClick={handleFactsheetClick}
         />
       )}
     </div>

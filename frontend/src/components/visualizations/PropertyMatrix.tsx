@@ -1,23 +1,23 @@
 import { useMemo, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
-import type { UseCase, PropertyDefinition, UseCasePropertyExpanded } from '../../types';
+import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded } from '../../types';
 
 interface PropertyMatrixProps {
-  useCases: UseCase[];
-  properties: UseCasePropertyExpanded[];
+  factsheets: FactsheetExpanded[];
+  properties: FactsheetPropertyExpanded[];
   propertyDefinitions: PropertyDefinition[];
   xAxisProperty: string;
   yAxisProperty: string;
-  onUseCaseClick?: (useCaseId: string) => void;
+  onFactsheetClick?: (factsheetId: string) => void;
 }
 
 export default function PropertyMatrix({
-  useCases,
+  factsheets,
   properties,
   propertyDefinitions,
   xAxisProperty,
   yAxisProperty,
-  onUseCaseClick,
+  onFactsheetClick,
 }: PropertyMatrixProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -28,22 +28,22 @@ export default function PropertyMatrix({
   const { xValues, yValues, matrix } = useMemo(() => {
     const xVals = new Set<string>();
     const yVals = new Set<string>();
-    const matrixData: Map<string, Map<string, UseCase[]>> = new Map();
+    const matrixData: Map<string, Map<string, FactsheetExpanded[]>> = new Map();
 
     // Build property lookup
     const propLookup = new Map<string, Map<string, string>>();
     properties.forEach((prop) => {
-      if (!propLookup.has(prop.use_case)) {
-        propLookup.set(prop.use_case, new Map());
+      if (!propLookup.has(prop.factsheet)) {
+        propLookup.set(prop.factsheet, new Map());
       }
-      propLookup.get(prop.use_case)!.set(prop.property, prop.value);
+      propLookup.get(prop.factsheet)!.set(prop.property, prop.value);
     });
 
     // Build matrix
-    useCases.forEach((uc) => {
-      const ucProps = propLookup.get(uc.id);
-      const xVal = ucProps?.get(xAxisProperty) || 'Unknown';
-      const yVal = ucProps?.get(yAxisProperty) || 'Unknown';
+    factsheets.forEach((fs) => {
+      const fsProps = propLookup.get(fs.id);
+      const xVal = fsProps?.get(xAxisProperty) || 'Unknown';
+      const yVal = fsProps?.get(yAxisProperty) || 'Unknown';
 
       xVals.add(xVal);
       yVals.add(yVal);
@@ -54,7 +54,7 @@ export default function PropertyMatrix({
       if (!matrixData.get(xVal)!.has(yVal)) {
         matrixData.get(xVal)!.set(yVal, []);
       }
-      matrixData.get(xVal)!.get(yVal)!.push(uc);
+      matrixData.get(xVal)!.get(yVal)!.push(fs);
     });
 
     return {
@@ -62,7 +62,7 @@ export default function PropertyMatrix({
       yValues: Array.from(yVals).sort(),
       matrix: matrixData,
     };
-  }, [useCases, properties, xAxisProperty, yAxisProperty]);
+  }, [factsheets, properties, xAxisProperty, yAxisProperty]);
 
   useEffect(() => {
     if (!svgRef.current || xValues.length === 0 || yValues.length === 0) return;
@@ -97,7 +97,7 @@ export default function PropertyMatrix({
     // Draw cells
     xValues.forEach((xVal) => {
       yValues.forEach((yVal) => {
-        const useCasesInCell = matrix.get(xVal)?.get(yVal) || [];
+        const factsheetsInCell = matrix.get(xVal)?.get(yVal) || [];
 
         const g = svg
           .append('g')
@@ -107,23 +107,24 @@ export default function PropertyMatrix({
         g.append('rect')
           .attr('width', xScale.bandwidth())
           .attr('height', yScale.bandwidth())
-          .attr('fill', useCasesInCell.length > 0 ? '#f0fdfa' : '#f9fafb')
-          .attr('stroke', '#e5e7eb')
+          .attr('fill', factsheetsInCell.length > 0 ? '#f0fdfa' : '#f9fafb')
+          .attr('stroke', '#e5e7eb');
 
+        // Factsheets in cell
+        factsheetsInCell.slice(0, 3).forEach((fs, index) => {
+          const typeColor = fs.expand?.type?.color || '#6b7280';
 
-        // Use cases in cell
-        useCasesInCell.forEach((uc, index) => {
           const chip = g
             .append('g')
             .attr('transform', `translate(8, ${8 + index * 28})`)
             .style('cursor', 'pointer')
-            .on('click', () => onUseCaseClick?.(uc.id));
+            .on('click', () => onFactsheetClick?.(fs.id));
 
           chip
             .append('rect')
             .attr('width', xScale.bandwidth() - 16)
             .attr('height', 24)
-            .attr('fill', uc.status === 'active' ? '#00aeef' : '#6b7280');
+            .attr('fill', typeColor);
 
           chip
             .append('text')
@@ -132,18 +133,18 @@ export default function PropertyMatrix({
             .attr('fill', 'white')
             .attr('font-size', '12px')
             .attr('font-weight', '500')
-            .text(uc.name.length > 15 ? uc.name.slice(0, 15) + '...' : uc.name);
+            .text(fs.name.length > 15 ? fs.name.slice(0, 15) + '...' : fs.name);
         });
 
         // Count badge if more than 3
-        if (useCasesInCell.length > 3) {
+        if (factsheetsInCell.length > 3) {
           g.append('text')
             .attr('x', xScale.bandwidth() - 8)
             .attr('y', yScale.bandwidth() - 8)
             .attr('text-anchor', 'end')
             .attr('fill', '#6b7280')
             .attr('font-size', '11px')
-            .text(`+${useCasesInCell.length - 3} more`);
+            .text(`+${factsheetsInCell.length - 3} more`);
         }
       });
     });
@@ -197,7 +198,7 @@ export default function PropertyMatrix({
       .attr('font-size', '14px')
       .attr('font-weight', '600')
       .text(yDef?.name || 'Y Axis');
-  }, [xValues, yValues, matrix, xDef, yDef, onUseCaseClick]);
+  }, [xValues, yValues, matrix, xDef, yDef, onFactsheetClick]);
 
   if (!xAxisProperty || !yAxisProperty) {
     return (

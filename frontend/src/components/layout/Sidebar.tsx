@@ -1,12 +1,10 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Briefcase,
+  FileText,
   GitBranch,
   Grid3X3,
   Settings,
-  Database,
-  BookOpen,
 } from 'lucide-react';
 
 interface NavItem {
@@ -17,14 +15,9 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   { to: '/', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard' },
-  { to: '/use-cases', icon: <Briefcase className="w-5 h-5" />, label: 'Use Cases' },
+  { to: '/factsheets', icon: <FileText className="w-5 h-5" />, label: 'Factsheets' },
   { to: '/dependencies', icon: <GitBranch className="w-5 h-5" />, label: 'Dependencies' },
   { to: '/matrix', icon: <Grid3X3 className="w-5 h-5" />, label: 'Matrix View' },
-];
-
-const resourceNavItems: NavItem[] = [
-  { to: '/data-sources', icon: <Database className="w-5 h-5" />, label: 'Data Sources' },
-  { to: '/knowledge', icon: <BookOpen className="w-5 h-5" />, label: 'Knowledge Base' },
 ];
 
 const settingsNavItems: NavItem[] = [
@@ -66,7 +59,6 @@ export default function Sidebar() {
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
       <div className="flex-1 py-6 overflow-y-auto">
         <NavSection items={mainNavItems} />
-        <NavSection title="Resources" items={resourceNavItems} />
         <NavSection title="System" items={settingsNavItems} />
       </div>
     </aside>

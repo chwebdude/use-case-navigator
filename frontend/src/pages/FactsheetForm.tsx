@@ -3,9 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Card, Button, Input, Select } from '../components/ui';
 import { Textarea } from '../components/ui/Input';
-import { useRecord } from '../hooks/useRealtime';
+import { useRecord, useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
-import type { UseCase } from '../types';
+import type { Factsheet, FactsheetType } from '../types';
 
 const statusOptions = [
   { value: 'draft', label: 'Draft' },
@@ -13,51 +13,70 @@ const statusOptions = [
   { value: 'archived', label: 'Archived' },
 ];
 
-export default function UseCaseForm() {
+export default function FactsheetForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
 
-  const { record: existingUseCase, loading: loadingRecord } = useRecord<UseCase>(
-    'use_cases',
+  const { record: existingFactsheet, loading: loadingRecord } = useRecord<Factsheet>(
+    'factsheets',
     id
   );
+
+  const { records: factsheetTypes } = useRealtime<FactsheetType>({
+    collection: 'factsheet_types',
+    sort: 'order',
+  });
+
+  const typeOptions = factsheetTypes.map((t) => ({ value: t.id, label: t.name }));
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    type: '',
     status: 'draft',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (existingUseCase) {
+    if (existingFactsheet) {
       setFormData({
-        name: existingUseCase.name,
-        description: existingUseCase.description || '',
-        status: existingUseCase.status,
+        name: existingFactsheet.name,
+        description: existingFactsheet.description || '',
+        type: existingFactsheet.type,
+        status: existingFactsheet.status,
       });
     }
-  }, [existingUseCase]);
+  }, [existingFactsheet]);
+
+  // Set default type when types are loaded
+  useEffect(() => {
+    if (!isEdit && factsheetTypes.length > 0 && !formData.type) {
+      setFormData((prev) => ({ ...prev, type: factsheetTypes[0].id }));
+    }
+  }, [factsheetTypes, isEdit, formData.type]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!formData.type) {
+      setError('Please select a factsheet type');
+      return;
+    }
+
     setSaving(true);
 
     try {
       if (isEdit && id) {
-        await pb.collection('use_cases').update(id, formData);
+        await pb.collection('factsheets').update(id, formData);
       } else {
-        await pb.collection('use_cases').create({
-          ...formData,
-          owner: pb.authStore.model?.id,
-        });
+        await pb.collection('factsheets').create(formData);
       }
-      navigate('/use-cases');
+      navigate('/factsheets');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save use case');
+      setError(err instanceof Error ? err.message : 'Failed to save factsheet');
     } finally {
       setSaving(false);
     }
@@ -77,6 +96,33 @@ export default function UseCaseForm() {
     );
   }
 
+  if (factsheetTypes.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(-1)}
+            icon={<ArrowLeft className="w-4 h-4" />}
+          >
+            Back
+          </Button>
+          <h1 className="text-2xl font-bold text-primary-900">New Factsheet</h1>
+        </div>
+        <Card className="text-center py-12">
+          <h3 className="text-lg font-medium text-primary-900">No factsheet types defined</h3>
+          <p className="text-gray-500 mt-2">
+            Please create at least one factsheet type in Settings before creating a factsheet.
+          </p>
+          <Button className="mt-4" onClick={() => navigate('/settings')}>
+            Go to Settings
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
@@ -90,7 +136,7 @@ export default function UseCaseForm() {
           Back
         </Button>
         <h1 className="text-2xl font-bold text-primary-900">
-          {isEdit ? 'Edit Use Case' : 'New Use Case'}
+          {isEdit ? 'Edit Factsheet' : 'New Factsheet'}
         </h1>
       </div>
 
@@ -103,9 +149,16 @@ export default function UseCaseForm() {
             </div>
           )}
 
+          <Select
+            label="Type"
+            options={typeOptions}
+            value={formData.type}
+            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+          />
+
           <Input
             label="Name"
-            placeholder="Enter use case name"
+            placeholder="Enter factsheet name"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
@@ -113,7 +166,7 @@ export default function UseCaseForm() {
 
           <Textarea
             label="Description"
-            placeholder="Describe the use case..."
+            placeholder="Describe the factsheet..."
             value={formData.description}
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
@@ -134,7 +187,7 @@ export default function UseCaseForm() {
               loading={saving}
               icon={<Save className="w-4 h-4" />}
             >
-              {isEdit ? 'Save Changes' : 'Create Use Case'}
+              {isEdit ? 'Save Changes' : 'Create Factsheet'}
             </Button>
             <Button
               type="button"

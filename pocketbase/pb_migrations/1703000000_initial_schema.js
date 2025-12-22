@@ -1,8 +1,54 @@
 /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
-  // use_cases collection
-  const useCases = new Collection({
-    name: "use_cases",
+  // factsheet_types collection - defines types like "Use Case", "Knowledge", "Data Source"
+  const factsheetTypes = new Collection({
+    name: "factsheet_types",
+    type: "base",
+    listRule: "",
+    viewRule: "",
+    createRule: "",
+    updateRule: "",
+    deleteRule: "",
+    fields: [
+      {
+        name: "name",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "color",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "icon",
+        type: "text",
+        required: false,
+      },
+      {
+        name: "order",
+        type: "number",
+        required: false,
+      },
+      {
+        name: "created",
+        type: "autodate",
+        onCreate: true,
+        onUpdate: false,
+      },
+      {
+        name: "updated",
+        type: "autodate",
+        onCreate: true,
+        onUpdate: true,
+      },
+    ],
+  });
+  app.save(factsheetTypes);
+
+  // factsheets collection - generic factsheets with a type
+  const factsheets = new Collection({
+    name: "factsheets",
     type: "base",
     listRule: "",
     viewRule: "",
@@ -19,6 +65,14 @@ migrate((app) => {
         name: "description",
         type: "text",
         required: false,
+      },
+      {
+        name: "type",
+        type: "relation",
+        required: true,
+        collectionId: factsheetTypes.id,
+        cascadeDelete: false,
+        maxSelect: 1,
       },
       {
         name: "status",
@@ -41,7 +95,7 @@ migrate((app) => {
       },
     ],
   });
-  app.save(useCases);
+  app.save(factsheets);
 
   // dependencies collection
   const dependencies = new Collection({
@@ -54,37 +108,25 @@ migrate((app) => {
     deleteRule: "",
     fields: [
       {
-        name: "use_case",
+        name: "factsheet",
         type: "relation",
         required: true,
-        collectionId: useCases.id,
+        collectionId: factsheets.id,
         cascadeDelete: true,
         maxSelect: 1,
       },
       {
-        name: "type",
-        type: "select",
+        name: "depends_on",
+        type: "relation",
         required: true,
+        collectionId: factsheets.id,
+        cascadeDelete: false,
         maxSelect: 1,
-        values: ["data", "knowledge", "system"],
-      },
-      {
-        name: "name",
-        type: "text",
-        required: true,
       },
       {
         name: "description",
         type: "text",
         required: false,
-      },
-      {
-        name: "depends_on",
-        type: "relation",
-        required: false,
-        collectionId: useCases.id,
-        cascadeDelete: false,
-        maxSelect: 1,
       },
       {
         name: "created",
@@ -102,7 +144,7 @@ migrate((app) => {
   });
   app.save(dependencies);
 
-  // property_definitions collection
+  // property_definitions collection - enum only
   const propertyDefinitions = new Collection({
     name: "property_definitions",
     type: "base",
@@ -118,16 +160,9 @@ migrate((app) => {
         required: true,
       },
       {
-        name: "type",
-        type: "select",
-        required: true,
-        maxSelect: 1,
-        values: ["enum", "number", "text"],
-      },
-      {
         name: "options",
         type: "json",
-        required: false,
+        required: true,
       },
       {
         name: "order",
@@ -150,9 +185,9 @@ migrate((app) => {
   });
   app.save(propertyDefinitions);
 
-  // use_case_properties collection
-  const useCaseProperties = new Collection({
-    name: "use_case_properties",
+  // factsheet_properties collection
+  const factsheetProperties = new Collection({
+    name: "factsheet_properties",
     type: "base",
     listRule: "",
     viewRule: "",
@@ -161,10 +196,10 @@ migrate((app) => {
     deleteRule: "",
     fields: [
       {
-        name: "use_case",
+        name: "factsheet",
         type: "relation",
         required: true,
-        collectionId: useCases.id,
+        collectionId: factsheets.id,
         cascadeDelete: true,
         maxSelect: 1,
       },
@@ -195,14 +230,15 @@ migrate((app) => {
       },
     ],
   });
-  app.save(useCaseProperties);
+  app.save(factsheetProperties);
 }, (app) => {
   // Rollback
   const collections = [
-    "use_case_properties",
+    "factsheet_properties",
     "property_definitions",
     "dependencies",
-    "use_cases"
+    "factsheets",
+    "factsheet_types"
   ];
 
   collections.forEach((name) => {
