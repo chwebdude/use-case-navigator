@@ -1,8 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   type Node,
   type Edge,
+  type Connection,
   Controls,
   Background,
   useNodesState,
@@ -11,13 +12,22 @@ import {
   Handle,
   Position,
 } from '@xyflow/react';
+import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
 import type { FactsheetExpanded, Dependency } from '../../types';
+
+export interface ConnectionRequest {
+  sourceId: string;
+  targetId: string;
+  sourceName: string;
+  targetName: string;
+}
 
 interface DependencyGraphProps {
   factsheets: FactsheetExpanded[];
   dependencies: Dependency[];
   onNodeClick?: (factsheetId: string) => void;
+  onConnect?: (connection: ConnectionRequest) => void;
 }
 
 interface FactsheetNodeProps {
@@ -28,6 +38,53 @@ interface FactsheetNodeProps {
     typeName: string;
     factsheetId: string;
   };
+}
+
+const NODE_WIDTH = 200;
+const NODE_HEIGHT = 80;
+
+// Auto-layout using dagre
+function getLayoutedElements(nodes: Node[], edges: Edge[]) {
+  if (nodes.length === 0) {
+    return { nodes: [], edges: [] };
+  }
+
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+  dagreGraph.setGraph({
+    rankdir: 'TB', // Top to bottom
+    nodesep: 80,   // Horizontal spacing
+    ranksep: 100,  // Vertical spacing between ranks
+    marginx: 50,
+    marginy: 50,
+  });
+
+  // Add nodes to dagre
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  });
+
+  // Add edges to dagre
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  // Calculate layout
+  dagre.layout(dagreGraph);
+
+  // Apply positions to nodes
+  const layoutedNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - NODE_WIDTH / 2,
+        y: nodeWithPosition.y - NODE_HEIGHT / 2,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
 }
 
 // Custom node for factsheets
@@ -44,7 +101,7 @@ function FactsheetNode({ data }: FactsheetNodeProps) {
         statusColors[data.status] || statusColors.draft
       }`}
     >
-      <Handle type="target" position={Position.Top} className="!bg-accent-500" />
+      <Handle type="target" position={Position.Top} className="!bg-accent-500 !w-3 !h-3" />
       <div className="flex items-center gap-2 mb-1">
         <div
           className="w-3 h-3"
@@ -59,7 +116,7 @@ function FactsheetNode({ data }: FactsheetNodeProps) {
       </div>
       <div className="font-medium text-primary-900 text-sm">{data.label}</div>
       <div className="text-xs text-gray-500 mt-1 capitalize">{data.status}</div>
-      <Handle type="source" position={Position.Bottom} className="!bg-accent-500" />
+      <Handle type="source" position={Position.Bottom} className="!bg-accent-500 !w-3 !h-3" />
     </div>
   );
 }
@@ -72,20 +129,22 @@ export default function DependencyGraph({
   factsheets,
   dependencies,
   onNodeClick,
+  onConnect,
 }: DependencyGraphProps) {
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
+  // Compute nodes and edges from props
+  const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 
     // Create factsheet nodes
-    factsheets.forEach((fs, index) => {
+    factsheets.forEach((fs) => {
       const typeColor = fs.expand?.type?.color || '#6b7280';
       const typeName = fs.expand?.type?.name || 'Unknown';
 
       nodes.push({
         id: `fs-${fs.id}`,
         type: 'factsheet',
-        position: { x: 250 * (index % 4), y: Math.floor(index / 4) * 180 },
+        position: { x: 0, y: 0 }, // Will be set by dagre
         data: {
           label: fs.name,
           status: fs.status,
@@ -98,23 +157,37 @@ export default function DependencyGraph({
 
     // Create edges for dependencies
     dependencies.forEach((dep) => {
-      edges.push({
-        id: `e-${dep.id}`,
-        source: `fs-${dep.factsheet}`,
-        target: `fs-${dep.depends_on}`,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: '#00aeef', strokeWidth: 2 },
-        label: dep.description || '',
-        labelStyle: { fontSize: 10, fill: '#6b7280' },
-        labelBgStyle: { fill: 'white', fillOpacity: 0.8 },
-      });
+      // Only add edge if both nodes exist
+      const sourceExists = nodes.some((n) => n.id === `fs-${dep.factsheet}`);
+      const targetExists = nodes.some((n) => n.id === `fs-${dep.depends_on}`);
+
+      if (sourceExists && targetExists) {
+        edges.push({
+          id: `e-${dep.id}`,
+          source: `fs-${dep.factsheet}`,
+          target: `fs-${dep.depends_on}`,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          style: { stroke: '#00aeef', strokeWidth: 2 },
+          label: dep.description || '',
+          labelStyle: { fontSize: 10, fill: '#6b7280' },
+          labelBgStyle: { fill: 'white', fillOpacity: 0.8 },
+        });
+      }
     });
 
-    return { nodes, edges };
+    // Apply dagre layout
+    return getLayoutedElements(nodes, edges);
   }, [factsheets, dependencies]);
 
-  const [nodes, , onNodesChange] = useNodesState(initialNodes);
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
+  // Use state hooks for React Flow
+  const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
+
+  // Sync state with computed values when props change
+  useEffect(() => {
+    setNodes(computedNodes);
+    setEdges(computedEdges);
+  }, [computedNodes, computedEdges, setNodes, setEdges]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -126,6 +199,39 @@ export default function DependencyGraph({
     [onNodeClick]
   );
 
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!onConnect || !connection.source || !connection.target) return;
+
+      // Extract factsheet IDs from node IDs (remove 'fs-' prefix)
+      const sourceId = connection.source.replace('fs-', '');
+      const targetId = connection.target.replace('fs-', '');
+
+      // Don't allow self-connections
+      if (sourceId === targetId) return;
+
+      // Check if dependency already exists
+      const exists = dependencies.some(
+        (dep) => dep.factsheet === sourceId && dep.depends_on === targetId
+      );
+      if (exists) return;
+
+      // Find factsheet names
+      const sourceFs = factsheets.find((fs) => fs.id === sourceId);
+      const targetFs = factsheets.find((fs) => fs.id === targetId);
+
+      if (sourceFs && targetFs) {
+        onConnect({
+          sourceId,
+          targetId,
+          sourceName: sourceFs.name,
+          targetName: targetFs.name,
+        });
+      }
+    },
+    [onConnect, dependencies, factsheets]
+  );
+
   return (
     <div className="w-full h-[600px] bg-gray-50 border border-gray-200">
       <ReactFlow
@@ -134,9 +240,11 @@ export default function DependencyGraph({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
+        onConnect={handleConnect}
         nodeTypes={nodeTypes}
         fitView
         proOptions={{ hideAttribution: true }}
+        connectionLineStyle={{ stroke: '#00aeef', strokeWidth: 2 }}
       >
         <Controls />
         <Background color="#e5e7eb" gap={20} />
