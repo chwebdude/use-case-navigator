@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Build output
+dist/
+build/
+
+# PocketBase data (keep migrations, ignore data)
+pocketbase/pb_data/
+
+# PocketBase executable (download separately)
+pocketbase/pocketbase.exe
+pocketbase/pocketbase
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Test coverage
+coverage/
