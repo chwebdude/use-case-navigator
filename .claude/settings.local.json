@@ -4,7 +4,8 @@
       "Bash(npm install)",
       "Bash(npm install:*)",
       "Bash(del \"c:\\\\Users\\\\fabrice\\\\source\\\\repos\\\\ai-use-case-navigator\\\\frontend\\\\src\\\\App.css\")",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(del UseCaseForm.tsx UseCaseList.tsx UseCaseDetail.tsx)"
     ]
   },
   "outputStyle": "default"

@@ -3,31 +3,47 @@ import { ArrowLeft, Edit, Trash2, Plus, GitBranch } from 'lucide-react';
 import { Card, CardTitle, Button, Badge } from '../components/ui';
 import { useRecord, useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
-import type { UseCase, Dependency, UseCasePropertyExpanded } from '../types';
+import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, DependencyExpanded } from '../types';
 
-export default function UseCaseDetail() {
+export default function FactsheetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { record: useCase, loading } = useRecord<UseCase>('use_cases', id);
-  const { records: dependencies } = useRealtime<Dependency>({
+  const { record: factsheet, loading } = useRecord<Factsheet>('factsheets', id);
+  const { record: factsheetType } = useRecord<FactsheetType>(
+    'factsheet_types',
+    factsheet?.type
+  );
+
+  const { records: dependencies } = useRealtime<DependencyExpanded>({
     collection: 'dependencies',
-    filter: `use_case = "${id}"`,
+    filter: `factsheet = "${id}"`,
+    expand: 'depends_on',
   });
-  const { records: properties } = useRealtime<UseCasePropertyExpanded>({
-    collection: 'use_case_properties',
-    filter: `use_case = "${id}"`,
+
+  const { records: properties } = useRealtime<FactsheetPropertyExpanded>({
+    collection: 'factsheet_properties',
+    filter: `factsheet = "${id}"`,
     expand: 'property',
   });
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this use case?')) return;
+    if (!confirm('Are you sure you want to delete this factsheet?')) return;
 
     try {
-      await pb.collection('use_cases').delete(id!);
-      navigate('/use-cases');
+      await pb.collection('factsheets').delete(id!);
+      navigate('/factsheets');
     } catch (err) {
-      console.error('Failed to delete use case:', err);
+      console.error('Failed to delete factsheet:', err);
+    }
+  };
+
+  const handleDeleteDependency = async (depId: string) => {
+    if (!confirm('Remove this dependency?')) return;
+    try {
+      await pb.collection('dependencies').delete(depId);
+    } catch (err) {
+      console.error('Failed to delete dependency:', err);
     }
   };
 
@@ -38,19 +54,6 @@ export default function UseCaseDetail() {
       case 'draft':
         return 'default';
       case 'archived':
-        return 'warning';
-      default:
-        return 'default';
-    }
-  };
-
-  const getDependencyTypeVariant = (type: string) => {
-    switch (type) {
-      case 'data':
-        return 'info';
-      case 'knowledge':
-        return 'success';
-      case 'system':
         return 'warning';
       default:
         return 'default';
@@ -70,39 +73,53 @@ export default function UseCaseDetail() {
     );
   }
 
-  if (!useCase) {
+  if (!factsheet) {
     return (
       <Card className="text-center py-12">
-        <h2 className="text-lg font-medium text-primary-900">Use case not found</h2>
-        <p className="text-gray-500 mt-2">The requested use case does not exist.</p>
-        <Link to="/use-cases">
+        <h2 className="text-lg font-medium text-primary-900">Factsheet not found</h2>
+        <p className="text-gray-500 mt-2">The requested factsheet does not exist.</p>
+        <Link to="/factsheets">
           <Button variant="secondary" className="mt-4">
-            Back to Use Cases
+            Back to Factsheets
           </Button>
         </Link>
       </Card>
     );
   }
 
+  const typeColor = factsheetType?.color || '#6b7280';
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link to="/use-cases">
+          <Link to="/factsheets">
             <Button variant="ghost" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>
               Back
             </Button>
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-primary-900">{useCase.name}</h1>
-              <Badge variant={getStatusVariant(useCase.status)}>{useCase.status}</Badge>
+              <div
+                className="w-4 h-4"
+                style={{ backgroundColor: typeColor }}
+              />
+              <h1 className="text-2xl font-bold text-primary-900">{factsheet.name}</h1>
+              {factsheetType && (
+                <span
+                  className="px-2 py-0.5 text-xs font-medium text-white"
+                  style={{ backgroundColor: typeColor }}
+                >
+                  {factsheetType.name}
+                </span>
+              )}
+              <Badge variant={getStatusVariant(factsheet.status)}>{factsheet.status}</Badge>
             </div>
           </div>
         </div>
         <div className="flex gap-2">
-          <Link to={`/use-cases/${id}/edit`}>
+          <Link to={`/factsheets/${id}/edit`}>
             <Button variant="secondary" icon={<Edit className="w-4 h-4" />}>
               Edit
             </Button>
@@ -117,7 +134,7 @@ export default function UseCaseDetail() {
       <Card>
         <CardTitle>Description</CardTitle>
         <p className="text-gray-600 mt-2">
-          {useCase.description || 'No description provided'}
+          {factsheet.description || 'No description provided'}
         </p>
       </Card>
 
@@ -125,7 +142,7 @@ export default function UseCaseDetail() {
       <Card>
         <div className="flex items-center justify-between mb-4">
           <CardTitle>Dependencies</CardTitle>
-          <Link to={`/use-cases/${id}/dependencies/new`}>
+          <Link to={`/factsheets/${id}/dependencies/new`}>
             <Button size="sm" variant="secondary" icon={<Plus className="w-4 h-4" />}>
               Add Dependency
             </Button>
@@ -145,16 +162,24 @@ export default function UseCaseDetail() {
                 className="flex items-center justify-between p-3 bg-gray-50"
               >
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-primary-900">{dep.name}</span>
-                    <Badge variant={getDependencyTypeVariant(dep.type)} size="sm">
-                      {dep.type}
-                    </Badge>
-                  </div>
+                  <Link
+                    to={`/factsheets/${dep.depends_on}`}
+                    className="font-medium text-primary-900 hover:text-accent-500"
+                  >
+                    {dep.expand?.depends_on?.name || 'Unknown Factsheet'}
+                  </Link>
                   {dep.description && (
                     <p className="text-sm text-gray-500 mt-1">{dep.description}</p>
                   )}
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteDependency(dep.id)}
+                  className="text-gray-400 hover:text-red-500"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
             ))}
           </div>
@@ -165,7 +190,7 @@ export default function UseCaseDetail() {
       <Card>
         <div className="flex items-center justify-between mb-4">
           <CardTitle>Properties</CardTitle>
-          <Link to={`/use-cases/${id}/properties`}>
+          <Link to={`/factsheets/${id}/properties`}>
             <Button size="sm" variant="secondary" icon={<Edit className="w-4 h-4" />}>
               Edit Properties
             </Button>
@@ -195,11 +220,11 @@ export default function UseCaseDetail() {
         <div className="flex gap-8 text-sm text-gray-500">
           <div>
             <span className="font-medium">Created:</span>{' '}
-            {new Date(useCase.created).toLocaleDateString()}
+            {new Date(factsheet.created).toLocaleDateString()}
           </div>
           <div>
             <span className="font-medium">Updated:</span>{' '}
-            {new Date(useCase.updated).toLocaleDateString()}
+            {new Date(factsheet.updated).toLocaleDateString()}
           </div>
         </div>
       </Card>

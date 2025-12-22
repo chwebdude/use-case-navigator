@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
-import { Card, Button, Input, Select } from '../components/ui';
+import { Card, Button, Select } from '../components/ui';
 import { useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
-import type { PropertyDefinition, UseCaseProperty } from '../types';
+import type { PropertyDefinition, FactsheetProperty } from '../types';
 
 export default function PropertiesEditor() {
   const { id } = useParams();
@@ -18,9 +18,9 @@ export default function PropertiesEditor() {
     sort: 'order',
   });
 
-  const { records: existingProperties } = useRealtime<UseCaseProperty>({
-    collection: 'use_case_properties',
-    filter: `use_case = "${id}"`,
+  const { records: existingProperties } = useRealtime<FactsheetProperty>({
+    collection: 'factsheet_properties',
+    filter: `factsheet = "${id}"`,
   });
 
   // Initialize values from existing properties
@@ -50,24 +50,24 @@ export default function PropertiesEditor() {
         if (value && value.trim()) {
           if (existing) {
             // Update existing
-            await pb.collection('use_case_properties').update(existing.id, {
+            await pb.collection('factsheet_properties').update(existing.id, {
               value: value.trim(),
             });
           } else {
             // Create new
-            await pb.collection('use_case_properties').create({
-              use_case: id,
+            await pb.collection('factsheet_properties').create({
+              factsheet: id,
               property: propDef.id,
               value: value.trim(),
             });
           }
         } else if (existing) {
           // Delete if value is empty but record exists
-          await pb.collection('use_case_properties').delete(existing.id);
+          await pb.collection('factsheet_properties').delete(existing.id);
         }
       }
 
-      navigate(`/use-cases/${id}`);
+      navigate(`/factsheets/${id}`);
     } catch (err) {
       console.error('Failed to save properties:', err);
       setError('Failed to save properties');
@@ -77,20 +77,17 @@ export default function PropertiesEditor() {
   };
 
   const getOptionsForProperty = (propDef: PropertyDefinition) => {
-    if (propDef.type === 'enum' && propDef.options) {
-      const opts = Array.isArray(propDef.options) ? propDef.options : [];
-      return [
-        { value: '', label: 'Select...' },
-        ...opts.map((opt: string) => ({ value: opt, label: opt })),
-      ];
-    }
-    return [];
+    const opts = Array.isArray(propDef.options) ? propDef.options : [];
+    return [
+      { value: '', label: 'Select...' },
+      ...opts.map((opt: string) => ({ value: opt, label: opt })),
+    ];
   };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <Link to={`/use-cases/${id}`}>
+        <Link to={`/factsheets/${id}`}>
           <Button variant="ghost" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>
             Back
           </Button>
@@ -115,36 +112,20 @@ export default function PropertiesEditor() {
             )}
 
             {propertyDefinitions.map((propDef) => (
-              <div key={propDef.id}>
-                {propDef.type === 'enum' ? (
-                  <Select
-                    label={propDef.name}
-                    options={getOptionsForProperty(propDef)}
-                    value={values[propDef.id] || ''}
-                    onChange={(e) => handleValueChange(propDef.id, e.target.value)}
-                  />
-                ) : propDef.type === 'number' ? (
-                  <Input
-                    label={propDef.name}
-                    type="number"
-                    value={values[propDef.id] || ''}
-                    onChange={(e) => handleValueChange(propDef.id, e.target.value)}
-                  />
-                ) : (
-                  <Input
-                    label={propDef.name}
-                    value={values[propDef.id] || ''}
-                    onChange={(e) => handleValueChange(propDef.id, e.target.value)}
-                  />
-                )}
-              </div>
+              <Select
+                key={propDef.id}
+                label={propDef.name}
+                options={getOptionsForProperty(propDef)}
+                value={values[propDef.id] || ''}
+                onChange={(e) => handleValueChange(propDef.id, e.target.value)}
+              />
             ))}
 
             <div className="flex gap-3 pt-4">
               <Button type="submit" disabled={saving} icon={<Save className="w-4 h-4" />}>
                 {saving ? 'Saving...' : 'Save Properties'}
               </Button>
-              <Link to={`/use-cases/${id}`}>
+              <Link to={`/factsheets/${id}`}>
                 <Button type="button" variant="secondary">
                   Cancel
                 </Button>

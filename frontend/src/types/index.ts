@@ -1,56 +1,55 @@
 import type { RecordModel } from 'pocketbase';
 
-export interface UseCase extends RecordModel {
+export interface FactsheetType extends RecordModel {
+  name: string;
+  color: string;
+  icon?: string;
+  order?: number;
+}
+
+export interface Factsheet extends RecordModel {
   name: string;
   description: string;
+  type: string;
   status: 'draft' | 'active' | 'archived';
-  owner: string;
 }
 
 export interface Dependency extends RecordModel {
-  use_case: string;
-  type: 'data' | 'knowledge' | 'system';
-  name: string;
-  description: string;
-  depends_on?: string;
+  factsheet: string;
+  depends_on: string;
+  description?: string;
 }
 
 export interface PropertyDefinition extends RecordModel {
   name: string;
-  type: 'enum' | 'number' | 'text';
-  options?: string[];
-  order: number;
+  options: string[];
+  order?: number;
 }
 
-export interface UseCaseProperty extends RecordModel {
-  use_case: string;
+export interface FactsheetProperty extends RecordModel {
+  factsheet: string;
   property: string;
   value: string;
 }
 
-export interface User extends RecordModel {
-  email: string;
-  name: string;
-  avatar?: string;
-}
-
 // Expanded types with relations
-export interface UseCaseExpanded extends UseCase {
+export interface FactsheetExpanded extends Factsheet {
   expand?: {
-    owner?: User;
+    type?: FactsheetType;
   };
 }
 
 export interface DependencyExpanded extends Dependency {
   expand?: {
-    use_case?: UseCase;
-    depends_on?: UseCase;
+    factsheet?: Factsheet;
+    depends_on?: Factsheet;
   };
 }
 
-export interface UseCasePropertyExpanded extends UseCaseProperty {
+export interface FactsheetPropertyExpanded extends FactsheetProperty {
   expand?: {
-    use_case?: UseCase;
+    factsheet?: Factsheet;
     property?: PropertyDefinition;
   };
 }
+

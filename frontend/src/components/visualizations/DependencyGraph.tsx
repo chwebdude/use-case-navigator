@@ -12,44 +12,51 @@ import {
   Position,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { UseCase, Dependency } from '../../types';
+import type { FactsheetExpanded, Dependency } from '../../types';
 
 interface DependencyGraphProps {
-  useCases: UseCase[];
+  factsheets: FactsheetExpanded[];
   dependencies: Dependency[];
-  onNodeClick?: (useCaseId: string) => void;
+  onNodeClick?: (factsheetId: string) => void;
 }
 
-interface UseCaseNodeProps {
+interface FactsheetNodeProps {
   data: {
     label: string;
     status: string;
-    useCaseId: string;
+    typeColor: string;
+    typeName: string;
+    factsheetId: string;
   };
 }
 
-interface DependencyNodeProps {
-  data: {
-    label: string;
-    type: string;
-  };
-}
-
-// Custom node for use cases
-function UseCaseNode({ data }: UseCaseNodeProps) {
+// Custom node for factsheets
+function FactsheetNode({ data }: FactsheetNodeProps) {
   const statusColors: Record<string, string> = {
-    active: 'border-green-500 bg-green-50',
-    draft: 'border-gray-300 bg-gray-50',
-    archived: 'border-amber-500 bg-amber-50',
+    active: 'border-green-500',
+    draft: 'border-gray-300',
+    archived: 'border-amber-500',
   };
 
   return (
     <div
-      className={`px-4 py-3 border-2 shadow-sm min-w-[180px] ${
+      className={`px-4 py-3 border-2 shadow-sm min-w-[180px] bg-white ${
         statusColors[data.status] || statusColors.draft
       }`}
     >
       <Handle type="target" position={Position.Top} className="!bg-accent-500" />
+      <div className="flex items-center gap-2 mb-1">
+        <div
+          className="w-3 h-3"
+          style={{ backgroundColor: data.typeColor }}
+        />
+        <span
+          className="px-1.5 py-0.5 text-xs font-medium text-white"
+          style={{ backgroundColor: data.typeColor }}
+        >
+          {data.typeName}
+        </span>
+      </div>
       <div className="font-medium text-primary-900 text-sm">{data.label}</div>
       <div className="text-xs text-gray-500 mt-1 capitalize">{data.status}</div>
       <Handle type="source" position={Position.Bottom} className="!bg-accent-500" />
@@ -57,35 +64,12 @@ function UseCaseNode({ data }: UseCaseNodeProps) {
   );
 }
 
-// Custom node for dependencies
-function DependencyNode({ data }: DependencyNodeProps) {
-  const typeColors: Record<string, string> = {
-    data: 'border-blue-500 bg-blue-50',
-    knowledge: 'border-purple-500 bg-purple-50',
-    system: 'border-orange-500 bg-orange-50',
-  };
-
-  return (
-    <div
-      className={`px-3 py-2 border shadow-sm min-w-[140px] ${
-        typeColors[data.type] || typeColors.data
-      }`}
-    >
-      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
-      <div className="text-xs font-medium text-gray-700">{data.label}</div>
-      <div className="text-xs text-gray-500 capitalize">{data.type}</div>
-      <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
-    </div>
-  );
-}
-
 const nodeTypes = {
-  useCase: UseCaseNode,
-  dependency: DependencyNode,
+  factsheet: FactsheetNode,
 };
 
 export default function DependencyGraph({
-  useCases,
+  factsheets,
   dependencies,
   onNodeClick,
 }: DependencyGraphProps) {
@@ -93,71 +77,50 @@ export default function DependencyGraph({
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 
-    // Create use case nodes
-    useCases.forEach((uc, index) => {
+    // Create factsheet nodes
+    factsheets.forEach((fs, index) => {
+      const typeColor = fs.expand?.type?.color || '#6b7280';
+      const typeName = fs.expand?.type?.name || 'Unknown';
+
       nodes.push({
-        id: `uc-${uc.id}`,
-        type: 'useCase',
-        position: { x: 250 * (index % 4), y: Math.floor(index / 4) * 200 },
+        id: `fs-${fs.id}`,
+        type: 'factsheet',
+        position: { x: 250 * (index % 4), y: Math.floor(index / 4) * 180 },
         data: {
-          label: uc.name,
-          status: uc.status,
-          useCaseId: uc.id,
+          label: fs.name,
+          status: fs.status,
+          typeColor,
+          typeName,
+          factsheetId: fs.id,
         },
       });
     });
 
-    // Create dependency nodes and edges
-    dependencies.forEach((dep, index) => {
-      const depNodeId = `dep-${dep.id}`;
-
-      // Position dependencies below their parent use case
-      const parentIndex = useCases.findIndex((uc) => uc.id === dep.use_case);
-      nodes.push({
-        id: depNodeId,
-        type: 'dependency',
-        position: {
-          x: 250 * (parentIndex % 4) + 50,
-          y: Math.floor(parentIndex / 4) * 200 + 120 + (index * 60),
-        },
-        data: {
-          label: dep.name,
-          type: dep.type,
-        },
-      });
-
-      // Edge from use case to dependency
+    // Create edges for dependencies
+    dependencies.forEach((dep) => {
       edges.push({
-        id: `e-${dep.use_case}-${dep.id}`,
-        source: `uc-${dep.use_case}`,
-        target: depNodeId,
+        id: `e-${dep.id}`,
+        source: `fs-${dep.factsheet}`,
+        target: `fs-${dep.depends_on}`,
         markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: '#00aeef' },
+        style: { stroke: '#00aeef', strokeWidth: 2 },
+        label: dep.description || '',
+        labelStyle: { fontSize: 10, fill: '#6b7280' },
+        labelBgStyle: { fill: 'white', fillOpacity: 0.8 },
       });
-
-      // Edge to dependent use case if exists
-      if (dep.depends_on) {
-        edges.push({
-          id: `e-${dep.id}-${dep.depends_on}`,
-          source: depNodeId,
-          target: `uc-${dep.depends_on}`,
-          markerEnd: { type: MarkerType.ArrowClosed },
-          style: { stroke: '#6366f1', strokeDasharray: '5,5' },
-        });
-      }
     });
 
     return { nodes, edges };
-  }, [useCases, dependencies]);
+  }, [factsheets, dependencies]);
 
   const [nodes, , onNodesChange] = useNodesState(initialNodes);
   const [edges, , onEdgesChange] = useEdgesState(initialEdges);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
-      if (node.type === 'useCase' && onNodeClick) {
-        const useCaseId = (node.data as { useCaseId: string }).useCaseId;
-        onNodeClick(useCaseId);
+      if (node.type === 'factsheet' && onNodeClick) {
+        const factsheetId = (node.data as { factsheetId: string }).factsheetId;
+        onNodeClick(factsheetId);
       }
     },
     [onNodeClick]

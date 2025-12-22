@@ -1,7 +1,7 @@
 export { default as Dashboard } from './Dashboard';
-export { default as UseCaseList } from './UseCaseList';
-export { default as UseCaseDetail } from './UseCaseDetail';
-export { default as UseCaseForm } from './UseCaseForm';
+export { default as FactsheetList } from './FactsheetList';
+export { default as FactsheetDetail } from './FactsheetDetail';
+export { default as FactsheetForm } from './FactsheetForm';
 export { default as DependencyForm } from './DependencyForm';
 export { default as PropertiesEditor } from './PropertiesEditor';
 export { default as DependenciesPage } from './DependenciesPage';

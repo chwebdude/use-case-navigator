@@ -1,17 +1,11 @@
 import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { Card, Button, Input, Select } from '../components/ui';
+import { Card, Button, Select } from '../components/ui';
 import { Textarea } from '../components/ui/Input';
 import { useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
-import type { UseCase } from '../types';
-
-const typeOptions = [
-  { value: 'data', label: 'Data' },
-  { value: 'knowledge', label: 'Knowledge' },
-  { value: 'system', label: 'System' },
-];
+import type { FactsheetExpanded } from '../types';
 
 export default function DependencyForm() {
   const { id } = useParams();
@@ -19,26 +13,28 @@ export default function DependencyForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const [name, setName] = useState('');
-  const [type, setType] = useState('data');
-  const [description, setDescription] = useState('');
   const [dependsOn, setDependsOn] = useState('');
+  const [description, setDescription] = useState('');
 
-  const { records: useCases } = useRealtime<UseCase>({
-    collection: 'use_cases',
+  const { records: factsheets } = useRealtime<FactsheetExpanded>({
+    collection: 'factsheets',
+    expand: 'type',
   });
 
-  const useCaseOptions = [
-    { value: '', label: 'None' },
-    ...useCases
-      .filter((uc) => uc.id !== id)
-      .map((uc) => ({ value: uc.id, label: uc.name })),
+  const factsheetOptions = [
+    { value: '', label: 'Select a factsheet...' },
+    ...factsheets
+      .filter((fs) => fs.id !== id)
+      .map((fs) => ({
+        value: fs.id,
+        label: `${fs.name} (${fs.expand?.type?.name || 'Unknown'})`,
+      })),
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setError('Name is required');
+    if (!dependsOn) {
+      setError('Please select a factsheet to depend on');
       return;
     }
 
@@ -47,13 +43,11 @@ export default function DependencyForm() {
 
     try {
       await pb.collection('dependencies').create({
-        use_case: id,
-        name: name.trim(),
-        type,
+        factsheet: id,
+        depends_on: dependsOn,
         description: description.trim() || null,
-        depends_on: dependsOn || null,
       });
-      navigate(`/use-cases/${id}`);
+      navigate(`/factsheets/${id}`);
     } catch (err) {
       console.error('Failed to create dependency:', err);
       setError('Failed to create dependency');
@@ -65,7 +59,7 @@ export default function DependencyForm() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <Link to={`/use-cases/${id}`}>
+        <Link to={`/factsheets/${id}`}>
           <Button variant="ghost" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>
             Back
           </Button>
@@ -81,42 +75,27 @@ export default function DependencyForm() {
             </div>
           )}
 
-          <Input
-            label="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g., Customer Database"
-            required
-          />
-
           <Select
-            label="Type"
-            options={typeOptions}
-            value={type}
-            onChange={(e) => setType(e.target.value)}
+            label="Depends On"
+            options={factsheetOptions}
+            value={dependsOn}
+            onChange={(e) => setDependsOn(e.target.value)}
+            hint="Select the factsheet this one depends on"
           />
 
           <Textarea
-            label="Description"
+            label="Description (optional)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe the dependency..."
+            placeholder="Describe the dependency relationship..."
             rows={3}
-          />
-
-          <Select
-            label="Depends On (Use Case)"
-            options={useCaseOptions}
-            value={dependsOn}
-            onChange={(e) => setDependsOn(e.target.value)}
-            hint="Optional: Link this dependency to another use case"
           />
 
           <div className="flex gap-3 pt-4">
             <Button type="submit" disabled={saving}>
               {saving ? 'Creating...' : 'Create Dependency'}
             </Button>
-            <Link to={`/use-cases/${id}`}>
+            <Link to={`/factsheets/${id}`}>
               <Button type="button" variant="secondary">
                 Cancel
               </Button>
