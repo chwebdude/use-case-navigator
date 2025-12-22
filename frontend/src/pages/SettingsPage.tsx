@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Pencil, Check, X } from 'lucide-react';
 import { Card, CardTitle, Button, Input } from '../components/ui';
 import { useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
@@ -25,6 +25,8 @@ export default function SettingsPage() {
 
   const [newType, setNewType] = useState({ name: '', color: defaultColors[0] });
   const [savingType, setSavingType] = useState(false);
+  const [editingType, setEditingType] = useState<string | null>(null);
+  const [editTypeData, setEditTypeData] = useState({ name: '', color: '' });
 
   const handleAddType = async () => {
     if (!newType.name) return;
@@ -43,6 +45,30 @@ export default function SettingsPage() {
     } finally {
       setSavingType(false);
     }
+  };
+
+  const handleEditType = (type: FactsheetType) => {
+    setEditingType(type.id);
+    setEditTypeData({ name: type.name, color: type.color });
+  };
+
+  const handleSaveType = async () => {
+    if (!editingType || !editTypeData.name) return;
+
+    try {
+      await pb.collection('factsheet_types').update(editingType, {
+        name: editTypeData.name,
+        color: editTypeData.color,
+      });
+      setEditingType(null);
+      refreshTypes();
+    } catch (err) {
+      console.error('Failed to update factsheet type:', err);
+    }
+  };
+
+  const handleCancelEditType = () => {
+    setEditingType(null);
   };
 
   const handleDeleteType = async (id: string) => {
@@ -64,6 +90,8 @@ export default function SettingsPage() {
 
   const [newProp, setNewProp] = useState({ name: '', options: '' });
   const [savingProp, setSavingProp] = useState(false);
+  const [editingProp, setEditingProp] = useState<string | null>(null);
+  const [editPropData, setEditPropData] = useState({ name: '', options: '' });
 
   const handleAddProperty = async () => {
     if (!newProp.name || !newProp.options) return;
@@ -88,6 +116,39 @@ export default function SettingsPage() {
     } finally {
       setSavingProp(false);
     }
+  };
+
+  const handleEditProperty = (prop: PropertyDefinition) => {
+    setEditingProp(prop.id);
+    setEditPropData({
+      name: prop.name,
+      options: Array.isArray(prop.options) ? prop.options.join(', ') : '',
+    });
+  };
+
+  const handleSaveProperty = async () => {
+    if (!editingProp || !editPropData.name || !editPropData.options) return;
+
+    const options = editPropData.options.split(',').map((o) => o.trim()).filter(Boolean);
+    if (options.length === 0) {
+      alert('Please add at least one option');
+      return;
+    }
+
+    try {
+      await pb.collection('property_definitions').update(editingProp, {
+        name: editPropData.name,
+        options,
+      });
+      setEditingProp(null);
+      refreshProps();
+    } catch (err) {
+      console.error('Failed to update property:', err);
+    }
+  };
+
+  const handleCancelEditProperty = () => {
+    setEditingProp(null);
   };
 
   const handleDeleteProperty = async (id: string) => {
@@ -124,21 +185,71 @@ export default function SettingsPage() {
               className="flex items-center gap-3 p-3 bg-gray-50"
             >
               <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
-              <div
-                className="w-6 h-6 border border-gray-300"
-                style={{ backgroundColor: type.color }}
-              />
-              <div className="flex-1">
-                <div className="font-medium text-primary-900">{type.name}</div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDeleteType(type.id)}
-                className="text-gray-400 hover:text-red-500"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {editingType === type.id ? (
+                <>
+                  <div className="flex gap-2">
+                    {defaultColors.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setEditTypeData({ ...editTypeData, color })}
+                        className={`w-6 h-6 border-2 ${
+                          editTypeData.color === color ? 'border-primary-900' : 'border-transparent'
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={editTypeData.name}
+                    onChange={(e) => setEditTypeData({ ...editTypeData, name: e.target.value })}
+                    className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSaveType}
+                    className="text-green-600 hover:text-green-700"
+                  >
+                    <Check className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancelEditType}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div
+                    className="w-6 h-6 border border-gray-300"
+                    style={{ backgroundColor: type.color }}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium text-primary-900">{type.name}</div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditType(type)}
+                    className="text-gray-400 hover:text-accent-500"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteType(type.id)}
+                    className="text-gray-400 hover:text-red-500"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
           ))}
 
@@ -203,23 +314,75 @@ export default function SettingsPage() {
           {propertyDefinitions.map((prop) => (
             <div
               key={prop.id}
-              className="flex items-center gap-3 p-3 bg-gray-50"
+              className="p-3 bg-gray-50"
             >
-              <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
-              <div className="flex-1">
-                <div className="font-medium text-primary-900">{prop.name}</div>
-                <div className="text-sm text-gray-500">
-                  {Array.isArray(prop.options) ? prop.options.join(', ') : ''}
+              {editingProp === prop.id ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
+                    <input
+                      type="text"
+                      value={editPropData.name}
+                      onChange={(e) => setEditPropData({ ...editPropData, name: e.target.value })}
+                      placeholder="Property name"
+                      className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                    />
+                  </div>
+                  <div className="ml-7">
+                    <input
+                      type="text"
+                      value={editPropData.options}
+                      onChange={(e) => setEditPropData({ ...editPropData, options: e.target.value })}
+                      placeholder="Options (comma-separated)"
+                      className="w-full px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Separate options with commas (e.g., Low, Medium, High)</p>
+                  </div>
+                  <div className="ml-7 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleSaveProperty}
+                      disabled={!editPropData.name || !editPropData.options}
+                      icon={<Check className="w-4 h-4" />}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleCancelEditProperty}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDeleteProperty(prop.id)}
-                className="text-gray-400 hover:text-red-500"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
+                  <div className="flex-1">
+                    <div className="font-medium text-primary-900">{prop.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {Array.isArray(prop.options) ? prop.options.join(', ') : ''}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditProperty(prop)}
+                    className="text-gray-400 hover:text-accent-500"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteProperty(prop.id)}
+                    className="text-gray-400 hover:text-red-500"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
 
