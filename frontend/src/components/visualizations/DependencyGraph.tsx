@@ -28,9 +28,11 @@ interface DependencyGraphProps {
   dependencies: Dependency[];
   onNodeClick?: (factsheetId: string) => void;
   onConnect?: (connection: ConnectionRequest) => void;
+  onEdgeClick?: (dependencyId: string) => void;
   displayProperties?: string[];
   propertyDefinitions?: PropertyDefinition[];
   factsheetPropertyValues?: Map<string, Map<string, string>>;
+  showComments?: boolean;
 }
 
 interface PropertyDisplay {
@@ -164,9 +166,11 @@ export default function DependencyGraph({
   dependencies,
   onNodeClick,
   onConnect,
+  onEdgeClick,
   displayProperties = [],
   propertyDefinitions = [],
   factsheetPropertyValues,
+  showComments = true,
 }: DependencyGraphProps) {
   // Build property name lookup
   const propertyNameMap = useMemo(() => {
@@ -227,17 +231,18 @@ export default function DependencyGraph({
           source: `fs-${dep.factsheet}`,
           target: `fs-${dep.depends_on}`,
           markerEnd: { type: MarkerType.ArrowClosed },
-          style: { stroke: '#00aeef', strokeWidth: 2 },
-          label: dep.description || '',
-          labelStyle: { fontSize: 10, fill: '#6b7280' },
-          labelBgStyle: { fill: 'white', fillOpacity: 0.8 },
+          style: { stroke: '#00aeef', strokeWidth: 2, cursor: 'pointer' },
+          label: showComments ? (dep.description || '') : '',
+          labelStyle: { fontSize: 10, fill: '#6b7280', cursor: 'pointer' },
+          labelBgStyle: { fill: 'white', fillOpacity: 0.8, cursor: 'pointer' },
+          data: { dependencyId: dep.id },
         });
       }
     });
 
     // Apply dagre layout
     return getLayoutedElements(nodes, edges);
-  }, [factsheets, dependencies, displayProperties, factsheetPropertyValues, propertyNameMap]);
+  }, [factsheets, dependencies, displayProperties, factsheetPropertyValues, propertyNameMap, showComments]);
 
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
@@ -292,6 +297,17 @@ export default function DependencyGraph({
     [onConnect, dependencies, factsheets]
   );
 
+  const handleEdgeClick = useCallback(
+    (_: React.MouseEvent, edge: Edge) => {
+      if (onEdgeClick) {
+        // Extract dependency ID from edge id (remove 'e-' prefix)
+        const dependencyId = edge.id.replace('e-', '');
+        onEdgeClick(dependencyId);
+      }
+    },
+    [onEdgeClick]
+  );
+
   return (
     <div className="w-full h-[600px] bg-gray-50 border border-gray-200">
       <ReactFlow
@@ -300,6 +316,7 @@ export default function DependencyGraph({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
         onConnect={handleConnect}
         nodeTypes={nodeTypes}
         fitView

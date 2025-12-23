@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, Eye, ChevronDown, Check } from 'lucide-react';
+import { LayoutGrid, Eye, ChevronDown, Check, MessageSquare } from 'lucide-react';
 import { Card, CardTitle, Select, Button, Modal } from '../components/ui';
 import { Textarea } from '../components/ui/Input';
 import { DependencyGraph, type ConnectionRequest } from '../components/visualizations';
@@ -22,11 +22,16 @@ export default function DependenciesPage() {
   const [propertyFilters, setPropertyFilters] = useState<Record<string, string>>({});
   const [layoutKey, setLayoutKey] = useState(0);
   const [displayProperties, setDisplayProperties] = useState<string[]>([]);
+  const [showComments, setShowComments] = useState(true);
 
-  // Connection modal state
+  // Connection modal state (for creating new dependencies)
   const [connectionModal, setConnectionModal] = useState<ConnectionRequest | null>(null);
   const [connectionDescription, setConnectionDescription] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Edit modal state (for editing existing dependencies)
+  const [editingDependency, setEditingDependency] = useState<Dependency | null>(null);
+  const [editDescription, setEditDescription] = useState('');
 
   const { records: factsheets, loading: loadingFactsheets } = useRealtime<FactsheetExpanded>({
     collection: 'factsheets',
@@ -149,6 +154,47 @@ export default function DependenciesPage() {
 
   const handleAutoAlign = () => {
     setLayoutKey((k) => k + 1);
+  };
+
+  const handleEdgeClick = (dependencyId: string) => {
+    const dep = dependencies.find((d) => d.id === dependencyId);
+    if (dep) {
+      setEditingDependency(dep);
+      setEditDescription(dep.description || '');
+    }
+  };
+
+  const handleUpdateDependency = async () => {
+    if (!editingDependency) return;
+
+    setSaving(true);
+    try {
+      await pb.collection('dependencies').update(editingDependency.id, {
+        description: editDescription.trim() || null,
+      });
+      setEditingDependency(null);
+      setEditDescription('');
+    } catch (err) {
+      console.error('Failed to update dependency:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteDependency = async () => {
+    if (!editingDependency) return;
+    if (!confirm('Are you sure you want to delete this dependency?')) return;
+
+    setSaving(true);
+    try {
+      await pb.collection('dependencies').delete(editingDependency.id);
+      setEditingDependency(null);
+      setEditDescription('');
+    } catch (err) {
+      console.error('Failed to delete dependency:', err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const clearAllFilters = () => {
@@ -319,6 +365,16 @@ export default function DependenciesPage() {
             )}
 
             <Button
+              variant={showComments ? 'secondary' : 'ghost'}
+              size="sm"
+              icon={<MessageSquare className="w-4 h-4" />}
+              onClick={() => setShowComments(!showComments)}
+              title={showComments ? 'Hide edge comments' : 'Show edge comments'}
+            >
+              Comments
+            </Button>
+
+            <Button
               variant="secondary"
               size="sm"
               icon={<LayoutGrid className="w-4 h-4" />}
@@ -399,9 +455,11 @@ export default function DependenciesPage() {
           dependencies={filteredDependencies}
           onNodeClick={handleNodeClick}
           onConnect={handleConnect}
+          onEdgeClick={handleEdgeClick}
           displayProperties={displayProperties}
           propertyDefinitions={propertyDefinitions}
           factsheetPropertyValues={factsheetPropertyValues}
+          showComments={showComments}
         />
       )}
 
@@ -447,6 +505,62 @@ export default function DependenciesPage() {
                 onClick={() => setConnectionModal(null)}
               >
                 Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit Dependency Modal */}
+      <Modal
+        isOpen={editingDependency !== null}
+        onClose={() => setEditingDependency(null)}
+        title="Edit Dependency"
+      >
+        {editingDependency && (
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              <p className="mb-2">Dependency:</p>
+              <div className="bg-gray-50 p-3 space-y-2">
+                <div>
+                  <span className="font-medium text-primary-900">
+                    {factsheets.find((f) => f.id === editingDependency.factsheet)?.name || 'Unknown'}
+                  </span>
+                </div>
+                <div className="text-center text-gray-400">depends on</div>
+                <div>
+                  <span className="font-medium text-primary-900">
+                    {factsheets.find((f) => f.id === editingDependency.depends_on)?.name || 'Unknown'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <Textarea
+              label="Description (optional)"
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              placeholder="Describe the dependency relationship..."
+              rows={3}
+            />
+
+            <div className="flex gap-3 pt-2">
+              <Button onClick={handleUpdateDependency} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setEditingDependency(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={handleDeleteDependency}
+                disabled={saving}
+                className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Delete
               </Button>
             </div>
           </div>
