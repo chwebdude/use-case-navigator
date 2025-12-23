@@ -14,7 +14,7 @@ import {
 } from '@xyflow/react';
 import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
-import type { FactsheetExpanded, Dependency } from '../../types';
+import type { FactsheetExpanded, Dependency, PropertyDefinition } from '../../types';
 
 export interface ConnectionRequest {
   sourceId: string;
@@ -28,6 +28,14 @@ interface DependencyGraphProps {
   dependencies: Dependency[];
   onNodeClick?: (factsheetId: string) => void;
   onConnect?: (connection: ConnectionRequest) => void;
+  displayProperties?: string[];
+  propertyDefinitions?: PropertyDefinition[];
+  factsheetPropertyValues?: Map<string, Map<string, string>>;
+}
+
+interface PropertyDisplay {
+  name: string;
+  value: string;
 }
 
 interface FactsheetNodeProps {
@@ -37,11 +45,23 @@ interface FactsheetNodeProps {
     typeColor: string;
     typeName: string;
     factsheetId: string;
+    properties?: PropertyDisplay[];
   };
 }
 
 const NODE_WIDTH = 200;
-const NODE_HEIGHT = 80;
+const NODE_BASE_HEIGHT = 80;
+const PROPERTY_LINE_HEIGHT = 20;
+
+// Calculate node height based on number of properties
+function getNodeHeight(node: Node): number {
+  const properties = (node.data as { properties?: PropertyDisplay[] }).properties;
+  if (!properties || properties.length === 0) {
+    return NODE_BASE_HEIGHT;
+  }
+  // Add extra height for property section: border + padding + each property line
+  return NODE_BASE_HEIGHT + 16 + properties.length * PROPERTY_LINE_HEIGHT;
+}
 
 // Auto-layout using dagre
 function getLayoutedElements(nodes: Node[], edges: Edge[]) {
@@ -59,9 +79,10 @@ function getLayoutedElements(nodes: Node[], edges: Edge[]) {
     marginy: 50,
   });
 
-  // Add nodes to dagre
+  // Add nodes to dagre with dynamic heights
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+    const height = getNodeHeight(node);
+    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height });
   });
 
   // Add edges to dagre
@@ -75,11 +96,12 @@ function getLayoutedElements(nodes: Node[], edges: Edge[]) {
   // Apply positions to nodes
   const layoutedNodes = nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
+    const height = getNodeHeight(node);
     return {
       ...node,
       position: {
         x: nodeWithPosition.x - NODE_WIDTH / 2,
-        y: nodeWithPosition.y - NODE_HEIGHT / 2,
+        y: nodeWithPosition.y - height / 2,
       },
     };
   });
@@ -94,6 +116,8 @@ function FactsheetNode({ data }: FactsheetNodeProps) {
     draft: 'border-gray-300',
     archived: 'border-amber-500',
   };
+
+  const hasProperties = data.properties && data.properties.length > 0;
 
   return (
     <div
@@ -116,6 +140,16 @@ function FactsheetNode({ data }: FactsheetNodeProps) {
       </div>
       <div className="font-medium text-primary-900 text-sm">{data.label}</div>
       <div className="text-xs text-gray-500 mt-1 capitalize">{data.status}</div>
+      {hasProperties && (
+        <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+          {data.properties!.map((prop, idx) => (
+            <div key={idx} className="flex justify-between text-xs">
+              <span className="text-gray-500">{prop.name}:</span>
+              <span className="font-medium text-primary-900">{prop.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <Handle type="source" position={Position.Bottom} className="!bg-accent-500 !w-3 !h-3" />
     </div>
   );
@@ -130,7 +164,17 @@ export default function DependencyGraph({
   dependencies,
   onNodeClick,
   onConnect,
+  displayProperties = [],
+  propertyDefinitions = [],
+  factsheetPropertyValues,
 }: DependencyGraphProps) {
+  // Build property name lookup
+  const propertyNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    propertyDefinitions.forEach((pd) => map.set(pd.id, pd.name));
+    return map;
+  }, [propertyDefinitions]);
+
   // Compute nodes and edges from props
   const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
     const nodes: Node[] = [];
@@ -140,6 +184,21 @@ export default function DependencyGraph({
     factsheets.forEach((fs) => {
       const typeColor = fs.expand?.type?.color || '#6b7280';
       const typeName = fs.expand?.type?.name || 'Unknown';
+
+      // Get properties to display for this factsheet
+      const properties: PropertyDisplay[] = [];
+      if (displayProperties.length > 0 && factsheetPropertyValues) {
+        const fsProps = factsheetPropertyValues.get(fs.id);
+        if (fsProps) {
+          displayProperties.forEach((propId) => {
+            const value = fsProps.get(propId);
+            const name = propertyNameMap.get(propId);
+            if (value && name) {
+              properties.push({ name, value });
+            }
+          });
+        }
+      }
 
       nodes.push({
         id: `fs-${fs.id}`,
@@ -151,6 +210,7 @@ export default function DependencyGraph({
           typeColor,
           typeName,
           factsheetId: fs.id,
+          properties,
         },
       });
     });
@@ -177,7 +237,7 @@ export default function DependencyGraph({
 
     // Apply dagre layout
     return getLayoutedElements(nodes, edges);
-  }, [factsheets, dependencies]);
+  }, [factsheets, dependencies, displayProperties, factsheetPropertyValues, propertyNameMap]);
 
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
