@@ -144,7 +144,7 @@ migrate((app) => {
   });
   app.save(dependencies);
 
-  // property_definitions collection - enum only
+  // property_definitions collection
   const propertyDefinitions = new Collection({
     name: "property_definitions",
     type: "base",
@@ -157,11 +157,6 @@ migrate((app) => {
       {
         name: "name",
         type: "text",
-        required: true,
-      },
-      {
-        name: "options",
-        type: "json",
         required: true,
       },
       {
@@ -185,7 +180,51 @@ migrate((app) => {
   });
   app.save(propertyDefinitions);
 
-  // factsheet_properties collection
+  // property_options collection - stores individual options for each property
+  const propertyOptions = new Collection({
+    name: "property_options",
+    type: "base",
+    listRule: "",
+    viewRule: "",
+    createRule: "",
+    updateRule: "",
+    deleteRule: "",
+    fields: [
+      {
+        name: "property",
+        type: "relation",
+        required: true,
+        collectionId: propertyDefinitions.id,
+        cascadeDelete: true,
+        maxSelect: 1,
+      },
+      {
+        name: "value",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "order",
+        type: "number",
+        required: false,
+      },
+      {
+        name: "created",
+        type: "autodate",
+        onCreate: true,
+        onUpdate: false,
+      },
+      {
+        name: "updated",
+        type: "autodate",
+        onCreate: true,
+        onUpdate: true,
+      },
+    ],
+  });
+  app.save(propertyOptions);
+
+  // factsheet_properties collection - links factsheets to property options
   const factsheetProperties = new Collection({
     name: "factsheet_properties",
     type: "base",
@@ -212,9 +251,12 @@ migrate((app) => {
         maxSelect: 1,
       },
       {
-        name: "value",
-        type: "text",
+        name: "option",
+        type: "relation",
         required: true,
+        collectionId: propertyOptions.id,
+        cascadeDelete: false,
+        maxSelect: 1,
       },
       {
         name: "created",
@@ -235,6 +277,7 @@ migrate((app) => {
   // Rollback
   const collections = [
     "factsheet_properties",
+    "property_options",
     "property_definitions",
     "dependencies",
     "factsheets",

@@ -22,7 +22,7 @@ export default function MatrixPage() {
 
   const { records: properties, loading: loadingProps } = useRealtime<FactsheetPropertyExpanded>({
     collection: 'factsheet_properties',
-    expand: 'property',
+    expand: 'property,option',
   });
 
   const handleFactsheetClick = (factsheetId: string) => {

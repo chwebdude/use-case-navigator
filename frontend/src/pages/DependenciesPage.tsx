@@ -6,7 +6,7 @@ import { Textarea } from '../components/ui/Input';
 import { DependencyGraph, type ConnectionRequest } from '../components/visualizations';
 import { useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
-import type { FactsheetExpanded, Dependency, FactsheetType, PropertyDefinition, FactsheetPropertyExpanded } from '../types';
+import type { FactsheetExpanded, Dependency, FactsheetType, PropertyDefinition, PropertyOption, FactsheetPropertyExpanded } from '../types';
 
 const statusOptions = [
   { value: '', label: 'All Statuses' },
@@ -46,9 +46,14 @@ export default function DependenciesPage() {
     sort: 'order',
   });
 
+  const { records: propertyOptions } = useRealtime<PropertyOption>({
+    collection: 'property_options',
+    sort: 'order',
+  });
+
   const { records: factsheetProperties } = useRealtime<FactsheetPropertyExpanded>({
     collection: 'factsheet_properties',
-    expand: 'property',
+    expand: 'property,option',
   });
 
   const typeOptions = [
@@ -56,14 +61,34 @@ export default function DependenciesPage() {
     ...factsheetTypes.map((t) => ({ value: t.id, label: t.name })),
   ];
 
-  // Build property lookup: factsheetId -> { propertyId -> value }
+  // Group options by property for filter dropdowns
+  const optionsByProperty = useMemo(() => {
+    const map = new Map<string, PropertyOption[]>();
+    propertyOptions.forEach((opt) => {
+      if (!map.has(opt.property)) {
+        map.set(opt.property, []);
+      }
+      map.get(opt.property)!.push(opt);
+    });
+    // Sort options within each property by order
+    map.forEach((opts) => {
+      opts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    });
+    return map;
+  }, [propertyOptions]);
+
+  // Build property lookup: factsheetId -> { propertyId -> optionValue }
   const propertyLookup = useMemo(() => {
     const lookup = new Map<string, Map<string, string>>();
     factsheetProperties.forEach((fp) => {
       if (!lookup.has(fp.factsheet)) {
         lookup.set(fp.factsheet, new Map());
       }
-      lookup.get(fp.factsheet)!.set(fp.property, fp.value);
+      // Use the expanded option value
+      const optionValue = fp.expand?.option?.value || '';
+      if (optionValue) {
+        lookup.get(fp.factsheet)!.set(fp.property, optionValue);
+      }
     });
     return lookup;
   }, [factsheetProperties]);
@@ -165,24 +190,27 @@ export default function DependenciesPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
             />
           </div>
-          {propertyDefinitions.map((prop) => (
-            <div key={prop.id} className="w-40">
-              <Select
-                label={prop.name}
-                options={[
-                  { value: '', label: `All ${prop.name}` },
-                  ...prop.options.map((opt) => ({ value: opt, label: opt })),
-                ]}
-                value={propertyFilters[prop.id] || ''}
-                onChange={(e) =>
-                  setPropertyFilters((prev) => ({
-                    ...prev,
-                    [prop.id]: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          ))}
+          {propertyDefinitions.map((prop) => {
+            const opts = optionsByProperty.get(prop.id) || [];
+            return (
+              <div key={prop.id} className="w-40">
+                <Select
+                  label={prop.name}
+                  options={[
+                    { value: '', label: `All ${prop.name}` },
+                    ...opts.map((opt) => ({ value: opt.value, label: opt.value })),
+                  ]}
+                  value={propertyFilters[prop.id] || ''}
+                  onChange={(e) =>
+                    setPropertyFilters((prev) => ({
+                      ...prev,
+                      [prop.id]: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            );
+          })}
           {hasFilters && (
             <Button
               variant="ghost"
