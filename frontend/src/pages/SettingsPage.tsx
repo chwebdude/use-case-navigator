@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Trash2, GripVertical, Pencil, Check, X } from 'lucide-react';
 import { Card, CardTitle, Button, Input } from '../components/ui';
 import { useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
-import type { FactsheetType, PropertyDefinition } from '../types';
+import type { FactsheetType, PropertyDefinition, PropertyOption } from '../types';
 
 const defaultColors = [
   '#00aeef', // E+H Cerulean
@@ -88,29 +88,66 @@ export default function SettingsPage() {
     sort: 'order',
   });
 
+  // Property Options
+  const { records: propertyOptions, refresh: refreshOptions } = useRealtime<PropertyOption>({
+    collection: 'property_options',
+    sort: 'order',
+  });
+
+  // Group options by property
+  const optionsByProperty = useMemo(() => {
+    const map = new Map<string, PropertyOption[]>();
+    propertyOptions.forEach((opt) => {
+      if (!map.has(opt.property)) {
+        map.set(opt.property, []);
+      }
+      map.get(opt.property)!.push(opt);
+    });
+    // Sort options within each property by order
+    map.forEach((opts) => {
+      opts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    });
+    return map;
+  }, [propertyOptions]);
+
   const [newProp, setNewProp] = useState({ name: '', options: '' });
   const [savingProp, setSavingProp] = useState(false);
-  const [editingProp, setEditingProp] = useState<string | null>(null);
-  const [editPropData, setEditPropData] = useState({ name: '', options: '' });
+  const [editingPropName, setEditingPropName] = useState<string | null>(null);
+  const [editPropNameValue, setEditPropNameValue] = useState('');
+  const [editingOption, setEditingOption] = useState<string | null>(null);
+  const [editOptionValue, setEditOptionValue] = useState('');
+  const [newOptionForProp, setNewOptionForProp] = useState<string | null>(null);
+  const [newOptionValue, setNewOptionValue] = useState('');
 
   const handleAddProperty = async () => {
     if (!newProp.name || !newProp.options) return;
 
     setSavingProp(true);
     try {
-      const options = newProp.options.split(',').map((o) => o.trim()).filter(Boolean);
-      if (options.length === 0) {
+      const optionValues = newProp.options.split(',').map((o) => o.trim()).filter(Boolean);
+      if (optionValues.length === 0) {
         alert('Please add at least one option');
         return;
       }
 
-      await pb.collection('property_definitions').create({
+      // Create the property definition first
+      const prop = await pb.collection('property_definitions').create({
         name: newProp.name,
-        options,
         order: propertyDefinitions.length,
       });
+
+      // Create options for this property
+      for (let i = 0; i < optionValues.length; i++) {
+        await pb.collection('property_options').create({
+          property: prop.id,
+          value: optionValues[i],
+          order: i,
+        });
+      }
+
       setNewProp({ name: '', options: '' });
       refreshProps();
+      refreshOptions();
     } catch (err) {
       console.error('Failed to add property:', err);
     } finally {
@@ -118,48 +155,113 @@ export default function SettingsPage() {
     }
   };
 
-  const handleEditProperty = (prop: PropertyDefinition) => {
-    setEditingProp(prop.id);
-    setEditPropData({
-      name: prop.name,
-      options: Array.isArray(prop.options) ? prop.options.join(', ') : '',
-    });
+  const handleEditPropertyName = (prop: PropertyDefinition) => {
+    setEditingPropName(prop.id);
+    setEditPropNameValue(prop.name);
   };
 
-  const handleSaveProperty = async () => {
-    if (!editingProp || !editPropData.name || !editPropData.options) return;
+  const handleSavePropertyName = async () => {
+    if (!editingPropName || !editPropNameValue.trim()) return;
 
-    const options = editPropData.options.split(',').map((o) => o.trim()).filter(Boolean);
-    if (options.length === 0) {
-      alert('Please add at least one option');
+    try {
+      await pb.collection('property_definitions').update(editingPropName, {
+        name: editPropNameValue.trim(),
+      });
+      setEditingPropName(null);
+      refreshProps();
+    } catch (err) {
+      console.error('Failed to update property name:', err);
+    }
+  };
+
+  const handleCancelEditPropertyName = () => {
+    setEditingPropName(null);
+  };
+
+  const handleDeleteProperty = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this property and all its options?')) return;
+
+    try {
+      // Delete all options for this property first
+      const options = optionsByProperty.get(id) || [];
+      for (const opt of options) {
+        await pb.collection('property_options').delete(opt.id);
+      }
+      // Then delete the property
+      await pb.collection('property_definitions').delete(id);
+      refreshProps();
+      refreshOptions();
+    } catch (err) {
+      console.error('Failed to delete property:', err);
+    }
+  };
+
+  // Option editing
+  const handleEditOption = (opt: PropertyOption) => {
+    setEditingOption(opt.id);
+    setEditOptionValue(opt.value);
+  };
+
+  const handleSaveOption = async () => {
+    if (!editingOption || !editOptionValue.trim()) return;
+
+    try {
+      await pb.collection('property_options').update(editingOption, {
+        value: editOptionValue.trim(),
+      });
+      setEditingOption(null);
+      refreshOptions();
+    } catch (err) {
+      console.error('Failed to update option:', err);
+    }
+  };
+
+  const handleCancelEditOption = () => {
+    setEditingOption(null);
+  };
+
+  const handleDeleteOption = async (optionId: string, propertyId: string) => {
+    const options = optionsByProperty.get(propertyId) || [];
+    if (options.length <= 1) {
+      alert('Cannot delete the last option. Delete the property instead.');
       return;
     }
 
     try {
-      await pb.collection('property_definitions').update(editingProp, {
-        name: editPropData.name,
-        options,
-      });
-      setEditingProp(null);
-      refreshProps();
+      await pb.collection('property_options').delete(optionId);
+      refreshOptions();
     } catch (err) {
-      console.error('Failed to update property:', err);
+      console.error('Failed to delete option:', err);
     }
   };
 
-  const handleCancelEditProperty = () => {
-    setEditingProp(null);
+  // Add new option to existing property
+  const handleStartAddOption = (propId: string) => {
+    setNewOptionForProp(propId);
+    setNewOptionValue('');
   };
 
-  const handleDeleteProperty = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this property?')) return;
+  const handleAddOption = async () => {
+    if (!newOptionForProp || !newOptionValue.trim()) return;
 
     try {
-      await pb.collection('property_definitions').delete(id);
-      refreshProps();
+      const options = optionsByProperty.get(newOptionForProp) || [];
+      await pb.collection('property_options').create({
+        property: newOptionForProp,
+        value: newOptionValue.trim(),
+        order: options.length,
+      });
+      setNewOptionForProp(null);
+      setNewOptionValue('');
+      refreshOptions();
     } catch (err) {
-      console.error('Failed to delete property:', err);
+      console.error('Failed to add option:', err);
     }
+  };
+
+  const handleCancelAddOption = () => {
+    setNewOptionForProp(null);
+    setNewOptionValue('');
   };
 
   return (
@@ -306,85 +408,164 @@ export default function SettingsPage() {
       <Card>
         <CardTitle>Property Definitions</CardTitle>
         <p className="text-sm text-gray-500 mt-1 mb-6">
-          Define the properties that can be assigned to factsheets. Properties are always a selection from a list of options.
+          Define the properties that can be assigned to factsheets. Each property has a list of options that can be selected.
         </p>
 
         {/* Existing properties */}
-        <div className="space-y-3 mb-6">
-          {propertyDefinitions.map((prop) => (
-            <div
-              key={prop.id}
-              className="p-3 bg-gray-50"
-            >
-              {editingProp === prop.id ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
-                    <input
-                      type="text"
-                      value={editPropData.name}
-                      onChange={(e) => setEditPropData({ ...editPropData, name: e.target.value })}
-                      placeholder="Property name"
-                      className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-                    />
-                  </div>
-                  <div className="ml-7">
-                    <input
-                      type="text"
-                      value={editPropData.options}
-                      onChange={(e) => setEditPropData({ ...editPropData, options: e.target.value })}
-                      placeholder="Options (comma-separated)"
-                      className="w-full px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Separate options with commas (e.g., Low, Medium, High)</p>
-                  </div>
-                  <div className="ml-7 flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleSaveProperty}
-                      disabled={!editPropData.name || !editPropData.options}
-                      icon={<Check className="w-4 h-4" />}
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleCancelEditProperty}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
+        <div className="space-y-4 mb-6">
+          {propertyDefinitions.map((prop) => {
+            const options = optionsByProperty.get(prop.id) || [];
+            return (
+              <div key={prop.id} className="p-4 bg-gray-50 border border-gray-200">
+                {/* Property name row */}
+                <div className="flex items-center gap-3 mb-3">
                   <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
-                  <div className="flex-1">
-                    <div className="font-medium text-primary-900">{prop.name}</div>
-                    <div className="text-sm text-gray-500">
-                      {Array.isArray(prop.options) ? prop.options.join(', ') : ''}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEditProperty(prop)}
-                    className="text-gray-400 hover:text-accent-500"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteProperty(prop.id)}
-                    className="text-gray-400 hover:text-red-500"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {editingPropName === prop.id ? (
+                    <>
+                      <input
+                        type="text"
+                        value={editPropNameValue}
+                        onChange={(e) => setEditPropNameValue(e.target.value)}
+                        className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSavePropertyName}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCancelEditPropertyName}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex-1 font-medium text-primary-900">{prop.name}</div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditPropertyName(prop)}
+                        className="text-gray-400 hover:text-accent-500"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteProperty(prop.id)}
+                        className="text-gray-400 hover:text-red-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Options list */}
+                <div className="ml-7 space-y-2">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Options</div>
+                  {options.map((opt) => (
+                    <div key={opt.id} className="flex items-center gap-2">
+                      {editingOption === opt.id ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editOptionValue}
+                            onChange={(e) => setEditOptionValue(e.target.value)}
+                            className="flex-1 px-2 py-1 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleSaveOption}
+                            className="text-green-600 hover:text-green-700"
+                          >
+                            <Check className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCancelEditOption}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 text-sm text-gray-700 bg-white px-2 py-1 border border-gray-200">
+                            {opt.value}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditOption(opt)}
+                            className="text-gray-400 hover:text-accent-500"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteOption(opt.id, prop.id)}
+                            className="text-gray-400 hover:text-red-500"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Add new option */}
+                  {newOptionForProp === prop.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newOptionValue}
+                        onChange={(e) => setNewOptionValue(e.target.value)}
+                        placeholder="New option value"
+                        className="flex-1 px-2 py-1 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                        autoFocus
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleAddOption}
+                        disabled={!newOptionValue.trim()}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <Check className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCancelAddOption}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleStartAddOption(prop.id)}
+                      className="flex items-center gap-1 text-sm text-accent-500 hover:text-accent-600"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add option
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
 
           {propertyDefinitions.length === 0 && (
             <div className="text-center py-8 text-gray-500">
@@ -404,11 +585,11 @@ export default function SettingsPage() {
               onChange={(e) => setNewProp({ ...newProp, name: e.target.value })}
             />
             <Input
-              label="Options (comma-separated)"
+              label="Initial Options (comma-separated)"
               placeholder="e.g., Low, Medium, High"
               value={newProp.options}
               onChange={(e) => setNewProp({ ...newProp, options: e.target.value })}
-              hint="Enter the available values for this property, separated by commas"
+              hint="Enter the initial values for this property, separated by commas. You can add more options later."
             />
             <Button
               onClick={handleAddProperty}

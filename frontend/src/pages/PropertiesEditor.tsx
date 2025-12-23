@@ -1,20 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Card, Button, Select } from '../components/ui';
 import { useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
-import type { PropertyDefinition, FactsheetProperty } from '../types';
+import type { PropertyDefinition, PropertyOption, FactsheetProperty } from '../types';
 
 export default function PropertiesEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // values maps property definition ID to option ID
   const [values, setValues] = useState<Record<string, string>>({});
 
   const { records: propertyDefinitions } = useRealtime<PropertyDefinition>({
     collection: 'property_definitions',
+    sort: 'order',
+  });
+
+  const { records: propertyOptions } = useRealtime<PropertyOption>({
+    collection: 'property_options',
     sort: 'order',
   });
 
@@ -23,17 +29,33 @@ export default function PropertiesEditor() {
     filter: `factsheet = "${id}"`,
   });
 
+  // Group options by property
+  const optionsByProperty = useMemo(() => {
+    const map = new Map<string, PropertyOption[]>();
+    propertyOptions.forEach((opt) => {
+      if (!map.has(opt.property)) {
+        map.set(opt.property, []);
+      }
+      map.get(opt.property)!.push(opt);
+    });
+    // Sort options within each property by order
+    map.forEach((opts) => {
+      opts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    });
+    return map;
+  }, [propertyOptions]);
+
   // Initialize values from existing properties
   useEffect(() => {
     const initial: Record<string, string> = {};
     existingProperties.forEach((prop) => {
-      initial[prop.property] = prop.value;
+      initial[prop.property] = prop.option;
     });
     setValues(initial);
   }, [existingProperties]);
 
-  const handleValueChange = (propertyId: string, value: string) => {
-    setValues((prev) => ({ ...prev, [propertyId]: value }));
+  const handleValueChange = (propertyId: string, optionId: string) => {
+    setValues((prev) => ({ ...prev, [propertyId]: optionId }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,21 +66,21 @@ export default function PropertiesEditor() {
     try {
       // For each property definition, create or update the value
       for (const propDef of propertyDefinitions) {
-        const value = values[propDef.id];
+        const optionId = values[propDef.id];
         const existing = existingProperties.find((p) => p.property === propDef.id);
 
-        if (value && value.trim()) {
+        if (optionId && optionId.trim()) {
           if (existing) {
             // Update existing
             await pb.collection('factsheet_properties').update(existing.id, {
-              value: value.trim(),
+              option: optionId,
             });
           } else {
             // Create new
             await pb.collection('factsheet_properties').create({
               factsheet: id,
               property: propDef.id,
-              value: value.trim(),
+              option: optionId,
             });
           }
         } else if (existing) {
@@ -76,11 +98,11 @@ export default function PropertiesEditor() {
     }
   };
 
-  const getOptionsForProperty = (propDef: PropertyDefinition) => {
-    const opts = Array.isArray(propDef.options) ? propDef.options : [];
+  const getOptionsForProperty = (propDefId: string) => {
+    const opts = optionsByProperty.get(propDefId) || [];
     return [
       { value: '', label: 'Select...' },
-      ...opts.map((opt: string) => ({ value: opt, label: opt })),
+      ...opts.map((opt) => ({ value: opt.id, label: opt.value })),
     ];
   };
 
@@ -115,7 +137,7 @@ export default function PropertiesEditor() {
               <Select
                 key={propDef.id}
                 label={propDef.name}
-                options={getOptionsForProperty(propDef)}
+                options={getOptionsForProperty(propDef.id)}
                 value={values[propDef.id] || ''}
                 onChange={(e) => handleValueChange(propDef.id, e.target.value)}
               />

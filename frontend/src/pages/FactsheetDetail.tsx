@@ -24,7 +24,7 @@ export default function FactsheetDetail() {
   const { records: properties } = useRealtime<FactsheetPropertyExpanded>({
     collection: 'factsheet_properties',
     filter: `factsheet = "${id}"`,
-    expand: 'property',
+    expand: 'property,option',
   });
 
   const handleDelete = async () => {
@@ -208,7 +208,9 @@ export default function FactsheetDetail() {
                 <p className="text-sm text-gray-500">
                   {prop.expand?.property?.name || 'Property'}
                 </p>
-                <p className="font-medium text-primary-900">{prop.value}</p>
+                <p className="font-medium text-primary-900">
+                  {prop.expand?.option?.value || 'Not set'}
+                </p>
               </div>
             ))}
           </div>

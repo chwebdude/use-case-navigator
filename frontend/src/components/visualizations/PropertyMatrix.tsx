@@ -36,7 +36,11 @@ export default function PropertyMatrix({
       if (!propLookup.has(prop.factsheet)) {
         propLookup.set(prop.factsheet, new Map());
       }
-      propLookup.get(prop.factsheet)!.set(prop.property, prop.value);
+      // Use the expanded option value
+      const optionValue = prop.expand?.option?.value || '';
+      if (optionValue) {
+        propLookup.get(prop.factsheet)!.set(prop.property, optionValue);
+      }
     });
 
     // Build matrix

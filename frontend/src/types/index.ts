@@ -22,14 +22,19 @@ export interface Dependency extends RecordModel {
 
 export interface PropertyDefinition extends RecordModel {
   name: string;
-  options: string[];
+  order?: number;
+}
+
+export interface PropertyOption extends RecordModel {
+  property: string;
+  value: string;
   order?: number;
 }
 
 export interface FactsheetProperty extends RecordModel {
   factsheet: string;
   property: string;
-  value: string;
+  option: string; // Reference to PropertyOption
 }
 
 // Expanded types with relations
@@ -46,10 +51,17 @@ export interface DependencyExpanded extends Dependency {
   };
 }
 
+export interface PropertyOptionExpanded extends PropertyOption {
+  expand?: {
+    property?: PropertyDefinition;
+  };
+}
+
 export interface FactsheetPropertyExpanded extends FactsheetProperty {
   expand?: {
     factsheet?: Factsheet;
     property?: PropertyDefinition;
+    option?: PropertyOption;
   };
 }
 
