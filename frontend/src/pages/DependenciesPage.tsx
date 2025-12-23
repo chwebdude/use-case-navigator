@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, Eye, ChevronDown, Check } from 'lucide-react';
 import { Card, CardTitle, Select, Button, Modal } from '../components/ui';
 import { Textarea } from '../components/ui/Input';
 import { DependencyGraph, type ConnectionRequest } from '../components/visualizations';
@@ -21,6 +21,7 @@ export default function DependenciesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [propertyFilters, setPropertyFilters] = useState<Record<string, string>>({});
   const [layoutKey, setLayoutKey] = useState(0);
+  const [displayProperties, setDisplayProperties] = useState<string[]>([]);
 
   // Connection modal state
   const [connectionModal, setConnectionModal] = useState<ConnectionRequest | null>(null);
@@ -156,6 +157,42 @@ export default function DependenciesPage() {
     setPropertyFilters({});
   };
 
+  // Build property values for display on nodes: factsheetId -> { propertyId -> value }
+  const factsheetPropertyValues = useMemo(() => {
+    const map = new Map<string, Map<string, string>>();
+    factsheetProperties.forEach((fp) => {
+      if (!map.has(fp.factsheet)) {
+        map.set(fp.factsheet, new Map());
+      }
+      const optionValue = fp.expand?.option?.value || '';
+      if (optionValue) {
+        map.get(fp.factsheet)!.set(fp.property, optionValue);
+      }
+    });
+    return map;
+  }, [factsheetProperties]);
+
+  // Property display dropdown state
+  const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowPropertyDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const togglePropertyDisplay = (propId: string) => {
+    setDisplayProperties((prev) =>
+      prev.includes(propId) ? prev.filter((id) => id !== propId) : [...prev, propId]
+    );
+  };
+
   const loading = loadingFactsheets || loadingDeps;
   const hasFilters = typeFilter !== '' || statusFilter !== '' || Object.values(propertyFilters).some((v) => v !== '');
 
@@ -224,6 +261,63 @@ export default function DependenciesPage() {
             <span className="text-sm text-gray-500">
               {filteredFactsheets.length} of {factsheets.length} factsheets
             </span>
+
+            {/* Property display dropdown */}
+            {propertyDefinitions.length > 0 && (
+              <div className="relative" ref={dropdownRef}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Eye className="w-4 h-4" />}
+                  onClick={() => setShowPropertyDropdown(!showPropertyDropdown)}
+                >
+                  Show Properties
+                  {displayProperties.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-accent-500 text-white rounded-full">
+                      {displayProperties.length}
+                    </span>
+                  )}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </Button>
+
+                {showPropertyDropdown && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 shadow-lg z-50 min-w-[200px]">
+                    <div className="p-2 border-b border-gray-100">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Display on nodes</span>
+                    </div>
+                    {propertyDefinitions.map((prop) => (
+                      <button
+                        key={prop.id}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                        onClick={() => togglePropertyDisplay(prop.id)}
+                      >
+                        <div className={`w-4 h-4 border flex items-center justify-center ${
+                          displayProperties.includes(prop.id)
+                            ? 'bg-accent-500 border-accent-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {displayProperties.includes(prop.id) && (
+                            <Check className="w-3 h-3 text-white" />
+                          )}
+                        </div>
+                        {prop.name}
+                      </button>
+                    ))}
+                    {displayProperties.length > 0 && (
+                      <div className="p-2 border-t border-gray-100">
+                        <button
+                          className="text-xs text-gray-500 hover:text-gray-700"
+                          onClick={() => setDisplayProperties([])}
+                        >
+                          Clear all
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <Button
               variant="secondary"
               size="sm"
@@ -305,6 +399,9 @@ export default function DependenciesPage() {
           dependencies={filteredDependencies}
           onNodeClick={handleNodeClick}
           onConnect={handleConnect}
+          displayProperties={displayProperties}
+          propertyDefinitions={propertyDefinitions}
+          factsheetPropertyValues={factsheetPropertyValues}
         />
       )}
 
