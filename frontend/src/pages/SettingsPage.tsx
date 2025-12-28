@@ -1,9 +1,435 @@
 import { useState, useMemo } from 'react';
 import { Plus, Trash2, GripVertical, Pencil, Check, X } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Card, CardTitle, Button, Input } from '../components/ui';
 import { useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
 import type { FactsheetType, PropertyDefinition, PropertyOption } from '../types';
+
+// Sortable Type Item component
+interface SortableTypeItemProps {
+  type: FactsheetType;
+  editingType: string | null;
+  editTypeData: { name: string; color: string };
+  setEditTypeData: (data: { name: string; color: string }) => void;
+  handleEditType: (type: FactsheetType) => void;
+  handleSaveType: () => void;
+  handleCancelEditType: () => void;
+  handleDeleteType: (id: string) => void;
+  defaultColors: string[];
+}
+
+function SortableTypeItem({
+  type,
+  editingType,
+  editTypeData,
+  setEditTypeData,
+  handleEditType,
+  handleSaveType,
+  handleCancelEditType,
+  handleDeleteType,
+  defaultColors,
+}: SortableTypeItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: type.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-3 p-3 bg-gray-50"
+    >
+      <div {...attributes} {...listeners} className="cursor-move">
+        <GripVertical className="w-4 h-4 text-gray-400" />
+      </div>
+      {editingType === type.id ? (
+        <>
+          <div className="flex gap-2">
+            {defaultColors.map((color) => (
+              <button
+                key={color}
+                type="button"
+                onClick={() => setEditTypeData({ ...editTypeData, color })}
+                className={`w-6 h-6 border-2 ${
+                  editTypeData.color === color ? 'border-primary-900' : 'border-transparent'
+                }`}
+                style={{ backgroundColor: color }}
+              />
+            ))}
+          </div>
+          <input
+            type="text"
+            value={editTypeData.name}
+            onChange={(e) => setEditTypeData({ ...editTypeData, name: e.target.value })}
+            className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSaveType}
+            className="text-green-600 hover:text-green-700"
+          >
+            <Check className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCancelEditType}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </>
+      ) : (
+        <>
+          <div
+            className="w-6 h-6 border border-gray-300"
+            style={{ backgroundColor: type.color }}
+          />
+          <div className="flex-1">
+            <div className="font-medium text-primary-900">{type.name}</div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleEditType(type)}
+            className="text-gray-400 hover:text-accent-500"
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDeleteType(type.id)}
+            className="text-gray-400 hover:text-red-500"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Sortable Option Item component
+interface SortableOptionItemProps {
+  opt: PropertyOption;
+  propertyId: string;
+  editingOption: string | null;
+  editOptionValue: string;
+  setEditOptionValue: (value: string) => void;
+  handleEditOption: (opt: PropertyOption) => void;
+  handleSaveOption: () => void;
+  handleCancelEditOption: () => void;
+  handleDeleteOption: (optionId: string, propertyId: string) => void;
+}
+
+function SortableOptionItem({
+  opt,
+  propertyId,
+  editingOption,
+  editOptionValue,
+  setEditOptionValue,
+  handleEditOption,
+  handleSaveOption,
+  handleCancelEditOption,
+  handleDeleteOption,
+}: SortableOptionItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: opt.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      <div {...attributes} {...listeners} className="cursor-move">
+        <GripVertical className="w-3 h-3 text-gray-400" />
+      </div>
+      {editingOption === opt.id ? (
+        <>
+          <input
+            type="text"
+            value={editOptionValue}
+            onChange={(e) => setEditOptionValue(e.target.value)}
+            className="flex-1 px-2 py-1 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSaveOption}
+            className="text-green-600 hover:text-green-700"
+          >
+            <Check className="w-3 h-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCancelEditOption}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-3 h-3" />
+          </Button>
+        </>
+      ) : (
+        <>
+          <span className="flex-1 text-sm text-gray-700 bg-white px-2 py-1 border border-gray-200">
+            {opt.value}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleEditOption(opt)}
+            className="text-gray-400 hover:text-accent-500"
+          >
+            <Pencil className="w-3 h-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDeleteOption(opt.id, propertyId)}
+            className="text-gray-400 hover:text-red-500"
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Sortable Property Item component
+interface SortablePropertyItemProps {
+  prop: PropertyDefinition;
+  options: PropertyOption[];
+  editingPropName: string | null;
+  editPropNameValue: string;
+  setEditPropNameValue: (value: string) => void;
+  handleEditPropertyName: (prop: PropertyDefinition) => void;
+  handleSavePropertyName: () => void;
+  handleCancelEditPropertyName: () => void;
+  handleDeleteProperty: (id: string) => void;
+  editingOption: string | null;
+  editOptionValue: string;
+  setEditOptionValue: (value: string) => void;
+  handleEditOption: (opt: PropertyOption) => void;
+  handleSaveOption: () => void;
+  handleCancelEditOption: () => void;
+  handleDeleteOption: (optionId: string, propertyId: string) => void;
+  newOptionForProp: string | null;
+  newOptionValue: string;
+  setNewOptionValue: (value: string) => void;
+  handleStartAddOption: (propId: string) => void;
+  handleAddOption: () => void;
+  handleCancelAddOption: () => void;
+  sensors: ReturnType<typeof useSensors>;
+  handleOptionReorder: (propertyId: string, event: DragEndEvent) => void;
+}
+
+function SortablePropertyItem({
+  prop,
+  options,
+  editingPropName,
+  editPropNameValue,
+  setEditPropNameValue,
+  handleEditPropertyName,
+  handleSavePropertyName,
+  handleCancelEditPropertyName,
+  handleDeleteProperty,
+  editingOption,
+  editOptionValue,
+  setEditOptionValue,
+  handleEditOption,
+  handleSaveOption,
+  handleCancelEditOption,
+  handleDeleteOption,
+  newOptionForProp,
+  newOptionValue,
+  setNewOptionValue,
+  handleStartAddOption,
+  handleAddOption,
+  handleCancelAddOption,
+  sensors,
+  handleOptionReorder,
+}: SortablePropertyItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: prop.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="p-4 bg-gray-50 border border-gray-200">
+      {/* Property name row */}
+      <div className="flex items-center gap-3 mb-3">
+        <div {...attributes} {...listeners} className="cursor-move">
+          <GripVertical className="w-4 h-4 text-gray-400" />
+        </div>
+        {editingPropName === prop.id ? (
+          <>
+            <input
+              type="text"
+              value={editPropNameValue}
+              onChange={(e) => setEditPropNameValue(e.target.value)}
+              className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSavePropertyName}
+              className="text-green-600 hover:text-green-700"
+            >
+              <Check className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancelEditPropertyName}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="flex-1 font-medium text-primary-900">{prop.name}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleEditPropertyName(prop)}
+              className="text-gray-400 hover:text-accent-500"
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDeleteProperty(prop.id)}
+              className="text-gray-400 hover:text-red-500"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </>
+        )}
+      </div>
+
+      {/* Options list */}
+      <div className="ml-7 space-y-2">
+        <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Options</div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={(event) => handleOptionReorder(prop.id, event)}
+        >
+          <SortableContext
+            items={options.map((o) => o.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {options.map((opt) => (
+              <SortableOptionItem
+                key={opt.id}
+                opt={opt}
+                propertyId={prop.id}
+                editingOption={editingOption}
+                editOptionValue={editOptionValue}
+                setEditOptionValue={setEditOptionValue}
+                handleEditOption={handleEditOption}
+                handleSaveOption={handleSaveOption}
+                handleCancelEditOption={handleCancelEditOption}
+                handleDeleteOption={handleDeleteOption}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+
+        {/* Add new option */}
+        {newOptionForProp === prop.id ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newOptionValue}
+              onChange={(e) => setNewOptionValue(e.target.value)}
+              placeholder="New option value"
+              className="flex-1 px-2 py-1 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+              autoFocus
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleAddOption}
+              disabled={!newOptionValue.trim()}
+              className="text-green-600 hover:text-green-700"
+            >
+              <Check className="w-3 h-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancelAddOption}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+        ) : (
+          <button
+            onClick={() => handleStartAddOption(prop.id)}
+            className="flex items-center gap-1 text-sm text-accent-500 hover:text-accent-600"
+          >
+            <Plus className="w-3 h-3" />
+            Add option
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const defaultColors = [
   '#00aeef', // E+H Cerulean
@@ -17,6 +443,14 @@ const defaultColors = [
 ];
 
 export default function SettingsPage() {
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   // Factsheet Types
   const { records: factsheetTypes, refresh: refreshTypes } = useRealtime<FactsheetType>({
     collection: 'factsheet_types',
@@ -27,6 +461,28 @@ export default function SettingsPage() {
   const [savingType, setSavingType] = useState(false);
   const [editingType, setEditingType] = useState<string | null>(null);
   const [editTypeData, setEditTypeData] = useState({ name: '', color: '' });
+
+  // Handle type reorder
+  const handleTypeReorder = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = factsheetTypes.findIndex((t) => t.id === active.id);
+    const newIndex = factsheetTypes.findIndex((t) => t.id === over.id);
+    const reordered = arrayMove(factsheetTypes, oldIndex, newIndex);
+
+    // Update order in database
+    try {
+      await Promise.all(
+        reordered.map((type, index) =>
+          pb.collection('factsheet_types').update(type.id, { order: index })
+        )
+      );
+      refreshTypes();
+    } catch (err) {
+      console.error('Failed to reorder types:', err);
+    }
+  };
 
   const handleAddType = async () => {
     if (!newType.name) return;
@@ -264,6 +720,49 @@ export default function SettingsPage() {
     setNewOptionValue('');
   };
 
+  // Handle property definition reorder
+  const handlePropertyReorder = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = propertyDefinitions.findIndex((p) => p.id === active.id);
+    const newIndex = propertyDefinitions.findIndex((p) => p.id === over.id);
+    const reordered = arrayMove(propertyDefinitions, oldIndex, newIndex);
+
+    try {
+      await Promise.all(
+        reordered.map((prop, index) =>
+          pb.collection('property_definitions').update(prop.id, { order: index })
+        )
+      );
+      refreshProps();
+    } catch (err) {
+      console.error('Failed to reorder properties:', err);
+    }
+  };
+
+  // Handle option reorder within a property
+  const handleOptionReorder = async (propertyId: string, event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const options = optionsByProperty.get(propertyId) || [];
+    const oldIndex = options.findIndex((o) => o.id === active.id);
+    const newIndex = options.findIndex((o) => o.id === over.id);
+    const reordered = arrayMove(options, oldIndex, newIndex);
+
+    try {
+      await Promise.all(
+        reordered.map((opt, index) =>
+          pb.collection('property_options').update(opt.id, { order: index })
+        )
+      );
+      refreshOptions();
+    } catch (err) {
+      console.error('Failed to reorder options:', err);
+    }
+  };
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* Page header */}
@@ -281,79 +780,31 @@ export default function SettingsPage() {
 
         {/* Existing types */}
         <div className="space-y-3 mb-6">
-          {factsheetTypes.map((type) => (
-            <div
-              key={type.id}
-              className="flex items-center gap-3 p-3 bg-gray-50"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleTypeReorder}
+          >
+            <SortableContext
+              items={factsheetTypes.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
             >
-              <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
-              {editingType === type.id ? (
-                <>
-                  <div className="flex gap-2">
-                    {defaultColors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setEditTypeData({ ...editTypeData, color })}
-                        className={`w-6 h-6 border-2 ${
-                          editTypeData.color === color ? 'border-primary-900' : 'border-transparent'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                  </div>
-                  <input
-                    type="text"
-                    value={editTypeData.name}
-                    onChange={(e) => setEditTypeData({ ...editTypeData, name: e.target.value })}
-                    className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSaveType}
-                    className="text-green-600 hover:text-green-700"
-                  >
-                    <Check className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleCancelEditType}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div
-                    className="w-6 h-6 border border-gray-300"
-                    style={{ backgroundColor: type.color }}
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium text-primary-900">{type.name}</div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEditType(type)}
-                    className="text-gray-400 hover:text-accent-500"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteType(type.id)}
-                    className="text-gray-400 hover:text-red-500"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-          ))}
+              {factsheetTypes.map((type) => (
+                <SortableTypeItem
+                  key={type.id}
+                  type={type}
+                  editingType={editingType}
+                  editTypeData={editTypeData}
+                  setEditTypeData={setEditTypeData}
+                  handleEditType={handleEditType}
+                  handleSaveType={handleSaveType}
+                  handleCancelEditType={handleCancelEditType}
+                  handleDeleteType={handleDeleteType}
+                  defaultColors={defaultColors}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
 
           {factsheetTypes.length === 0 && (
             <div className="text-center py-8 text-gray-500">
@@ -413,159 +864,49 @@ export default function SettingsPage() {
 
         {/* Existing properties */}
         <div className="space-y-4 mb-6">
-          {propertyDefinitions.map((prop) => {
-            const options = optionsByProperty.get(prop.id) || [];
-            return (
-              <div key={prop.id} className="p-4 bg-gray-50 border border-gray-200">
-                {/* Property name row */}
-                <div className="flex items-center gap-3 mb-3">
-                  <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
-                  {editingPropName === prop.id ? (
-                    <>
-                      <input
-                        type="text"
-                        value={editPropNameValue}
-                        onChange={(e) => setEditPropNameValue(e.target.value)}
-                        className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleSavePropertyName}
-                        className="text-green-600 hover:text-green-700"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCancelEditPropertyName}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex-1 font-medium text-primary-900">{prop.name}</div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditPropertyName(prop)}
-                        className="text-gray-400 hover:text-accent-500"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteProperty(prop.id)}
-                        className="text-gray-400 hover:text-red-500"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-
-                {/* Options list */}
-                <div className="ml-7 space-y-2">
-                  <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Options</div>
-                  {options.map((opt) => (
-                    <div key={opt.id} className="flex items-center gap-2">
-                      {editingOption === opt.id ? (
-                        <>
-                          <input
-                            type="text"
-                            value={editOptionValue}
-                            onChange={(e) => setEditOptionValue(e.target.value)}
-                            className="flex-1 px-2 py-1 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleSaveOption}
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <Check className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCancelEditOption}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1 text-sm text-gray-700 bg-white px-2 py-1 border border-gray-200">
-                            {opt.value}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditOption(opt)}
-                            className="text-gray-400 hover:text-accent-500"
-                          >
-                            <Pencil className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteOption(opt.id, prop.id)}
-                            className="text-gray-400 hover:text-red-500"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Add new option */}
-                  {newOptionForProp === prop.id ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={newOptionValue}
-                        onChange={(e) => setNewOptionValue(e.target.value)}
-                        placeholder="New option value"
-                        className="flex-1 px-2 py-1 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-                        autoFocus
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleAddOption}
-                        disabled={!newOptionValue.trim()}
-                        className="text-green-600 hover:text-green-700"
-                      >
-                        <Check className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCancelAddOption}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleStartAddOption(prop.id)}
-                      className="flex items-center gap-1 text-sm text-accent-500 hover:text-accent-600"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Add option
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handlePropertyReorder}
+          >
+            <SortableContext
+              items={propertyDefinitions.map((p) => p.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {propertyDefinitions.map((prop) => {
+                const options = optionsByProperty.get(prop.id) || [];
+                return (
+                  <SortablePropertyItem
+                    key={prop.id}
+                    prop={prop}
+                    options={options}
+                    editingPropName={editingPropName}
+                    editPropNameValue={editPropNameValue}
+                    setEditPropNameValue={setEditPropNameValue}
+                    handleEditPropertyName={handleEditPropertyName}
+                    handleSavePropertyName={handleSavePropertyName}
+                    handleCancelEditPropertyName={handleCancelEditPropertyName}
+                    handleDeleteProperty={handleDeleteProperty}
+                    editingOption={editingOption}
+                    editOptionValue={editOptionValue}
+                    setEditOptionValue={setEditOptionValue}
+                    handleEditOption={handleEditOption}
+                    handleSaveOption={handleSaveOption}
+                    handleCancelEditOption={handleCancelEditOption}
+                    handleDeleteOption={handleDeleteOption}
+                    newOptionForProp={newOptionForProp}
+                    newOptionValue={newOptionValue}
+                    setNewOptionValue={setNewOptionValue}
+                    handleStartAddOption={handleStartAddOption}
+                    handleAddOption={handleAddOption}
+                    handleCancelAddOption={handleCancelAddOption}
+                    sensors={sensors}
+                    handleOptionReorder={handleOptionReorder}
+                  />
+                );
+              })}
+            </SortableContext>
+          </DndContext>
 
           {propertyDefinitions.length === 0 && (
             <div className="text-center py-8 text-gray-500">
