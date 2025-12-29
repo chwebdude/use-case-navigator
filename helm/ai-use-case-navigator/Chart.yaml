@@ -1,0 +1,16 @@
+apiVersion: v2
+name: ai-use-case-navigator
+description: A Helm chart for deploying AI Use Case Navigator - a web application for managing AI use cases with PocketBase backend
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ai
+  - use-cases
+  - pocketbase
+  - react
+maintainers:
+  - name: AI Use Case Navigator Team
+home: https://github.com/fabrice/ai-use-case-navigator
+sources:
+  - https://github.com/fabrice/ai-use-case-navigator

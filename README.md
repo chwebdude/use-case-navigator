@@ -78,6 +78,10 @@ A web application for managing AI use cases in an enterprise environment with re
 
 ```
 ai-use-case-navigator/
+├── .github/
+│   └── workflows/          # CI/CD pipelines
+├── helm/
+│   └── ai-use-case-navigator/  # Helm chart
 ├── pocketbase/
 │   ├── pocketbase.exe      # PocketBase binary
 │   ├── pb_data/            # Database (auto-created)
@@ -93,6 +97,8 @@ ai-use-case-navigator/
 │   │   ├── pages/          # Route components
 │   │   └── types/          # TypeScript types
 │   └── package.json
+├── Dockerfile              # Multi-stage container build
+├── GitVersion.yml          # Semantic versioning config
 └── README.md
 ```
 
@@ -104,6 +110,103 @@ The application follows the Endress+Hauser design language:
 - **Accent Color**: Vibrant teal (#00a3a3)
 - **Typography**: Inter font family
 - **Components**: Clean cards with subtle shadows, teal CTAs with arrow icons
+
+## Docker
+
+Build and run locally with Docker:
+
+```bash
+# Build the image
+docker build -t ai-use-case-navigator .
+
+# Run the container
+docker run -d -p 8080:8080 -v pocketbase-data:/app/pb_data ai-use-case-navigator
+```
+
+The application will be available at `http://localhost:8080` and the admin UI at `http://localhost:8080/_/`.
+
+## Kubernetes Deployment
+
+### Using Helm
+
+1. **Add the Helm repository** (if using OCI registry):
+
+   ```bash
+   helm pull oci://ghcr.io/<owner>/charts/ai-use-case-navigator --version <version>
+   ```
+
+2. **Install the chart**:
+
+   ```bash
+   helm install my-release ./helm/ai-use-case-navigator \
+     --set ingress.enabled=true \
+     --set ingress.hosts[0].host=my-app.example.com
+   ```
+
+3. **Configure values** (create a `values-override.yaml`):
+
+   ```yaml
+   ingress:
+     enabled: true
+     className: nginx
+     annotations:
+       cert-manager.io/cluster-issuer: letsencrypt-prod
+     hosts:
+       - host: ai-use-case-navigator.example.com
+         paths:
+           - path: /
+             pathType: Prefix
+     tls:
+       - secretName: ai-use-case-navigator-tls
+         hosts:
+           - ai-use-case-navigator.example.com
+
+   persistence:
+     enabled: true
+     size: 5Gi
+   ```
+
+   Then install:
+
+   ```bash
+   helm install my-release ./helm/ai-use-case-navigator -f values-override.yaml
+   ```
+
+### Helm Chart Values
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `replicaCount` | Number of replicas | `1` |
+| `image.repository` | Container image repository | `ghcr.io/fabrice/ai-use-case-navigator` |
+| `image.tag` | Container image tag | Chart appVersion |
+| `persistence.enabled` | Enable persistent storage | `true` |
+| `persistence.size` | PVC size | `1Gi` |
+| `ingress.enabled` | Enable ingress | `false` |
+
+## CI/CD
+
+The project uses GitHub Actions for CI/CD with:
+
+- **GitVersion** for automatic semantic versioning
+- **Multi-architecture builds** (amd64, arm64)
+- **GitHub Container Registry** for container images
+- **Helm chart packaging** to OCI registry
+
+### Versioning
+
+Version numbers are automatically determined based on the git history:
+
+- `main` branch: Release versions (e.g., `1.0.0`)
+- `develop` branch: Development versions (e.g., `1.1.0-dev.1`)
+- `feature/*` branches: Feature versions (e.g., `1.1.0-feature.my-feature.1`)
+- `release/*` branches: Release candidates (e.g., `1.1.0-rc.1`)
+
+To create a new release, tag the commit:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ## License
 
