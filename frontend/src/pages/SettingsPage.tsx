@@ -432,8 +432,8 @@ function SortablePropertyItem({
 }
 
 const defaultColors = [
-  '#00aeef', // E+H Cerulean
-  '#a8005c', // E+H Magenta
+  '#00aeef', // Cerulean
+  '#a8005c', // Magenta
   '#10b981', // Green
   '#f59e0b', // Amber
   '#8b5cf6', // Purple
