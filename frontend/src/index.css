@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Endress+Hauser Design System */
+/* Design System */
 @theme {
   /* Primary - Dark base */
   --color-primary-900: #1a1a2e;
@@ -9,14 +9,14 @@
   --color-primary-600: #3d3d52;
   --color-primary-500: #4b4b62;
 
-  /* Accent - E+H Cerulean Blue */
+  /* Accent - Cerulean Blue */
   --color-accent-600: #0095cc;
   --color-accent-500: #00aeef;
   --color-accent-400: #33bef2;
   --color-accent-300: #66cef5;
   --color-accent-200: #99def8;
 
-  /* Secondary - E+H Flirt Magenta */
+  /* Secondary - Magenta */
   --color-secondary-600: #8a004c;
   --color-secondary-500: #a8005c;
   --color-secondary-400: #b9337d;
@@ -53,7 +53,7 @@
   --spacing-12: 3rem;
   --spacing-16: 4rem;
 
-  /* Border radius - E+H uses sharp corners */
+  /* Border radius - sharp corners */
   --radius-sm: 0;
   --radius-md: 0;
   --radius-lg: 0;

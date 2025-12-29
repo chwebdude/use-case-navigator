@@ -17,7 +17,7 @@ A web application for managing AI use cases in an enterprise environment with re
 ### Frontend
 - **React 18** with TypeScript
 - **Vite** for fast development and building
-- **TailwindCSS** with Endress+Hauser design system
+- **TailwindCSS** for styling
 - **React Flow** for dependency graph visualization
 - **D3.js** for property matrix visualization
 
@@ -101,15 +101,6 @@ ai-use-case-navigator/
 ├── GitVersion.yml          # Semantic versioning config
 └── README.md
 ```
-
-## Design System
-
-The application follows the Endress+Hauser design language:
-
-- **Primary Colors**: Deep navy/charcoal (#1a1f2e)
-- **Accent Color**: Vibrant teal (#00a3a3)
-- **Typography**: Inter font family
-- **Components**: Clean cards with subtle shadows, teal CTAs with arrow icons
 
 ## Docker
 
