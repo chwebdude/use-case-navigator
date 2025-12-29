@@ -177,7 +177,7 @@ The application will be available at `http://localhost:8080` and the admin UI at
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `replicaCount` | Number of replicas | `1` |
-| `image.repository` | Container image repository | `ghcr.io/fabrice/ai-use-case-navigator` |
+| `image.repository` | Container image repository | `ghcr.io/chwebdude/use-case-navigator` |
 | `image.tag` | Container image tag | Chart appVersion |
 | `persistence.enabled` | Enable persistent storage | `true` |
 | `persistence.size` | PVC size | `1Gi` |
