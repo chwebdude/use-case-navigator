@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+
+# Node modules (will be reinstalled in container)
+frontend/node_modules
+
+# Build output (will be rebuilt in container)
+frontend/dist
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PocketBase data (only include migrations)
+pocketbase/pb_data
+pocketbase/pocketbase.exe
+pocketbase/pocketbase
+
+# Claude Code
+.claude
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Test coverage
+coverage
+
+# Documentation
+*.md
+!README.md
+
+# Helm charts (not needed in container)
+helm
+
+# GitHub files
+.github
