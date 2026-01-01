@@ -123,7 +123,7 @@ The application will be available at `http://localhost:8080` and the admin UI at
 1. **Add the Helm repository** (if using OCI registry):
 
    ```bash
-   helm pull oci://ghcr.io/<owner>/charts/ai-use-case-navigator --version <version>
+   helm pull oci://ghcr.io/chwebdude/charts/ai-use-case-navigator --version <version>
    ```
 
 2. **Install the chart**:
