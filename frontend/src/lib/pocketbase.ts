@@ -5,9 +5,9 @@ const getPocketbaseUrl = () => {
   if (import.meta.env.VITE_POCKETBASE_URL) {
     return import.meta.env.VITE_POCKETBASE_URL;
   }
-  // Use current hostname and port 8090 as fallback
+  // Use current hostname as fallback
   const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:8090`;
+  return `${protocol}//${hostname}`;
 };
 
 const pb = new PocketBase(getPocketbaseUrl());
