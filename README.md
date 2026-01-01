@@ -1,5 +1,7 @@
 # AI Use Case Navigator
 
+This is a vibe coding project. Use with care!
+
 A web application for managing AI use cases in an enterprise environment with real-time collaboration, dependency visualization, and configurable property matrices.
 
 ## Features
