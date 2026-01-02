@@ -3,9 +3,10 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Card, Button, Select } from '../components/ui';
 import { Textarea } from '../components/ui/Input';
-import { useRealtime } from '../hooks/useRealtime';
+import { useRealtime, useRecord } from '../hooks/useRealtime';
+import { useChangeLog } from '../hooks/useChangeLog';
 import pb from '../lib/pocketbase';
-import type { FactsheetExpanded } from '../types';
+import type { Factsheet, FactsheetExpanded } from '../types';
 
 export default function DependencyForm() {
   const { id } = useParams();
@@ -16,10 +17,14 @@ export default function DependencyForm() {
   const [dependsOn, setDependsOn] = useState('');
   const [description, setDescription] = useState('');
 
+  const { record: sourceFactsheet } = useRecord<Factsheet>('factsheets', id);
+
   const { records: factsheets } = useRealtime<FactsheetExpanded>({
     collection: 'factsheets',
     expand: 'type',
   });
+
+  const { logDependencyAdded } = useChangeLog();
 
   const factsheetOptions = [
     { value: '', label: 'Select a factsheet...' },
@@ -41,12 +46,27 @@ export default function DependencyForm() {
     setSaving(true);
     setError('');
 
+    const descriptionTrimmed = description.trim() || undefined;
+    const targetFactsheet = factsheets.find((fs) => fs.id === dependsOn);
+
     try {
       await pb.collection('dependencies').create({
         factsheet: id,
         depends_on: dependsOn,
-        description: description.trim() || null,
+        description: descriptionTrimmed || null,
       });
+
+      // Log the change for both factsheets
+      if (sourceFactsheet && targetFactsheet) {
+        await logDependencyAdded(
+          id!,
+          sourceFactsheet.name,
+          dependsOn,
+          targetFactsheet.name,
+          descriptionTrimmed
+        );
+      }
+
       navigate(`/factsheets/${id}`);
     } catch (err) {
       console.error('Failed to create dependency:', err);

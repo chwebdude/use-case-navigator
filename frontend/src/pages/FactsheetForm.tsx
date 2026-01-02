@@ -4,6 +4,7 @@ import { ArrowLeft, Save } from 'lucide-react';
 import { Card, Button, Input, Select } from '../components/ui';
 import { Textarea } from '../components/ui/Input';
 import { useRecord, useRealtime } from '../hooks/useRealtime';
+import { useChangeLog } from '../hooks/useChangeLog';
 import pb from '../lib/pocketbase';
 import type { Factsheet, FactsheetType, PropertyDefinition, PropertyOption, FactsheetProperty } from '../types';
 
@@ -42,6 +43,8 @@ export default function FactsheetForm() {
     collection: 'factsheet_properties',
     filter: id ? `factsheet = "${id}"` : '',
   });
+
+  const { logFactsheetCreated, logFactsheetUpdated, logPropertyChanged } = useChangeLog();
 
   const typeOptions = factsheetTypes.map((t) => ({ value: t.id, label: t.name }));
 
@@ -121,6 +124,20 @@ export default function FactsheetForm() {
     ];
   };
 
+  // Helper to truncate long values for display
+  const truncate = (str: string, maxLen = 50) => {
+    if (!str) return '';
+    // Strip HTML tags for display
+    const plain = str.replace(/<[^>]*>/g, '');
+    return plain.length > maxLen ? plain.substring(0, maxLen) + '...' : plain;
+  };
+
+  // Helper to get option value by id
+  const getOptionValue = (optionId: string) => {
+    const option = propertyOptions.find((o) => o.id === optionId);
+    return option?.value || null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -136,32 +153,85 @@ export default function FactsheetForm() {
       let factsheetId: string;
 
       if (isEdit && id) {
+        // Track which fields changed with old/new values
+        const fieldChanges: { field: string; oldValue?: string; newValue?: string }[] = [];
+        if (existingFactsheet) {
+          if (formData.name !== existingFactsheet.name) {
+            fieldChanges.push({ field: 'name', oldValue: existingFactsheet.name, newValue: formData.name });
+          }
+          if (formData.description !== (existingFactsheet.description || '')) {
+            fieldChanges.push({ field: 'description', oldValue: truncate(existingFactsheet.description || ''), newValue: truncate(formData.description) });
+          }
+          if (formData.type !== existingFactsheet.type) {
+            const oldType = factsheetTypes.find((t) => t.id === existingFactsheet.type)?.name || existingFactsheet.type;
+            const newType = factsheetTypes.find((t) => t.id === formData.type)?.name || formData.type;
+            fieldChanges.push({ field: 'type', oldValue: oldType, newValue: newType });
+          }
+          if (formData.status !== existingFactsheet.status) {
+            fieldChanges.push({ field: 'status', oldValue: existingFactsheet.status, newValue: formData.status });
+          }
+          if (formData.responsibility !== (existingFactsheet.responsibility || '')) {
+            fieldChanges.push({ field: 'responsibility', oldValue: truncate(existingFactsheet.responsibility || ''), newValue: truncate(formData.responsibility) });
+          }
+          if (formData.benefits !== (existingFactsheet.benefits || '')) {
+            fieldChanges.push({ field: 'benefits', oldValue: truncate(existingFactsheet.benefits || ''), newValue: truncate(formData.benefits) });
+          }
+          if (formData.what_it_does !== (existingFactsheet.what_it_does || '')) {
+            fieldChanges.push({ field: 'what_it_does', oldValue: truncate(existingFactsheet.what_it_does || ''), newValue: truncate(formData.what_it_does) });
+          }
+          if (formData.problems_addressed !== (existingFactsheet.problems_addressed || '')) {
+            fieldChanges.push({ field: 'problems_addressed', oldValue: truncate(existingFactsheet.problems_addressed || ''), newValue: truncate(formData.problems_addressed) });
+          }
+          if (formData.potential_ui !== (existingFactsheet.potential_ui || '')) {
+            fieldChanges.push({ field: 'potential_ui', oldValue: truncate(existingFactsheet.potential_ui || ''), newValue: truncate(formData.potential_ui) });
+          }
+        }
+
         await pb.collection('factsheets').update(id, formData);
         factsheetId = id;
+
+        // Log the update with field details
+        if (fieldChanges.length > 0) {
+          await logFactsheetUpdated(factsheetId, formData.name, fieldChanges);
+        }
       } else {
         const created = await pb.collection('factsheets').create(formData);
         factsheetId = created.id;
+
+        // Log the creation
+        await logFactsheetCreated(factsheetId, formData.name);
       }
 
-      // Save property values
+      // Save property values and track changes
       for (const propDef of propertyDefinitions) {
-        const optionId = propertyValues[propDef.id];
+        const newOptionId = propertyValues[propDef.id];
         const existing = existingProperties.find((p) => p.property === propDef.id);
+        const oldOptionValue = existing ? getOptionValue(existing.option) : null;
+        const newOptionValue = newOptionId ? getOptionValue(newOptionId) : null;
 
-        if (optionId && optionId.trim()) {
+        if (newOptionId && newOptionId.trim()) {
           if (existing) {
-            await pb.collection('factsheet_properties').update(existing.id, {
-              option: optionId,
-            });
+            // Only update and log if the value actually changed
+            if (existing.option !== newOptionId) {
+              await pb.collection('factsheet_properties').update(existing.id, {
+                option: newOptionId,
+              });
+              await logPropertyChanged(factsheetId, propDef.name, oldOptionValue, newOptionValue);
+            }
           } else {
             await pb.collection('factsheet_properties').create({
               factsheet: factsheetId,
               property: propDef.id,
-              option: optionId,
+              option: newOptionId,
             });
+            // Log property set (only for edits, not for new factsheets)
+            if (isEdit) {
+              await logPropertyChanged(factsheetId, propDef.name, null, newOptionValue);
+            }
           }
         } else if (existing) {
           await pb.collection('factsheet_properties').delete(existing.id);
+          await logPropertyChanged(factsheetId, propDef.name, oldOptionValue, null);
         }
       }
 

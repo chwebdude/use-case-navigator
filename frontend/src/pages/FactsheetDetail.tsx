@@ -1,13 +1,16 @@
+import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Plus, GitBranch } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, GitBranch, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { Card, CardTitle, Button, Badge } from '../components/ui';
 import { useRecord, useRealtime } from '../hooks/useRealtime';
+import { useChangeLog } from '../hooks/useChangeLog';
 import pb from '../lib/pocketbase';
-import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, DependencyExpanded } from '../types';
+import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, DependencyExpanded, ChangeLogExpanded } from '../types';
 
 export default function FactsheetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const { record: factsheet, loading } = useRecord<Factsheet>('factsheets', id);
   const { record: factsheetType } = useRecord<FactsheetType>(
@@ -27,6 +30,15 @@ export default function FactsheetDetail() {
     expand: 'property,option',
   });
 
+  const { records: changeLogs } = useRealtime<ChangeLogExpanded>({
+    collection: 'change_log',
+    filter: `factsheet = "${id}"`,
+    sort: '-created',
+    expand: 'related_factsheet',
+  });
+
+  const { logDependencyRemoved } = useChangeLog();
+
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this factsheet?')) return;
 
@@ -40,8 +52,22 @@ export default function FactsheetDetail() {
 
   const handleDeleteDependency = async (depId: string) => {
     if (!confirm('Remove this dependency?')) return;
+
+    const dep = dependencies.find((d) => d.id === depId);
+    const targetFactsheet = dep?.expand?.depends_on;
+
     try {
       await pb.collection('dependencies').delete(depId);
+
+      // Log the change for both factsheets
+      if (factsheet && targetFactsheet) {
+        await logDependencyRemoved(
+          id!,
+          factsheet.name,
+          targetFactsheet.id,
+          targetFactsheet.name
+        );
+      }
     } catch (err) {
       console.error('Failed to delete dependency:', err);
     }
@@ -269,6 +295,46 @@ export default function FactsheetDetail() {
               </div>
             ))}
           </div>
+        )}
+      </Card>
+
+      {/* Change History */}
+      <Card>
+        <button
+          type="button"
+          onClick={() => setHistoryExpanded(!historyExpanded)}
+          className="w-full text-left flex items-center gap-2 hover:opacity-80"
+        >
+          {historyExpanded ? (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          )}
+          <History className="w-5 h-5 text-gray-400" />
+          <CardTitle>Change History ({changeLogs.length})</CardTitle>
+        </button>
+
+        {historyExpanded && (
+          changeLogs.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No changes recorded yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3 mt-4">
+              {changeLogs.map((log) => (
+                <div key={log.id} className="p-3 bg-gray-50">
+                  <div className="flex justify-between items-start">
+                    <p className="text-gray-700">{log.description}</p>
+                    <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
+                      {new Date(log.created).toLocaleDateString()}{' '}
+                      {new Date(log.created).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">by {log.username}</p>
+                </div>
+              ))}
+            </div>
+          )
         )}
       </Card>
 

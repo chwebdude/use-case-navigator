@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Card, Button, Select } from '../components/ui';
 import { useRealtime } from '../hooks/useRealtime';
+import { useChangeLog } from '../hooks/useChangeLog';
 import pb from '../lib/pocketbase';
 import type { PropertyDefinition, PropertyOption, FactsheetProperty } from '../types';
 
@@ -28,6 +29,14 @@ export default function PropertiesEditor() {
     collection: 'factsheet_properties',
     filter: `factsheet = "${id}"`,
   });
+
+  const { logPropertyChanged } = useChangeLog();
+
+  // Helper to get option value by id
+  const getOptionValue = (optionId: string) => {
+    const option = propertyOptions.find((o) => o.id === optionId);
+    return option?.value || null;
+  };
 
   // Group options by property
   const optionsByProperty = useMemo(() => {
@@ -66,26 +75,33 @@ export default function PropertiesEditor() {
     try {
       // For each property definition, create or update the value
       for (const propDef of propertyDefinitions) {
-        const optionId = values[propDef.id];
+        const newOptionId = values[propDef.id];
         const existing = existingProperties.find((p) => p.property === propDef.id);
+        const oldOptionValue = existing ? getOptionValue(existing.option) : null;
+        const newOptionValue = newOptionId ? getOptionValue(newOptionId) : null;
 
-        if (optionId && optionId.trim()) {
+        if (newOptionId && newOptionId.trim()) {
           if (existing) {
-            // Update existing
-            await pb.collection('factsheet_properties').update(existing.id, {
-              option: optionId,
-            });
+            // Only update and log if the value actually changed
+            if (existing.option !== newOptionId) {
+              await pb.collection('factsheet_properties').update(existing.id, {
+                option: newOptionId,
+              });
+              await logPropertyChanged(id!, propDef.name, oldOptionValue, newOptionValue);
+            }
           } else {
             // Create new
             await pb.collection('factsheet_properties').create({
               factsheet: id,
               property: propDef.id,
-              option: optionId,
+              option: newOptionId,
             });
+            await logPropertyChanged(id!, propDef.name, null, newOptionValue);
           }
         } else if (existing) {
           // Delete if value is empty but record exists
           await pb.collection('factsheet_properties').delete(existing.id);
+          await logPropertyChanged(id!, propDef.name, oldOptionValue, null);
         }
       }
 

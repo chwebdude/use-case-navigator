@@ -70,3 +70,27 @@ export interface FactsheetPropertyExpanded extends FactsheetProperty {
   };
 }
 
+export type ChangeAction =
+  | 'created'
+  | 'updated'
+  | 'deleted'
+  | 'dependency_added'
+  | 'dependency_removed'
+  | 'dependency_updated';
+
+export interface ChangeLog extends RecordModel {
+  factsheet: string;
+  username: string;
+  action: ChangeAction;
+  description: string;
+  related_factsheet?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ChangeLogExpanded extends ChangeLog {
+  expand?: {
+    factsheet?: Factsheet;
+    related_factsheet?: Factsheet;
+  };
+}
+

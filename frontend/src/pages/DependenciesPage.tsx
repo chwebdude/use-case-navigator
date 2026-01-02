@@ -5,6 +5,7 @@ import { Textarea } from '../components/ui/Input';
 import { DependencyGraph, type ConnectionRequest } from '../components/visualizations';
 import FactsheetDetailModal from '../components/FactsheetDetailModal';
 import { useRealtime } from '../hooks/useRealtime';
+import { useChangeLog } from '../hooks/useChangeLog';
 import pb from '../lib/pocketbase';
 import type { FactsheetExpanded, Dependency, FactsheetType, PropertyDefinition, PropertyOption, FactsheetPropertyExpanded } from '../types';
 
@@ -63,6 +64,8 @@ export default function DependenciesPage() {
     collection: 'factsheet_properties',
     expand: 'property,option',
   });
+
+  const { logDependencyAdded, logDependencyRemoved, logDependencyUpdated } = useChangeLog();
 
   const typeOptions = [
     { value: '', label: 'All Types' },
@@ -138,13 +141,25 @@ export default function DependenciesPage() {
   const handleCreateDependency = async () => {
     if (!connectionModal) return;
 
+    const descriptionTrimmed = connectionDescription.trim() || undefined;
+
     setSaving(true);
     try {
       await pb.collection('dependencies').create({
         factsheet: connectionModal.sourceId,
         depends_on: connectionModal.targetId,
-        description: connectionDescription.trim() || null,
+        description: descriptionTrimmed || null,
       });
+
+      // Log the change for both factsheets
+      await logDependencyAdded(
+        connectionModal.sourceId,
+        connectionModal.sourceName,
+        connectionModal.targetId,
+        connectionModal.targetName,
+        descriptionTrimmed
+      );
+
       setConnectionModal(null);
       setConnectionDescription('');
     } catch (err) {
@@ -169,11 +184,36 @@ export default function DependenciesPage() {
   const handleUpdateDependency = async () => {
     if (!editingDependency) return;
 
+    const sourceFactsheet = factsheets.find((f) => f.id === editingDependency.factsheet);
+    const targetFactsheet = factsheets.find((f) => f.id === editingDependency.depends_on);
+    const oldDescription = editingDependency.description || null;
+    const newDescription = editDescription.trim() || null;
+
+    // Only update if description actually changed
+    if (oldDescription === newDescription) {
+      setEditingDependency(null);
+      setEditDescription('');
+      return;
+    }
+
     setSaving(true);
     try {
       await pb.collection('dependencies').update(editingDependency.id, {
-        description: editDescription.trim() || null,
+        description: newDescription,
       });
+
+      // Log the change for both factsheets
+      if (sourceFactsheet && targetFactsheet) {
+        await logDependencyUpdated(
+          editingDependency.factsheet,
+          sourceFactsheet.name,
+          editingDependency.depends_on,
+          targetFactsheet.name,
+          oldDescription,
+          newDescription
+        );
+      }
+
       setEditingDependency(null);
       setEditDescription('');
     } catch (err) {
@@ -187,9 +227,23 @@ export default function DependenciesPage() {
     if (!editingDependency) return;
     if (!confirm('Are you sure you want to delete this dependency?')) return;
 
+    const sourceFactsheet = factsheets.find((f) => f.id === editingDependency.factsheet);
+    const targetFactsheet = factsheets.find((f) => f.id === editingDependency.depends_on);
+
     setSaving(true);
     try {
       await pb.collection('dependencies').delete(editingDependency.id);
+
+      // Log the change for both factsheets
+      if (sourceFactsheet && targetFactsheet) {
+        await logDependencyRemoved(
+          editingDependency.factsheet,
+          sourceFactsheet.name,
+          editingDependency.depends_on,
+          targetFactsheet.name
+        );
+      }
+
       setEditingDependency(null);
       setEditDescription('');
     } catch (err) {

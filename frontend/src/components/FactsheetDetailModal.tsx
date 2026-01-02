@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Edit, ExternalLink } from 'lucide-react';
+import { Edit, ExternalLink, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal, Button, Badge } from './ui';
 import { useRecord, useRealtime } from '../hooks/useRealtime';
-import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, DependencyExpanded } from '../types';
+import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, DependencyExpanded, ChangeLogExpanded } from '../types';
 
 interface FactsheetDetailModalProps {
   factsheetId: string | null;
@@ -10,6 +11,8 @@ interface FactsheetDetailModalProps {
 }
 
 export default function FactsheetDetailModal({ factsheetId, onClose }: FactsheetDetailModalProps) {
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+
   const { record: factsheet, loading } = useRecord<Factsheet>('factsheets', factsheetId || undefined);
   const { record: factsheetType } = useRecord<FactsheetType>(
     'factsheet_types',
@@ -26,6 +29,13 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
     collection: 'factsheet_properties',
     filter: factsheetId ? `factsheet = "${factsheetId}"` : '',
     expand: 'property,option',
+  });
+
+  const { records: changeLogs } = useRealtime<ChangeLogExpanded>({
+    collection: 'change_log',
+    filter: factsheetId ? `factsheet = "${factsheetId}"` : '',
+    sort: '-created',
+    expand: 'related_factsheet',
   });
 
   const getStatusVariant = (status: string) => {
@@ -162,6 +172,40 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Change History */}
+          {changeLogs.length > 0 && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setHistoryExpanded(!historyExpanded)}
+                className="w-full text-left text-sm font-medium text-gray-500 flex items-center gap-2 hover:text-gray-700"
+              >
+                {historyExpanded ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+                <History className="w-4 h-4" />
+                Change History ({changeLogs.length})
+              </button>
+              {historyExpanded && (
+                <div className="space-y-2 max-h-48 overflow-y-auto mt-2">
+                  {changeLogs.map((log) => (
+                    <div key={log.id} className="bg-gray-50 p-2 text-sm">
+                      <div className="flex justify-between items-start">
+                        <p className="text-gray-700">{log.description}</p>
+                        <span className="text-xs text-gray-400 whitespace-nowrap ml-2">
+                          {new Date(log.created).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">by {log.username}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
