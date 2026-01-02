@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Card, Button, Input, Select } from '../components/ui';
 import { Textarea } from '../components/ui/Input';
 import { useRecord, useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
-import type { Factsheet, FactsheetType } from '../types';
+import type { Factsheet, FactsheetType, PropertyDefinition, PropertyOption, FactsheetProperty } from '../types';
 
 const statusOptions = [
   { value: 'draft', label: 'Draft' },
@@ -28,14 +28,50 @@ export default function FactsheetForm() {
     sort: 'order',
   });
 
+  const { records: propertyDefinitions } = useRealtime<PropertyDefinition>({
+    collection: 'property_definitions',
+    sort: 'order',
+  });
+
+  const { records: propertyOptions } = useRealtime<PropertyOption>({
+    collection: 'property_options',
+    sort: 'order',
+  });
+
+  const { records: existingProperties } = useRealtime<FactsheetProperty>({
+    collection: 'factsheet_properties',
+    filter: id ? `factsheet = "${id}"` : '',
+  });
+
   const typeOptions = factsheetTypes.map((t) => ({ value: t.id, label: t.name }));
+
+  // Group options by property
+  const optionsByProperty = useMemo(() => {
+    const map = new Map<string, PropertyOption[]>();
+    propertyOptions.forEach((opt) => {
+      if (!map.has(opt.property)) {
+        map.set(opt.property, []);
+      }
+      map.get(opt.property)!.push(opt);
+    });
+    map.forEach((opts) => {
+      opts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    });
+    return map;
+  }, [propertyOptions]);
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     type: '',
     status: 'draft',
+    responsibility: '',
+    benefits: '',
+    what_it_does: '',
+    problems_addressed: '',
+    potential_ui: '',
   });
+  const [propertyValues, setPropertyValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,9 +82,25 @@ export default function FactsheetForm() {
         description: existingFactsheet.description || '',
         type: existingFactsheet.type,
         status: existingFactsheet.status,
+        responsibility: existingFactsheet.responsibility || '',
+        benefits: existingFactsheet.benefits || '',
+        what_it_does: existingFactsheet.what_it_does || '',
+        problems_addressed: existingFactsheet.problems_addressed || '',
+        potential_ui: existingFactsheet.potential_ui || '',
       });
     }
   }, [existingFactsheet]);
+
+  // Load existing property values when editing
+  useEffect(() => {
+    if (existingProperties.length > 0) {
+      const values: Record<string, string> = {};
+      existingProperties.forEach((prop) => {
+        values[prop.property] = prop.option;
+      });
+      setPropertyValues(values);
+    }
+  }, [existingProperties]);
 
   // Set default type when types are loaded
   useEffect(() => {
@@ -56,6 +108,18 @@ export default function FactsheetForm() {
       setFormData((prev) => ({ ...prev, type: factsheetTypes[0].id }));
     }
   }, [factsheetTypes, isEdit, formData.type]);
+
+  const handlePropertyChange = (propertyId: string, optionId: string) => {
+    setPropertyValues((prev) => ({ ...prev, [propertyId]: optionId }));
+  };
+
+  const getOptionsForProperty = (propDefId: string) => {
+    const opts = optionsByProperty.get(propDefId) || [];
+    return [
+      { value: '', label: 'Select...' },
+      ...opts.map((opt) => ({ value: opt.id, label: opt.value })),
+    ];
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,11 +133,38 @@ export default function FactsheetForm() {
     setSaving(true);
 
     try {
+      let factsheetId: string;
+
       if (isEdit && id) {
         await pb.collection('factsheets').update(id, formData);
+        factsheetId = id;
       } else {
-        await pb.collection('factsheets').create(formData);
+        const created = await pb.collection('factsheets').create(formData);
+        factsheetId = created.id;
       }
+
+      // Save property values
+      for (const propDef of propertyDefinitions) {
+        const optionId = propertyValues[propDef.id];
+        const existing = existingProperties.find((p) => p.property === propDef.id);
+
+        if (optionId && optionId.trim()) {
+          if (existing) {
+            await pb.collection('factsheet_properties').update(existing.id, {
+              option: optionId,
+            });
+          } else {
+            await pb.collection('factsheet_properties').create({
+              factsheet: factsheetId,
+              property: propDef.id,
+              option: optionId,
+            });
+          }
+        } else if (existing) {
+          await pb.collection('factsheet_properties').delete(existing.id);
+        }
+      }
+
       navigate('/factsheets');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save factsheet');
@@ -180,6 +271,69 @@ export default function FactsheetForm() {
             value={formData.status}
             onChange={(e) => setFormData({ ...formData, status: e.target.value })}
           />
+
+          {/* Property selections */}
+          {propertyDefinitions.length > 0 && (
+            <div className="border-t border-gray-200 pt-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-4">Properties</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {propertyDefinitions.map((propDef) => (
+                  <Select
+                    key={propDef.id}
+                    label={propDef.name}
+                    options={getOptionsForProperty(propDef.id)}
+                    value={propertyValues[propDef.id] || ''}
+                    onChange={(e) => handlePropertyChange(propDef.id, e.target.value)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="border-t border-gray-200 pt-6">
+            <h3 className="text-sm font-medium text-gray-700 mb-4">Additional Details</h3>
+
+            <div className="space-y-6">
+              <Input
+                label="Responsibility"
+                placeholder="Who is responsible for this?"
+                value={formData.responsibility}
+                onChange={(e) => setFormData({ ...formData, responsibility: e.target.value })}
+              />
+
+              <Textarea
+                label="Benefits"
+                placeholder="What are the benefits?"
+                value={formData.benefits}
+                onChange={(e) => setFormData({ ...formData, benefits: e.target.value })}
+                rows={3}
+              />
+
+              <Textarea
+                label="What it does"
+                placeholder="Describe what this does..."
+                value={formData.what_it_does}
+                onChange={(e) => setFormData({ ...formData, what_it_does: e.target.value })}
+                rows={3}
+              />
+
+              <Textarea
+                label="Problems addressed"
+                placeholder="What problems does this address?"
+                value={formData.problems_addressed}
+                onChange={(e) => setFormData({ ...formData, problems_addressed: e.target.value })}
+                rows={3}
+              />
+
+              <Textarea
+                label="Potential User Interface"
+                placeholder="Describe the potential user interface..."
+                value={formData.potential_ui}
+                onChange={(e) => setFormData({ ...formData, potential_ui: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
 
           <div className="flex gap-4 pt-4">
             <Button

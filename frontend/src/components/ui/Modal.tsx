@@ -7,7 +7,15 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   showCloseButton?: boolean;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
+
+const sizeClasses = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+};
 
 export default function Modal({
   isOpen,
@@ -15,6 +23,7 @@ export default function Modal({
   title,
   children,
   showCloseButton = true,
+  size = 'md',
 }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
@@ -38,7 +47,7 @@ export default function Modal({
       />
 
       {/* Modal */}
-      <div className="relative bg-white w-full max-w-md mx-4 shadow-xl">
+      <div className={`relative bg-white w-full ${sizeClasses[size]} mx-4 shadow-xl max-h-[90vh] flex flex-col`}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-primary-900">
           <h2 className="text-lg font-semibold text-white">{title}</h2>
@@ -53,7 +62,7 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

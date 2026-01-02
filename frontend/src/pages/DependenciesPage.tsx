@@ -1,9 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, Eye, ChevronDown, Check, MessageSquare } from 'lucide-react';
 import { Card, CardTitle, Select, Button, Modal } from '../components/ui';
 import { Textarea } from '../components/ui/Input';
 import { DependencyGraph, type ConnectionRequest } from '../components/visualizations';
+import FactsheetDetailModal from '../components/FactsheetDetailModal';
 import { useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
 import type { FactsheetExpanded, Dependency, FactsheetType, PropertyDefinition, PropertyOption, FactsheetPropertyExpanded } from '../types';
@@ -16,7 +16,6 @@ const statusOptions = [
 ];
 
 export default function DependenciesPage() {
-  const navigate = useNavigate();
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [propertyFilters, setPropertyFilters] = useState<Record<string, string>>({});
@@ -32,6 +31,9 @@ export default function DependenciesPage() {
   // Edit modal state (for editing existing dependencies)
   const [editingDependency, setEditingDependency] = useState<Dependency | null>(null);
   const [editDescription, setEditDescription] = useState('');
+
+  // Factsheet detail modal state
+  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(null);
 
   const { records: factsheets, loading: loadingFactsheets } = useRealtime<FactsheetExpanded>({
     collection: 'factsheets',
@@ -125,7 +127,7 @@ export default function DependenciesPage() {
   }, [dependencies, filteredFactsheets]);
 
   const handleNodeClick = (factsheetId: string) => {
-    navigate(`/factsheets/${factsheetId}`);
+    setSelectedFactsheetId(factsheetId);
   };
 
   const handleConnect = (connection: ConnectionRequest) => {
@@ -566,6 +568,12 @@ export default function DependenciesPage() {
           </div>
         )}
       </Modal>
+
+      {/* Factsheet Detail Modal */}
+      <FactsheetDetailModal
+        factsheetId={selectedFactsheetId}
+        onClose={() => setSelectedFactsheetId(null)}
+      />
     </div>
   );
 }

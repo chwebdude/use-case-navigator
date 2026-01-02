@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Card, CardTitle, Select } from '../components/ui';
 import { PropertyMatrix } from '../components/visualizations';
+import FactsheetDetailModal from '../components/FactsheetDetailModal';
 import { useRealtime } from '../hooks/useRealtime';
 import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded } from '../types';
 
 export default function MatrixPage() {
-  const navigate = useNavigate();
   const [xAxis, setXAxis] = useState('');
   const [yAxis, setYAxis] = useState('');
+  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(null);
 
   const { records: factsheets, loading: loadingFactsheets } = useRealtime<FactsheetExpanded>({
     collection: 'factsheets',
@@ -26,7 +26,7 @@ export default function MatrixPage() {
   });
 
   const handleFactsheetClick = (factsheetId: string) => {
-    navigate(`/factsheets/${factsheetId}`);
+    setSelectedFactsheetId(factsheetId);
   };
 
   const loading = loadingFactsheets || loadingDefs || loadingProps;
@@ -105,6 +105,12 @@ export default function MatrixPage() {
           onFactsheetClick={handleFactsheetClick}
         />
       )}
+
+      {/* Factsheet Detail Modal */}
+      <FactsheetDetailModal
+        factsheetId={selectedFactsheetId}
+        onClose={() => setSelectedFactsheetId(null)}
+      />
     </div>
   );
 }

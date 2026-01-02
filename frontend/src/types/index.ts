@@ -12,6 +12,11 @@ export interface Factsheet extends RecordModel {
   description: string;
   type: string;
   status: 'draft' | 'active' | 'archived';
+  responsibility?: string;
+  benefits?: string;
+  what_it_does?: string;
+  problems_addressed?: string;
+  potential_ui?: string;
 }
 
 export interface Dependency extends RecordModel {

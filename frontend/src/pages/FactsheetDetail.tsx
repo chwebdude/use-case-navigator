@@ -133,10 +133,65 @@ export default function FactsheetDetail() {
       {/* Description */}
       <Card>
         <CardTitle>Description</CardTitle>
-        <p className="text-gray-600 mt-2">
+        <p className="text-gray-600 mt-2 whitespace-pre-wrap">
           {factsheet.description || 'No description provided'}
         </p>
       </Card>
+
+      {/* Details Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Responsibility */}
+        {factsheet.responsibility && (
+          <Card>
+            <CardTitle>Responsibility</CardTitle>
+            <p className="text-gray-600 mt-2">{factsheet.responsibility}</p>
+          </Card>
+        )}
+
+        {/* What it does */}
+        {factsheet.what_it_does && (
+          <Card>
+            <CardTitle>What it does</CardTitle>
+            <div
+              className="text-gray-600 mt-2 prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: factsheet.what_it_does }}
+            />
+          </Card>
+        )}
+
+        {/* Benefits */}
+        {factsheet.benefits && (
+          <Card>
+            <CardTitle>Benefits</CardTitle>
+            <div
+              className="text-gray-600 mt-2 prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: factsheet.benefits }}
+            />
+          </Card>
+        )}
+
+        {/* Problems Addressed */}
+        {factsheet.problems_addressed && (
+          <Card>
+            <CardTitle>Problems Addressed</CardTitle>
+            <div
+              className="text-gray-600 mt-2 prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: factsheet.problems_addressed }}
+            />
+          </Card>
+        )}
+
+        {/* Potential UI */}
+        {factsheet.potential_ui && (
+          <Card className="md:col-span-2">
+            <CardTitle>Potential User Interface</CardTitle>
+            <div
+              className="text-gray-600 mt-2 prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: factsheet.potential_ui }}
+            />
+          </Card>
+        )}
+      </div>
 
       {/* Dependencies */}
       <Card>
