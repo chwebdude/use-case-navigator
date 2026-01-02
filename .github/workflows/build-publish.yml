@@ -106,13 +106,13 @@ jobs:
           build-args: |
             POCKETBASE_VERSION=0.23.4
 
-      # - name: Generate artifact attestation
-      #   if: github.event_name != 'pull_request'
-      #   uses: actions/attest-build-provenance@v1
-      #   with:
-      #     subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-      #     subject-digest: ${{ steps.build-push.outputs.digest }}
-      #     push-to-registry: true
+      - name: Generate artifact attestation
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          push-to-registry: true
 
   helm-package:
     name: Package Helm Chart
