@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, GripVertical, Pencil, Check, X } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Pencil, Check, X, RotateCcw } from 'lucide-react';
+import * as Icons from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -19,6 +20,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardTitle, Button, Input } from '../components/ui';
 import { useRealtime } from '../hooks/useRealtime';
+import { useAppSettings, AVAILABLE_ICONS, type IconId } from '../hooks/useAppSettings';
 import pb from '../lib/pocketbase';
 import type { FactsheetType, PropertyDefinition, PropertyOption } from '../types';
 
@@ -763,13 +765,74 @@ export default function SettingsPage() {
     }
   };
 
+  // App Settings
+  const { settings: appSettings, setSettings: setAppSettings, resetSettings: resetAppSettings, defaultSettings } = useAppSettings();
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-primary-900">Settings</h1>
-        <p className="text-gray-500 mt-1">Configure factsheet types and properties</p>
+        <p className="text-gray-500 mt-1">Configure application and factsheet settings</p>
       </div>
+
+      {/* Application Settings */}
+      <Card>
+        <CardTitle>Application Settings</CardTitle>
+        <p className="text-sm text-gray-500 mt-1 mb-6">
+          Customize the application title and icon.
+        </p>
+
+        <div className="space-y-6">
+          {/* App Title */}
+          <Input
+            label="Application Title"
+            placeholder="Enter application title"
+            value={appSettings.title}
+            onChange={(e) => setAppSettings({ title: e.target.value })}
+          />
+
+          {/* Icon Selection */}
+          <div>
+            <label className="block text-sm font-medium text-primary-900 mb-3">
+              Application Icon
+            </label>
+            <div className="grid grid-cols-6 gap-3">
+              {AVAILABLE_ICONS.map(({ id, label }) => {
+                const IconComponent = Icons[id] as React.ComponentType<{ className?: string }>;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setAppSettings({ icon: id as IconId })}
+                    className={`flex flex-col items-center gap-2 p-3 border-2 transition-colors ${
+                      appSettings.icon === id
+                        ? 'border-accent-500 bg-accent-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    title={label}
+                  >
+                    <IconComponent className="w-6 h-6 text-primary-900" />
+                    <span className="text-xs text-gray-600">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Reset Button */}
+          <div className="pt-2">
+            <Button
+              variant="secondary"
+              onClick={resetAppSettings}
+              icon={<RotateCcw className="w-4 h-4" />}
+              disabled={appSettings.title === defaultSettings.title && appSettings.icon === defaultSettings.icon}
+            >
+              Reset to Defaults
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       {/* Factsheet Types */}
       <Card>
