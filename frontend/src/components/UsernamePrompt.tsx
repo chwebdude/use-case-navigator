@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User } from 'lucide-react';
 import Modal from './ui/Modal';
 import { Button, Input } from './ui';
@@ -6,11 +6,20 @@ import { Button, Input } from './ui';
 interface UsernamePromptProps {
   isOpen: boolean;
   onSubmit: (username: string) => void;
+  onClose?: () => void;
+  initialValue?: string;
 }
 
-export default function UsernamePrompt({ isOpen, onSubmit }: UsernamePromptProps) {
-  const [name, setName] = useState('');
+export default function UsernamePrompt({ isOpen, onSubmit, onClose, initialValue = '' }: UsernamePromptProps) {
+  const [name, setName] = useState(initialValue);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setName(initialValue);
+      setError('');
+    }
+  }, [isOpen, initialValue]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +36,7 @@ export default function UsernamePrompt({ isOpen, onSubmit }: UsernamePromptProps
   };
 
   return (
-    <Modal isOpen={isOpen} title="Welcome" showCloseButton={false}>
+    <Modal isOpen={isOpen} title="Welcome" onClose={onClose} showCloseButton={Boolean(onClose)}>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="flex justify-center">
           <div className="w-16 h-16 bg-accent-500 flex items-center justify-center">

@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Cpu, User } from 'lucide-react';
 import { useUser } from '../../hooks/useUser';
+import UsernamePrompt from '../UsernamePrompt';
 
 export default function Header() {
-  const { username } = useUser();
+  const { username, setUsername } = useUser();
+  const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
 
   return (
     <header className="h-16 bg-primary-900 border-b border-primary-700 flex items-center justify-between px-6 shrink-0">
@@ -17,13 +20,26 @@ export default function Header() {
 
       {/* User info */}
       {username && (
-        <div className="flex items-center gap-3">
+        <button
+          onClick={() => setShowUsernamePrompt(true)}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+        >
           <div className="w-8 h-8 bg-accent-500 flex items-center justify-center">
             <User className="w-4 h-4 text-white" />
           </div>
           <span className="text-white text-sm font-medium">{username}</span>
-        </div>
+        </button>
       )}
+
+      <UsernamePrompt
+        isOpen={showUsernamePrompt}
+        initialValue={username || ''}
+        onSubmit={(newUsername) => {
+          setUsername(newUsername);
+          setShowUsernamePrompt(false);
+        }}
+        onClose={() => setShowUsernamePrompt(false)}
+      />
     </header>
   );
 }
