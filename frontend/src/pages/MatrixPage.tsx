@@ -256,26 +256,24 @@ export default function MatrixPage() {
                     <div className="p-2 border-b border-gray-100">
                       <span className="text-xs font-medium text-gray-500 uppercase">Display on cards</span>
                     </div>
-                    {propertyDefinitions
-                      .filter((prop) => prop.id !== xAxis && prop.id !== yAxis)
-                      .map((prop) => (
-                        <button
-                          key={prop.id}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                          onClick={() => togglePropertyDisplay(prop.id)}
-                        >
-                          <div className={`w-4 h-4 border flex items-center justify-center ${
-                            displayProperties.includes(prop.id)
-                              ? 'bg-accent-500 border-accent-500'
-                              : 'border-gray-300'
-                          }`}>
-                            {displayProperties.includes(prop.id) && (
-                              <Check className="w-3 h-3 text-white" />
-                            )}
-                          </div>
-                          {prop.name}
-                        </button>
-                      ))}
+                    {propertyDefinitions.map((prop) => (
+                      <button
+                        key={prop.id}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                        onClick={() => togglePropertyDisplay(prop.id)}
+                      >
+                        <div className={`w-4 h-4 border flex items-center justify-center ${
+                          displayProperties.includes(prop.id)
+                            ? 'bg-accent-500 border-accent-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {displayProperties.includes(prop.id) && (
+                            <Check className="w-3 h-3 text-white" />
+                          )}
+                        </div>
+                        {prop.name}
+                      </button>
+                    ))}
                     {displayProperties.length > 0 && (
                       <div className="p-2 border-t border-gray-100">
                         <button
