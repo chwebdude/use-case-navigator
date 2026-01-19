@@ -1,10 +1,13 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Eye, ChevronDown, Check } from 'lucide-react';
 import { Card, CardTitle, Select, Button } from '../components/ui';
-import { PropertyMatrix } from '../components/visualizations';
+import { PropertyMatrix, type FactsheetMoveData } from '../components/visualizations';
 import FactsheetDetailModal from '../components/FactsheetDetailModal';
+import FactsheetMoveModal from '../components/FactsheetMoveModal';
 import { useRealtime } from '../hooks/useRealtime';
-import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded, FactsheetType, PropertyOption } from '../types';
+import { useChangeLog } from '../hooks/useChangeLog';
+import pb from '../lib/pocketbase';
+import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded, FactsheetType, PropertyOption, FactsheetProperty } from '../types';
 
 const statusOptions = [
   { value: '', label: 'All Statuses' },
@@ -23,6 +26,11 @@ export default function MatrixPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [propertyFilters, setPropertyFilters] = useState<Record<string, string>>({});
 
+  // Move modal state
+  const [pendingMove, setPendingMove] = useState<FactsheetMoveData | null>(null);
+  const [moveLoading, setMoveLoading] = useState(false);
+  const { logPropertyChanged } = useChangeLog();
+
   // Display properties state
   const [displayProperties, setDisplayProperties] = useState<string[]>([]);
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
@@ -38,7 +46,7 @@ export default function MatrixPage() {
     sort: 'order',
   });
 
-  const { records: properties, loading: loadingProps } = useRealtime<FactsheetPropertyExpanded>({
+  const { records: properties, loading: loadingProps, refresh: refreshProperties } = useRealtime<FactsheetPropertyExpanded>({
     collection: 'factsheet_properties',
     expand: 'property,option',
   });
@@ -78,6 +86,99 @@ export default function MatrixPage() {
     setTypeFilter('');
     setStatusFilter('');
     setPropertyFilters({});
+  };
+
+  const handleFactsheetMove = (moveData: FactsheetMoveData) => {
+    setPendingMove(moveData);
+  };
+
+  const confirmMove = async () => {
+    if (!pendingMove) return;
+
+    setMoveLoading(true);
+    try {
+      const factsheetId = pendingMove.factsheet.id;
+
+      // Get existing properties for this factsheet
+      const existingProps = await pb.collection('factsheet_properties').getFullList<FactsheetProperty>({
+        filter: `factsheet = "${factsheetId}"`,
+      });
+
+      // Helper to find option ID by property ID and value
+      const findOptionId = (propertyId: string, value: string) => {
+        if (value === 'Unknown') return null;
+        return propertyOptions.find((opt) => opt.property === propertyId && opt.value === value)?.id || null;
+      };
+
+      // Helper to get property name
+      const getPropertyName = (propId: string) => {
+        return propertyDefinitions.find((p) => p.id === propId)?.name || propId;
+      };
+
+      // Update X axis property if changed
+      if (pendingMove.fromX !== pendingMove.toX) {
+        const newOptionId = findOptionId(xAxis, pendingMove.toX);
+        const existingProp = existingProps.find((p) => p.property === xAxis);
+
+        if (newOptionId) {
+          if (existingProp) {
+            await pb.collection('factsheet_properties').update(existingProp.id, { option: newOptionId });
+          } else {
+            await pb.collection('factsheet_properties').create({
+              factsheet: factsheetId,
+              property: xAxis,
+              option: newOptionId,
+            });
+          }
+          await logPropertyChanged(
+            factsheetId,
+            getPropertyName(xAxis),
+            pendingMove.fromX === 'Unknown' ? null : pendingMove.fromX,
+            pendingMove.toX
+          );
+        } else if (existingProp && pendingMove.toX === 'Unknown') {
+          // Moving to Unknown = delete the property
+          await pb.collection('factsheet_properties').delete(existingProp.id);
+          await logPropertyChanged(factsheetId, getPropertyName(xAxis), pendingMove.fromX, null);
+        }
+      }
+
+      // Update Y axis property if changed
+      if (pendingMove.fromY !== pendingMove.toY) {
+        const newOptionId = findOptionId(yAxis, pendingMove.toY);
+        const existingProp = existingProps.find((p) => p.property === yAxis);
+
+        if (newOptionId) {
+          if (existingProp) {
+            await pb.collection('factsheet_properties').update(existingProp.id, { option: newOptionId });
+          } else {
+            await pb.collection('factsheet_properties').create({
+              factsheet: factsheetId,
+              property: yAxis,
+              option: newOptionId,
+            });
+          }
+          await logPropertyChanged(
+            factsheetId,
+            getPropertyName(yAxis),
+            pendingMove.fromY === 'Unknown' ? null : pendingMove.fromY,
+            pendingMove.toY
+          );
+        } else if (existingProp && pendingMove.toY === 'Unknown') {
+          // Moving to Unknown = delete the property
+          await pb.collection('factsheet_properties').delete(existingProp.id);
+          await logPropertyChanged(factsheetId, getPropertyName(yAxis), pendingMove.fromY, null);
+        }
+      }
+
+      // Refresh properties to get expanded data (realtime events don't include expand)
+      await refreshProperties();
+      setPendingMove(null);
+    } catch (err) {
+      console.error('Failed to move factsheet:', err);
+    } finally {
+      setMoveLoading(false);
+    }
   };
 
   // Group options by property for filter dropdowns
@@ -360,6 +461,7 @@ export default function MatrixPage() {
           xAxisProperty={xAxis}
           yAxisProperty={yAxis}
           onFactsheetClick={handleFactsheetClick}
+          onFactsheetMove={handleFactsheetMove}
           displayProperties={displayProperties}
           factsheetPropertyValues={propertyLookup}
         />
@@ -369,6 +471,17 @@ export default function MatrixPage() {
       <FactsheetDetailModal
         factsheetId={selectedFactsheetId}
         onClose={() => setSelectedFactsheetId(null)}
+      />
+
+      {/* Factsheet Move Modal */}
+      <FactsheetMoveModal
+        isOpen={pendingMove !== null}
+        moveData={pendingMove}
+        xAxisPropertyName={propertyDefinitions.find((p) => p.id === xAxis)?.name || xAxis}
+        yAxisPropertyName={propertyDefinitions.find((p) => p.id === yAxis)?.name || yAxis}
+        onConfirm={confirmMove}
+        onCancel={() => setPendingMove(null)}
+        loading={moveLoading}
       />
     </div>
   );

@@ -1,5 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded, PropertyOption } from '../../types';
+
+export interface FactsheetMoveData {
+  factsheet: FactsheetExpanded;
+  fromX: string;
+  fromY: string;
+  toX: string;
+  toY: string;
+}
 
 interface PropertyMatrixProps {
   factsheets: FactsheetExpanded[];
@@ -9,6 +17,7 @@ interface PropertyMatrixProps {
   xAxisProperty: string;
   yAxisProperty: string;
   onFactsheetClick?: (factsheetId: string) => void;
+  onFactsheetMove?: (moveData: FactsheetMoveData) => void;
   displayProperties?: string[];
   factsheetPropertyValues?: Map<string, Map<string, string>>;
 }
@@ -21,9 +30,13 @@ export default function PropertyMatrix({
   xAxisProperty,
   yAxisProperty,
   onFactsheetClick,
+  onFactsheetMove,
   displayProperties = [],
   factsheetPropertyValues,
 }: PropertyMatrixProps) {
+  const [draggedFactsheet, setDraggedFactsheet] = useState<{ fs: FactsheetExpanded; fromX: string; fromY: string } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ x: string; y: string } | null>(null);
+
   const yDef = propertyDefinitions.find((p) => p.id === yAxisProperty);
 
   // Get all options for each axis property (sorted by order)
@@ -188,21 +201,57 @@ export default function PropertyMatrix({
             <div className="flex-1 flex gap-3 min-w-0">
               {xValues.map((xVal) => {
                 const cellFactsheets = matrix.get(yVal)?.get(xVal) || [];
+                const isDropTarget = dropTarget?.x === xVal && dropTarget?.y === yVal;
+                const isDifferentCell = draggedFactsheet && (draggedFactsheet.fromX !== xVal || draggedFactsheet.fromY !== yVal);
 
                 return (
                   <div
                     key={`${yVal}-${xVal}`}
-                    className="flex-1 min-w-[200px] min-h-[100px] bg-gray-50 rounded-lg p-2 border border-gray-200"
+                    className={`flex-1 min-w-[200px] min-h-[100px] rounded-lg p-2 border-2 transition-colors ${
+                      isDropTarget && isDifferentCell
+                        ? 'bg-accent-50 border-accent-400'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedFactsheet && (draggedFactsheet.fromX !== xVal || draggedFactsheet.fromY !== yVal)) {
+                        setDropTarget({ x: xVal, y: yVal });
+                      }
+                    }}
+                    onDragLeave={() => setDropTarget(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDropTarget(null);
+                      if (draggedFactsheet && onFactsheetMove && (draggedFactsheet.fromX !== xVal || draggedFactsheet.fromY !== yVal)) {
+                        onFactsheetMove({
+                          factsheet: draggedFactsheet.fs,
+                          fromX: draggedFactsheet.fromX,
+                          fromY: draggedFactsheet.fromY,
+                          toX: xVal,
+                          toY: yVal,
+                        });
+                      }
+                      setDraggedFactsheet(null);
+                    }}
                   >
                     <div className="space-y-2">
                       {cellFactsheets.map((fs) => {
                         const typeColor = fs.expand?.type?.color || '#6b7280';
                         const fsPropertyValues = factsheetPropertyValues?.get(fs.id);
+                        const isDragging = draggedFactsheet?.fs.id === fs.id;
 
                         return (
                           <div
                             key={fs.id}
-                            className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
+                            draggable
+                            onDragStart={() => setDraggedFactsheet({ fs, fromX: xVal, fromY: yVal })}
+                            onDragEnd={() => {
+                              setDraggedFactsheet(null);
+                              setDropTarget(null);
+                            }}
+                            className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-grab overflow-hidden ${
+                              isDragging ? 'opacity-50 scale-95' : ''
+                            }`}
                             onClick={() => onFactsheetClick?.(fs.id)}
                           >
                             {/* Color bar */}

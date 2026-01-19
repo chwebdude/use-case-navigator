@@ -50,7 +50,28 @@ export function useRealtime<T extends RecordModel>({
     let unsubscribe: (() => void) | undefined;
 
     pb.collection(collection)
-      .subscribe<T>('*', (event: RecordSubscription<T>) => {
+      .subscribe<T>('*', async (event: RecordSubscription<T>) => {
+        // For create/update, fetch the full record with expand data
+        // since subscription events don't include expanded relations
+        if ((event.action === 'create' || event.action === 'update') && expand) {
+          try {
+            const fullRecord = await pb.collection(collection).getOne<T>(event.record.id, { expand });
+            setRecords((prev) => {
+              if (event.action === 'create') {
+                if (prev.some((r) => r.id === fullRecord.id)) {
+                  return prev;
+                }
+                return [...prev, fullRecord];
+              } else {
+                return prev.map((r) => r.id === fullRecord.id ? fullRecord : r);
+              }
+            });
+          } catch {
+            // Record might have been deleted, ignore
+          }
+          return;
+        }
+
         setRecords((prev) => {
           switch (event.action) {
             case 'create':
