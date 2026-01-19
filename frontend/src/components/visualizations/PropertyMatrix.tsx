@@ -1,5 +1,4 @@
-import { useMemo, useRef, useEffect } from 'react';
-import * as d3 from 'd3';
+import { useMemo } from 'react';
 import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded } from '../../types';
 
 interface PropertyMatrixProps {
@@ -9,6 +8,8 @@ interface PropertyMatrixProps {
   xAxisProperty: string;
   yAxisProperty: string;
   onFactsheetClick?: (factsheetId: string) => void;
+  displayProperties?: string[];
+  factsheetPropertyValues?: Map<string, Map<string, string>>;
 }
 
 export default function PropertyMatrix({
@@ -18,25 +19,23 @@ export default function PropertyMatrix({
   xAxisProperty,
   yAxisProperty,
   onFactsheetClick,
+  displayProperties = [],
+  factsheetPropertyValues,
 }: PropertyMatrixProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  const xDef = propertyDefinitions.find((p) => p.id === xAxisProperty);
   const yDef = propertyDefinitions.find((p) => p.id === yAxisProperty);
 
-  // Get unique values for each axis
+  // Get unique values for each axis and build matrix
   const { xValues, yValues, matrix } = useMemo(() => {
     const xVals = new Set<string>();
     const yVals = new Set<string>();
     const matrixData: Map<string, Map<string, FactsheetExpanded[]>> = new Map();
 
-    // Build property lookup
+    // Build property lookup from properties prop
     const propLookup = new Map<string, Map<string, string>>();
     properties.forEach((prop) => {
       if (!propLookup.has(prop.factsheet)) {
         propLookup.set(prop.factsheet, new Map());
       }
-      // Use the expanded option value
       const optionValue = prop.expand?.option?.value || '';
       if (optionValue) {
         propLookup.get(prop.factsheet)!.set(prop.property, optionValue);
@@ -52,13 +51,13 @@ export default function PropertyMatrix({
       xVals.add(xVal);
       yVals.add(yVal);
 
-      if (!matrixData.has(xVal)) {
-        matrixData.set(xVal, new Map());
+      if (!matrixData.has(yVal)) {
+        matrixData.set(yVal, new Map());
       }
-      if (!matrixData.get(xVal)!.has(yVal)) {
-        matrixData.get(xVal)!.set(yVal, []);
+      if (!matrixData.get(yVal)!.has(xVal)) {
+        matrixData.get(yVal)!.set(xVal, []);
       }
-      matrixData.get(xVal)!.get(yVal)!.push(fs);
+      matrixData.get(yVal)!.get(xVal)!.push(fs);
     });
 
     return {
@@ -68,153 +67,130 @@ export default function PropertyMatrix({
     };
   }, [factsheets, properties, xAxisProperty, yAxisProperty]);
 
-  useEffect(() => {
-    if (!svgRef.current || xValues.length === 0 || yValues.length === 0) return;
-
-    const margin = { top: 60, right: 40, bottom: 40, left: 120 };
-    const cellWidth = 150;
-    const cellHeight = 100;
-    const width = margin.left + margin.right + cellWidth * xValues.length;
-    const height = margin.top + margin.bottom + cellHeight * yValues.length;
-
-    // Clear previous content
-    d3.select(svgRef.current).selectAll('*').remove();
-
-    const svg = d3
-      .select(svgRef.current)
-      .attr('width', width)
-      .attr('height', height);
-
-    // Create scales
-    const xScale = d3
-      .scaleBand()
-      .domain(xValues)
-      .range([margin.left, width - margin.right])
-      .padding(0.1);
-
-    const yScale = d3
-      .scaleBand()
-      .domain(yValues)
-      .range([margin.top, height - margin.bottom])
-      .padding(0.1);
-
-    // Draw cells
-    xValues.forEach((xVal) => {
-      yValues.forEach((yVal) => {
-        const factsheetsInCell = matrix.get(xVal)?.get(yVal) || [];
-
-        const g = svg
-          .append('g')
-          .attr('transform', `translate(${xScale(xVal)}, ${yScale(yVal)})`);
-
-        // Cell background
-        g.append('rect')
-          .attr('width', xScale.bandwidth())
-          .attr('height', yScale.bandwidth())
-          .attr('fill', factsheetsInCell.length > 0 ? '#f0fdfa' : '#f9fafb')
-          .attr('stroke', '#e5e7eb');
-
-        // Factsheets in cell
-        factsheetsInCell.slice(0, 3).forEach((fs, index) => {
-          const typeColor = fs.expand?.type?.color || '#6b7280';
-
-          const chip = g
-            .append('g')
-            .attr('transform', `translate(8, ${8 + index * 28})`)
-            .style('cursor', 'pointer')
-            .on('click', () => onFactsheetClick?.(fs.id));
-
-          chip
-            .append('rect')
-            .attr('width', xScale.bandwidth() - 16)
-            .attr('height', 24)
-            .attr('fill', typeColor);
-
-          chip
-            .append('text')
-            .attr('x', 8)
-            .attr('y', 16)
-            .attr('fill', 'white')
-            .attr('font-size', '12px')
-            .attr('font-weight', '500')
-            .text(fs.name.length > 15 ? fs.name.slice(0, 15) + '...' : fs.name);
-        });
-
-        // Count badge if more than 3
-        if (factsheetsInCell.length > 3) {
-          g.append('text')
-            .attr('x', xScale.bandwidth() - 8)
-            .attr('y', yScale.bandwidth() - 8)
-            .attr('text-anchor', 'end')
-            .attr('fill', '#6b7280')
-            .attr('font-size', '11px')
-            .text(`+${factsheetsInCell.length - 3} more`);
-        }
-      });
-    });
-
-    // X axis labels
-    svg
-      .append('g')
-      .attr('transform', `translate(0, ${margin.top - 10})`)
-      .selectAll('text')
-      .data(xValues)
-      .join('text')
-      .attr('x', (d) => (xScale(d) || 0) + xScale.bandwidth() / 2)
-      .attr('text-anchor', 'middle')
-      .attr('fill', '#374151')
-      .attr('font-size', '13px')
-      .attr('font-weight', '500')
-      .text((d) => d);
-
-    // X axis title
-    svg
-      .append('text')
-      .attr('x', width / 2)
-      .attr('y', 20)
-      .attr('text-anchor', 'middle')
-      .attr('fill', '#1a1f2e')
-      .attr('font-size', '14px')
-      .attr('font-weight', '600')
-      .text(xDef?.name || 'X Axis');
-
-    // Y axis labels
-    svg
-      .append('g')
-      .attr('transform', `translate(${margin.left - 10}, 0)`)
-      .selectAll('text')
-      .data(yValues)
-      .join('text')
-      .attr('y', (d) => (yScale(d) || 0) + yScale.bandwidth() / 2)
-      .attr('text-anchor', 'end')
-      .attr('dominant-baseline', 'middle')
-      .attr('fill', '#374151')
-      .attr('font-size', '13px')
-      .attr('font-weight', '500')
-      .text((d) => d);
-
-    // Y axis title
-    svg
-      .append('text')
-      .attr('transform', `translate(20, ${height / 2}) rotate(-90)`)
-      .attr('text-anchor', 'middle')
-      .attr('fill', '#1a1f2e')
-      .attr('font-size', '14px')
-      .attr('font-weight', '600')
-      .text(yDef?.name || 'Y Axis');
-  }, [xValues, yValues, matrix, xDef, yDef, onFactsheetClick]);
+  // Get property name by id
+  const getPropertyName = (propId: string) => {
+    return propertyDefinitions.find((p) => p.id === propId)?.name || propId;
+  };
 
   if (!xAxisProperty || !yAxisProperty) {
     return (
-      <div className="w-full h-[400px] bg-gray-50 border border-gray-200 flex items-center justify-center">
+      <div className="w-full h-[400px] bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center">
         <p className="text-gray-500">Select both X and Y axis properties to view the matrix</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full overflow-auto bg-white border border-gray-200 p-4">
-      <svg ref={svgRef} />
+    <div className="w-full">
+      {/* X-Axis Header */}
+      <div className="flex">
+        {/* Y-Axis label spacer */}
+        <div className="w-36 shrink-0 flex items-center justify-end pr-4">
+          <span className="text-sm font-semibold text-gray-600">
+            {yDef?.name}
+          </span>
+        </div>
+
+        {/* X-Axis column headers */}
+        <div className="flex-1 flex gap-3">
+          {xValues.map((xVal) => (
+            <div
+              key={xVal}
+              className="flex-1 min-w-[220px]"
+            >
+              <div className="bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-center border border-gray-300">
+                <span className="font-semibold text-sm">{xVal}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Matrix rows */}
+      <div className="space-y-3 mt-3">
+        {yValues.map((yVal) => (
+          <div key={yVal} className="flex">
+            {/* Y-Axis row label */}
+            <div className="w-36 shrink-0 flex items-start pr-4">
+              <div className="bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-center border border-gray-300 w-full">
+                <span className="font-semibold text-sm">{yVal}</span>
+              </div>
+            </div>
+
+            {/* Row cells */}
+            <div className="flex-1 flex gap-3">
+              {xValues.map((xVal) => {
+                const cellFactsheets = matrix.get(yVal)?.get(xVal) || [];
+
+                return (
+                  <div
+                    key={`${yVal}-${xVal}`}
+                    className="flex-1 min-w-[220px] min-h-[80px] bg-gray-50 rounded-lg p-2 border border-gray-200"
+                  >
+                    <div className="space-y-2">
+                      {cellFactsheets.map((fs) => {
+                        const typeColor = fs.expand?.type?.color || '#6b7280';
+                        const fsPropertyValues = factsheetPropertyValues?.get(fs.id);
+
+                        return (
+                          <div
+                            key={fs.id}
+                            className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
+                            onClick={() => onFactsheetClick?.(fs.id)}
+                          >
+                            {/* Color bar */}
+                            <div
+                              className="h-1.5"
+                              style={{ backgroundColor: typeColor }}
+                            />
+
+                            {/* Card content */}
+                            <div className="p-3">
+                              <div className="font-medium text-primary-900 text-sm leading-tight">
+                                {fs.name}
+                              </div>
+
+                              {/* Status badge */}
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
+                                  fs.status === 'active'
+                                    ? 'bg-green-100 text-green-700'
+                                    : fs.status === 'archived'
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {fs.status}
+                                </span>
+                              </div>
+
+                              {/* Property values */}
+                              {displayProperties.length > 0 && fsPropertyValues && (
+                                <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                                  {displayProperties.map((propId) => {
+                                    const value = fsPropertyValues.get(propId);
+                                    if (!value) return null;
+                                    return (
+                                      <div key={propId} className="flex justify-between gap-2 text-xs">
+                                        <span className="text-gray-500">{getPropertyName(propId)}</span>
+                                        <span className="text-primary-900 font-medium">{value}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
