@@ -356,6 +356,7 @@ export default function MatrixPage() {
           factsheets={filteredFactsheets}
           properties={properties}
           propertyDefinitions={propertyDefinitions}
+          propertyOptions={propertyOptions}
           xAxisProperty={xAxis}
           yAxisProperty={yAxis}
           onFactsheetClick={handleFactsheetClick}

@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded } from '../../types';
+import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded, PropertyOption } from '../../types';
 
 interface PropertyMatrixProps {
   factsheets: FactsheetExpanded[];
   properties: FactsheetPropertyExpanded[];
   propertyDefinitions: PropertyDefinition[];
+  propertyOptions: PropertyOption[];
   xAxisProperty: string;
   yAxisProperty: string;
   onFactsheetClick?: (factsheetId: string) => void;
@@ -16,6 +17,7 @@ export default function PropertyMatrix({
   factsheets,
   properties,
   propertyDefinitions,
+  propertyOptions,
   xAxisProperty,
   yAxisProperty,
   onFactsheetClick,
@@ -24,10 +26,23 @@ export default function PropertyMatrix({
 }: PropertyMatrixProps) {
   const yDef = propertyDefinitions.find((p) => p.id === yAxisProperty);
 
-  // Get unique values for each axis and build matrix
-  const { xValues, yValues, matrix } = useMemo(() => {
-    const xVals = new Set<string>();
-    const yVals = new Set<string>();
+  // Get all options for each axis property (sorted by order)
+  const xAxisOptions = useMemo(() => {
+    return propertyOptions
+      .filter((opt) => opt.property === xAxisProperty)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((opt) => opt.value);
+  }, [propertyOptions, xAxisProperty]);
+
+  const yAxisOptions = useMemo(() => {
+    return propertyOptions
+      .filter((opt) => opt.property === yAxisProperty)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((opt) => opt.value);
+  }, [propertyOptions, yAxisProperty]);
+
+  // Build matrix with all axis options
+  const matrix = useMemo(() => {
     const matrixData: Map<string, Map<string, FactsheetExpanded[]>> = new Map();
 
     // Build property lookup from properties prop
@@ -42,30 +57,76 @@ export default function PropertyMatrix({
       }
     });
 
-    // Build matrix
+    // Initialize all cells
+    yAxisOptions.forEach((yVal) => {
+      matrixData.set(yVal, new Map());
+      xAxisOptions.forEach((xVal) => {
+        matrixData.get(yVal)!.set(xVal, []);
+      });
+    });
+
+    // Also add "Unknown" row/column for factsheets without values
+    const hasUnknownX = factsheets.some((fs) => !propLookup.get(fs.id)?.get(xAxisProperty));
+    const hasUnknownY = factsheets.some((fs) => !propLookup.get(fs.id)?.get(yAxisProperty));
+
+    if (hasUnknownY) {
+      matrixData.set('Unknown', new Map());
+      xAxisOptions.forEach((xVal) => {
+        matrixData.get('Unknown')!.set(xVal, []);
+      });
+      if (hasUnknownX) {
+        matrixData.get('Unknown')!.set('Unknown', []);
+      }
+    }
+    if (hasUnknownX) {
+      yAxisOptions.forEach((yVal) => {
+        matrixData.get(yVal)!.set('Unknown', []);
+      });
+    }
+
+    // Place factsheets in matrix
     factsheets.forEach((fs) => {
       const fsProps = propLookup.get(fs.id);
       const xVal = fsProps?.get(xAxisProperty) || 'Unknown';
       const yVal = fsProps?.get(yAxisProperty) || 'Unknown';
 
-      xVals.add(xVal);
-      yVals.add(yVal);
-
-      if (!matrixData.has(yVal)) {
-        matrixData.set(yVal, new Map());
+      if (matrixData.has(yVal) && matrixData.get(yVal)!.has(xVal)) {
+        matrixData.get(yVal)!.get(xVal)!.push(fs);
       }
-      if (!matrixData.get(yVal)!.has(xVal)) {
-        matrixData.get(yVal)!.set(xVal, []);
-      }
-      matrixData.get(yVal)!.get(xVal)!.push(fs);
     });
 
-    return {
-      xValues: Array.from(xVals).sort(),
-      yValues: Array.from(yVals).sort(),
-      matrix: matrixData,
-    };
-  }, [factsheets, properties, xAxisProperty, yAxisProperty]);
+    return matrixData;
+  }, [factsheets, properties, xAxisProperty, yAxisProperty, xAxisOptions, yAxisOptions]);
+
+  // Get all X values (options + Unknown if needed)
+  const xValues = useMemo(() => {
+    const hasUnknown = factsheets.some((fs) => {
+      const propLookup = new Map<string, string>();
+      properties.forEach((prop) => {
+        if (prop.factsheet === fs.id) {
+          const optionValue = prop.expand?.option?.value || '';
+          if (optionValue) propLookup.set(prop.property, optionValue);
+        }
+      });
+      return !propLookup.get(xAxisProperty);
+    });
+    return hasUnknown ? [...xAxisOptions, 'Unknown'] : xAxisOptions;
+  }, [xAxisOptions, factsheets, properties, xAxisProperty]);
+
+  // Get all Y values (options + Unknown if needed)
+  const yValues = useMemo(() => {
+    const hasUnknown = factsheets.some((fs) => {
+      const propLookup = new Map<string, string>();
+      properties.forEach((prop) => {
+        if (prop.factsheet === fs.id) {
+          const optionValue = prop.expand?.option?.value || '';
+          if (optionValue) propLookup.set(prop.property, optionValue);
+        }
+      });
+      return !propLookup.get(yAxisProperty);
+    });
+    return hasUnknown ? [...yAxisOptions, 'Unknown'] : yAxisOptions;
+  }, [yAxisOptions, factsheets, properties, yAxisProperty]);
 
   // Get property name by id
   const getPropertyName = (propId: string) => {
@@ -82,50 +143,56 @@ export default function PropertyMatrix({
 
   return (
     <div className="w-full">
-      {/* X-Axis Header */}
-      <div className="flex">
-        {/* Y-Axis label spacer */}
-        <div className="w-36 shrink-0 flex items-center justify-end pr-4">
+      {/* X-Axis header row */}
+      <div className="flex mb-3">
+        {/* Y-Axis label in corner */}
+        <div className="w-36 shrink-0 pr-3 h-12 flex items-center justify-end">
           <span className="text-sm font-semibold text-gray-600">
             {yDef?.name}
           </span>
         </div>
 
         {/* X-Axis column headers */}
-        <div className="flex-1 flex gap-3">
+        <div className="flex-1 flex gap-3 min-w-0">
           {xValues.map((xVal) => (
             <div
               key={xVal}
-              className="flex-1 min-w-[220px]"
+              className={`flex-1 min-w-[200px] h-12 px-4 rounded-lg border flex items-center justify-center ${
+                xVal === 'Unknown'
+                  ? 'bg-gray-100 text-gray-500 border-gray-200'
+                  : 'bg-gray-200 text-gray-700 border-gray-300'
+              }`}
             >
-              <div className="bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-center border border-gray-300">
-                <span className="font-semibold text-sm">{xVal}</span>
-              </div>
+              <span className="font-semibold text-sm">{xVal}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Matrix rows */}
-      <div className="space-y-3 mt-3">
+      <div className="flex flex-col gap-3">
         {yValues.map((yVal) => (
-          <div key={yVal} className="flex">
+          <div key={yVal} className="flex gap-3">
             {/* Y-Axis row label */}
-            <div className="w-36 shrink-0 flex items-start pr-4">
-              <div className="bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-center border border-gray-300 w-full">
-                <span className="font-semibold text-sm">{yVal}</span>
-              </div>
+            <div
+              className={`w-36 shrink-0 mr-0 min-h-[100px] px-3 py-3 rounded-lg border flex items-center justify-center ${
+                yVal === 'Unknown'
+                  ? 'bg-gray-100 text-gray-500 border-gray-200'
+                  : 'bg-gray-200 text-gray-700 border-gray-300'
+              }`}
+            >
+              <span className="font-semibold text-sm text-center">{yVal}</span>
             </div>
 
             {/* Row cells */}
-            <div className="flex-1 flex gap-3">
+            <div className="flex-1 flex gap-3 min-w-0">
               {xValues.map((xVal) => {
                 const cellFactsheets = matrix.get(yVal)?.get(xVal) || [];
 
                 return (
                   <div
                     key={`${yVal}-${xVal}`}
-                    className="flex-1 min-w-[220px] min-h-[80px] bg-gray-50 rounded-lg p-2 border border-gray-200"
+                    className="flex-1 min-w-[200px] min-h-[100px] bg-gray-50 rounded-lg p-2 border border-gray-200"
                   >
                     <div className="space-y-2">
                       {cellFactsheets.map((fs) => {
@@ -182,7 +249,6 @@ export default function PropertyMatrix({
                           </div>
                         );
                       })}
-
                     </div>
                   </div>
                 );
