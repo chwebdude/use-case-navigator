@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { LayoutGrid, Eye, ChevronDown, Check, MessageSquare } from 'lucide-react';
+import { LayoutGrid, Eye, ChevronDown, Check, MessageSquare, Focus, EyeOff } from 'lucide-react';
 import { Card, CardTitle, Select, Button, Modal } from '../components/ui';
 import { Textarea } from '../components/ui/Input';
 import { DependencyGraph, type ConnectionRequest } from '../components/visualizations';
@@ -35,6 +35,17 @@ export default function DependenciesPage() {
 
   // Factsheet detail modal state
   const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(null);
+
+  // Focus mode state (right-click on a node to focus)
+  const [focusedFactsheetId, setFocusedFactsheetId] = useState<string | null>(null);
+  const [unrelatedDisplayMode, setUnrelatedDisplayMode] = useState<'dim' | 'hide'>('dim');
+
+  // Auto-align when focus changes in hide mode (since nodes are removed/added)
+  useEffect(() => {
+    if (unrelatedDisplayMode === 'hide') {
+      setLayoutKey((k) => k + 1);
+    }
+  }, [focusedFactsheetId, unrelatedDisplayMode]);
 
   const { records: factsheets, loading: loadingFactsheets } = useRealtime<FactsheetExpanded>({
     collection: 'factsheets',
@@ -131,6 +142,11 @@ export default function DependenciesPage() {
 
   const handleNodeClick = (factsheetId: string) => {
     setSelectedFactsheetId(factsheetId);
+  };
+
+  const handleNodeRightClick = (factsheetId: string) => {
+    // Toggle focus: if already focused on this node, clear focus
+    setFocusedFactsheetId((prev) => (prev === factsheetId ? null : factsheetId));
   };
 
   const handleConnect = (connection: ConnectionRequest) => {
@@ -420,15 +436,61 @@ export default function DependenciesPage() {
               </div>
             )}
 
-            <Button
-              variant={showComments ? 'secondary' : 'ghost'}
-              size="sm"
-              icon={<MessageSquare className="w-4 h-4" />}
+            <button
+              type="button"
               onClick={() => setShowComments(!showComments)}
               title={showComments ? 'Hide edge comments' : 'Show edge comments'}
+              className={`h-8 px-3 text-sm font-medium flex items-center gap-1.5 transition-colors rounded border ${
+                showComments
+                  ? 'bg-accent-500 text-white border-accent-500'
+                  : 'bg-white text-primary-700 border-gray-200 hover:bg-gray-50'
+              }`}
             >
+              <MessageSquare className="w-4 h-4" />
               Comments
-            </Button>
+            </button>
+
+            {/* Focus mode toggle */}
+            <div className="flex items-center border border-gray-200 rounded overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setUnrelatedDisplayMode('dim')}
+                title="Dim unrelated factsheets when focused"
+                className={`h-8 px-3 text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  unrelatedDisplayMode === 'dim'
+                    ? 'bg-accent-500 text-white'
+                    : 'bg-white text-primary-700 hover:bg-gray-50'
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+                Dim
+              </button>
+              <button
+                type="button"
+                onClick={() => setUnrelatedDisplayMode('hide')}
+                title="Hide unrelated factsheets when focused"
+                className={`h-8 px-3 text-sm font-medium flex items-center gap-1.5 transition-colors border-l border-gray-200 ${
+                  unrelatedDisplayMode === 'hide'
+                    ? 'bg-accent-500 text-white'
+                    : 'bg-white text-primary-700 hover:bg-gray-50'
+                }`}
+              >
+                <EyeOff className="w-4 h-4" />
+                Hide
+              </button>
+            </div>
+
+            {focusedFactsheetId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Focus className="w-4 h-4" />}
+                onClick={() => setFocusedFactsheetId(null)}
+                title="Clear focus"
+              >
+                Clear Focus
+              </Button>
+            )}
 
             <Button
               variant="secondary"
@@ -511,12 +573,15 @@ export default function DependenciesPage() {
             factsheets={filteredFactsheets}
             dependencies={filteredDependencies}
             onNodeClick={handleNodeClick}
+            onNodeRightClick={handleNodeRightClick}
             onConnect={handleConnect}
             onEdgeClick={handleEdgeClick}
             displayProperties={displayProperties}
             propertyDefinitions={propertyDefinitions}
             factsheetPropertyValues={factsheetPropertyValues}
             showComments={showComments}
+            focusedFactsheetId={focusedFactsheetId}
+            unrelatedDisplayMode={unrelatedDisplayMode}
           />
         </div>
       )}

@@ -27,12 +27,15 @@ interface DependencyGraphProps {
   factsheets: FactsheetExpanded[];
   dependencies: Dependency[];
   onNodeClick?: (factsheetId: string) => void;
+  onNodeRightClick?: (factsheetId: string) => void;
   onConnect?: (connection: ConnectionRequest) => void;
   onEdgeClick?: (dependencyId: string) => void;
   displayProperties?: string[];
   propertyDefinitions?: PropertyDefinition[];
   factsheetPropertyValues?: Map<string, Map<string, string>>;
   showComments?: boolean;
+  focusedFactsheetId?: string | null;
+  unrelatedDisplayMode?: 'dim' | 'hide';
 }
 
 interface PropertyDisplay {
@@ -48,6 +51,7 @@ interface FactsheetNodeProps {
     typeName: string;
     factsheetId: string;
     properties?: PropertyDisplay[];
+    dimmed?: boolean;
   };
 }
 
@@ -120,34 +124,35 @@ function FactsheetNode({ data }: FactsheetNodeProps) {
   };
 
   const hasProperties = data.properties && data.properties.length > 0;
+  const isDimmed = data.dimmed === true;
 
   return (
     <div
-      className={`px-4 py-3 border-2 shadow-sm min-w-[180px] bg-white ${
-        statusColors[data.status] || statusColors.draft
-      }`}
+      className={`px-4 py-3 border-2 shadow-sm min-w-[180px] transition-opacity ${
+        isDimmed ? 'bg-gray-100 opacity-30' : 'bg-white'
+      } ${statusColors[data.status] || statusColors.draft}`}
     >
       <Handle type="target" position={Position.Top} className="!bg-accent-500 !w-3 !h-3" />
       <div className="flex items-center gap-2 mb-1">
         <div
           className="w-3 h-3"
-          style={{ backgroundColor: data.typeColor }}
+          style={{ backgroundColor: isDimmed ? '#9ca3af' : data.typeColor }}
         />
         <span
           className="px-1.5 py-0.5 text-xs font-medium text-white"
-          style={{ backgroundColor: data.typeColor }}
+          style={{ backgroundColor: isDimmed ? '#9ca3af' : data.typeColor }}
         >
           {data.typeName}
         </span>
       </div>
-      <div className="font-medium text-primary-900 text-sm">{data.label}</div>
+      <div className={`font-medium text-sm ${isDimmed ? 'text-gray-400' : 'text-primary-900'}`}>{data.label}</div>
       <div className="text-xs text-gray-500 mt-1 capitalize">{data.status}</div>
       {hasProperties && (
         <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
           {data.properties!.map((prop, idx) => (
             <div key={idx} className="flex justify-between text-xs">
               <span className="text-gray-500">{prop.name}:</span>
-              <span className="font-medium text-primary-900">{prop.value}</span>
+              <span className={`font-medium ${isDimmed ? 'text-gray-400' : 'text-primary-900'}`}>{prop.value}</span>
             </div>
           ))}
         </div>
@@ -165,13 +170,68 @@ export default function DependencyGraph({
   factsheets,
   dependencies,
   onNodeClick,
+  onNodeRightClick,
   onConnect,
   onEdgeClick,
   displayProperties = [],
   propertyDefinitions = [],
   factsheetPropertyValues,
   showComments = true,
+  focusedFactsheetId,
+  unrelatedDisplayMode = 'dim',
 }: DependencyGraphProps) {
+  // Calculate related factsheet IDs when a factsheet is focused
+  // Includes the full dependency chain (upstream and downstream)
+  const relatedFactsheetIds = useMemo(() => {
+    if (!focusedFactsheetId) return null;
+
+    const related = new Set<string>();
+    related.add(focusedFactsheetId);
+
+    // Build adjacency lists for traversal
+    const downstream = new Map<string, string[]>(); // factsheet -> what it depends on
+    const upstream = new Map<string, string[]>();   // factsheet -> what depends on it
+
+    dependencies.forEach((dep) => {
+      if (!downstream.has(dep.factsheet)) {
+        downstream.set(dep.factsheet, []);
+      }
+      downstream.get(dep.factsheet)!.push(dep.depends_on);
+
+      if (!upstream.has(dep.depends_on)) {
+        upstream.set(dep.depends_on, []);
+      }
+      upstream.get(dep.depends_on)!.push(dep.factsheet);
+    });
+
+    // Traverse downstream (what the focused factsheet depends on, recursively)
+    const traverseDownstream = (id: string) => {
+      const deps = downstream.get(id) || [];
+      for (const depId of deps) {
+        if (!related.has(depId)) {
+          related.add(depId);
+          traverseDownstream(depId);
+        }
+      }
+    };
+
+    // Traverse upstream (what depends on the focused factsheet, recursively)
+    const traverseUpstream = (id: string) => {
+      const deps = upstream.get(id) || [];
+      for (const depId of deps) {
+        if (!related.has(depId)) {
+          related.add(depId);
+          traverseUpstream(depId);
+        }
+      }
+    };
+
+    traverseDownstream(focusedFactsheetId);
+    traverseUpstream(focusedFactsheetId);
+
+    return related;
+  }, [focusedFactsheetId, dependencies]);
+
   // Build property name lookup
   const propertyNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -186,6 +246,11 @@ export default function DependencyGraph({
 
     // Create factsheet nodes
     factsheets.forEach((fs) => {
+      // Skip unrelated nodes if hide mode is active
+      if (relatedFactsheetIds && unrelatedDisplayMode === 'hide' && !relatedFactsheetIds.has(fs.id)) {
+        return;
+      }
+
       const typeColor = fs.expand?.type?.color || '#6b7280';
       const typeName = fs.expand?.type?.name || 'Unknown';
 
@@ -204,6 +269,9 @@ export default function DependencyGraph({
         }
       }
 
+      // Determine if node should be dimmed
+      const isDimmed = relatedFactsheetIds !== null && !relatedFactsheetIds.has(fs.id);
+
       nodes.push({
         id: `fs-${fs.id}`,
         type: 'factsheet',
@@ -215,6 +283,7 @@ export default function DependencyGraph({
           typeName,
           factsheetId: fs.id,
           properties,
+          dimmed: isDimmed,
         },
       });
     });
@@ -226,45 +295,68 @@ export default function DependencyGraph({
       const targetExists = nodes.some((n) => n.id === `fs-${dep.depends_on}`);
 
       if (sourceExists && targetExists) {
+        // Check if this edge connects related nodes (both source and target must be related)
+        const isRelatedEdge = relatedFactsheetIds === null ||
+          (relatedFactsheetIds.has(dep.factsheet) && relatedFactsheetIds.has(dep.depends_on));
+        const isDimmedEdge = !isRelatedEdge && unrelatedDisplayMode === 'dim';
+
         edges.push({
           id: `e-${dep.id}`,
           source: `fs-${dep.factsheet}`,
           target: `fs-${dep.depends_on}`,
-          markerEnd: { type: MarkerType.ArrowClosed },
-          style: { stroke: '#00aeef', strokeWidth: 2, cursor: 'pointer' },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: isDimmedEdge ? '#d1d5db' : undefined,
+          },
+          style: {
+            stroke: isDimmedEdge ? '#d1d5db' : '#00aeef',
+            strokeWidth: 2,
+            cursor: 'pointer',
+            opacity: isDimmedEdge ? 0.3 : 1,
+          },
           label: showComments ? (dep.description || '') : '',
-          labelStyle: { fontSize: 10, fill: '#6b7280', cursor: 'pointer' },
+          labelStyle: {
+            fontSize: 10,
+            fill: isDimmedEdge ? '#d1d5db' : '#6b7280',
+            cursor: 'pointer',
+            opacity: isDimmedEdge ? 0.3 : 1,
+          },
           labelBgStyle: { fill: 'white', fillOpacity: 0.8, cursor: 'pointer' },
-          data: { dependencyId: dep.id },
+          data: { dependencyId: dep.id, dimmed: isDimmedEdge },
         });
       }
     });
 
     // Apply dagre layout
     return getLayoutedElements(nodes, edges);
-  }, [factsheets, dependencies, displayProperties, factsheetPropertyValues, propertyNameMap, showComments]);
+  }, [factsheets, dependencies, displayProperties, factsheetPropertyValues, propertyNameMap, showComments, relatedFactsheetIds, unrelatedDisplayMode]);
 
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
 
-  // Track previous node/edge IDs to detect meaningful changes
-  const prevNodeIdsRef = useRef<string>('');
-  const prevEdgeIdsRef = useRef<string>('');
+  // Track previous state to detect meaningful changes
+  const prevNodeStateRef = useRef<string>('');
+  const prevEdgeStateRef = useRef<string>('');
 
   // Sync state with computed values when props change
   useEffect(() => {
-    // Create stable IDs to compare
-    const nodeIds = computedNodes.map(n => n.id).sort().join(',');
-    const edgeIds = computedEdges.map(e => e.id).sort().join(',');
+    // Create stable state string including dimmed status, properties, and labels for comparison
+    const nodeState = computedNodes.map(n => {
+      const data = n.data as { dimmed?: boolean; properties?: PropertyDisplay[] };
+      const propsStr = data.properties?.map(p => `${p.name}:${p.value}`).join('|') || '';
+      return `${n.id}:${data.dimmed}:${propsStr}`;
+    }).sort().join(',');
+    const edgeState = computedEdges.map(e => `${e.id}:${(e.data as { dimmed?: boolean })?.dimmed}:${e.label || ''}`).sort().join(',');
 
-    // Only update if the IDs actually changed
-    if (prevNodeIdsRef.current !== nodeIds) {
-      prevNodeIdsRef.current = nodeIds;
+    // Update if node state changed (IDs, dimmed status, or properties)
+    if (prevNodeStateRef.current !== nodeState) {
+      prevNodeStateRef.current = nodeState;
       setNodes(computedNodes);
     }
-    if (prevEdgeIdsRef.current !== edgeIds) {
-      prevEdgeIdsRef.current = edgeIds;
+    // Update if edge state changed (IDs, dimmed status, or labels)
+    if (prevEdgeStateRef.current !== edgeState) {
+      prevEdgeStateRef.current = edgeState;
       setEdges(computedEdges);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -324,6 +416,17 @@ export default function DependencyGraph({
     [onEdgeClick]
   );
 
+  const handleNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      if (node.type === 'factsheet' && onNodeRightClick) {
+        const factsheetId = (node.data as { factsheetId: string }).factsheetId;
+        onNodeRightClick(factsheetId);
+      }
+    },
+    [onNodeRightClick]
+  );
+
   return (
     <div className="w-full h-full min-h-[200px] bg-gray-50">
       <ReactFlow
@@ -332,6 +435,7 @@ export default function DependencyGraph({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
+        onNodeContextMenu={handleNodeContextMenu}
         onEdgeClick={handleEdgeClick}
         onConnect={handleConnect}
         nodeTypes={nodeTypes}
