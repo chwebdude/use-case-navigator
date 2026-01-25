@@ -133,7 +133,7 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
       isOpen={factsheetId !== null}
       onClose={onClose}
       title={loading ? 'Loading...' : factsheet?.name || 'Factsheet'}
-      size="lg"
+      size="full"
     >
       {loading ? (
         <div className="animate-pulse space-y-4">
@@ -235,7 +235,7 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
           {relatedFactsheets.length > 1 && (
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-2">Dependencies</h4>
-              <div className="h-[250px] border border-gray-200 rounded-lg overflow-hidden">
+              <div className="h-[500px] border border-gray-200 rounded-lg overflow-hidden">
                 <DependencyGraph
                   factsheets={relatedFactsheets}
                   dependencies={allDependencies}
