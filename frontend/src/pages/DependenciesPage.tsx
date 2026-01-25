@@ -505,18 +505,20 @@ export default function DependenciesPage() {
           )}
         </Card>
       ) : (
-        <DependencyGraph
-          key={layoutKey}
-          factsheets={filteredFactsheets}
-          dependencies={filteredDependencies}
-          onNodeClick={handleNodeClick}
-          onConnect={handleConnect}
-          onEdgeClick={handleEdgeClick}
-          displayProperties={displayProperties}
-          propertyDefinitions={propertyDefinitions}
-          factsheetPropertyValues={factsheetPropertyValues}
-          showComments={showComments}
-        />
+        <div className="h-[600px] border border-gray-200">
+          <DependencyGraph
+            key={layoutKey}
+            factsheets={filteredFactsheets}
+            dependencies={filteredDependencies}
+            onNodeClick={handleNodeClick}
+            onConnect={handleConnect}
+            onEdgeClick={handleEdgeClick}
+            displayProperties={displayProperties}
+            propertyDefinitions={propertyDefinitions}
+            factsheetPropertyValues={factsheetPropertyValues}
+            showComments={showComments}
+          />
+        </div>
       )}
 
       {/* Connection Modal */}

@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Edit, ExternalLink, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal, Button, Badge } from './ui';
+import { DependencyGraph } from './visualizations';
 import { useRecord, useRealtime } from '../hooks/useRealtime';
-import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, DependencyExpanded, ChangeLogExpanded } from '../types';
+import pb from '../lib/pocketbase';
+import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, DependencyExpanded, ChangeLogExpanded, FactsheetExpanded, Dependency } from '../types';
 
 interface FactsheetDetailModalProps {
   factsheetId: string | null;
@@ -19,11 +21,84 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
     factsheet?.type
   );
 
-  const { records: dependencies } = useRealtime<DependencyExpanded>({
+  // Dependencies where this factsheet depends on others
+  const { records: outgoingDeps } = useRealtime<DependencyExpanded>({
     collection: 'dependencies',
     filter: factsheetId ? `factsheet = "${factsheetId}"` : '',
     expand: 'depends_on',
   });
+
+  // Dependencies where others depend on this factsheet
+  const { records: incomingDeps } = useRealtime<DependencyExpanded>({
+    collection: 'dependencies',
+    filter: factsheetId ? `depends_on = "${factsheetId}"` : '',
+    expand: 'factsheet',
+  });
+
+  // Get all related factsheet IDs for the mini graph
+  const relatedFactsheetIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (factsheetId) ids.add(factsheetId);
+    outgoingDeps.forEach((dep) => {
+      if (dep.depends_on) ids.add(dep.depends_on);
+    });
+    incomingDeps.forEach((dep) => {
+      if (dep.factsheet) ids.add(dep.factsheet);
+    });
+    return Array.from(ids).sort().join(','); // Stable string for comparison
+  }, [factsheetId, outgoingDeps, incomingDeps]);
+
+  // Fetch related factsheets (not using useRealtime to avoid cascading updates)
+  const [relatedFactsheets, setRelatedFactsheets] = useState<FactsheetExpanded[]>([]);
+  useEffect(() => {
+    if (!relatedFactsheetIds) {
+      setRelatedFactsheets([]);
+      return;
+    }
+    const ids = relatedFactsheetIds.split(',').filter(Boolean);
+    if (ids.length === 0) {
+      setRelatedFactsheets([]);
+      return;
+    }
+    const filter = ids.map((id) => `id = "${id}"`).join(' || ');
+    pb.collection('factsheets')
+      .getFullList<FactsheetExpanded>({ filter, expand: 'type' })
+      .then(setRelatedFactsheets)
+      .catch(() => setRelatedFactsheets([]));
+  }, [relatedFactsheetIds]);
+
+  // Combine all dependencies for the graph
+  const allDependencies: Dependency[] = useMemo(() => {
+    const deps: Dependency[] = [];
+    outgoingDeps.forEach((dep) => {
+      deps.push({
+        id: dep.id,
+        factsheet: dep.factsheet,
+        depends_on: dep.depends_on,
+        description: dep.description,
+        collectionId: dep.collectionId,
+        collectionName: dep.collectionName,
+        created: dep.created,
+        updated: dep.updated,
+      });
+    });
+    incomingDeps.forEach((dep) => {
+      // Avoid duplicates
+      if (!deps.some((d) => d.id === dep.id)) {
+        deps.push({
+          id: dep.id,
+          factsheet: dep.factsheet,
+          depends_on: dep.depends_on,
+          description: dep.description,
+          collectionId: dep.collectionId,
+          collectionName: dep.collectionName,
+          created: dep.created,
+          updated: dep.updated,
+        });
+      }
+    });
+    return deps;
+  }, [outgoingDeps, incomingDeps]);
 
   const { records: properties } = useRealtime<FactsheetPropertyExpanded>({
     collection: 'factsheet_properties',
@@ -156,22 +231,22 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
             </div>
           )}
 
-          {/* Dependencies */}
-          {dependencies.length > 0 && (
+          {/* Dependencies Graph */}
+          {relatedFactsheets.length > 1 && (
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-2">Dependencies</h4>
-              <div className="space-y-2">
-                {dependencies.map((dep) => (
-                  <div key={dep.id} className="bg-gray-50 p-2">
-                    <p className="text-sm font-medium text-primary-900">
-                      {dep.expand?.depends_on?.name || 'Unknown'}
-                    </p>
-                    {dep.description && (
-                      <p className="text-xs text-gray-500 mt-1">{dep.description}</p>
-                    )}
-                  </div>
-                ))}
+              <div className="h-[250px] border border-gray-200 rounded-lg overflow-hidden">
+                <DependencyGraph
+                  factsheets={relatedFactsheets}
+                  dependencies={allDependencies}
+                  showComments={false}
+                />
               </div>
+              <p className="text-xs text-gray-400 mt-1">
+                {outgoingDeps.length > 0 && `Depends on ${outgoingDeps.length} factsheet${outgoingDeps.length > 1 ? 's' : ''}`}
+                {outgoingDeps.length > 0 && incomingDeps.length > 0 && ' · '}
+                {incomingDeps.length > 0 && `${incomingDeps.length} factsheet${incomingDeps.length > 1 ? 's' : ''} depend${incomingDeps.length === 1 ? 's' : ''} on this`}
+              </p>
             </div>
           )}
 

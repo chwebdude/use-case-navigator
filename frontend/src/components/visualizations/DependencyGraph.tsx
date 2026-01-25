@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect } from 'react';
+import { useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   type Node,
@@ -248,11 +248,27 @@ export default function DependencyGraph({
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
 
+  // Track previous node/edge IDs to detect meaningful changes
+  const prevNodeIdsRef = useRef<string>('');
+  const prevEdgeIdsRef = useRef<string>('');
+
   // Sync state with computed values when props change
   useEffect(() => {
-    setNodes(computedNodes);
-    setEdges(computedEdges);
-  }, [computedNodes, computedEdges, setNodes, setEdges]);
+    // Create stable IDs to compare
+    const nodeIds = computedNodes.map(n => n.id).sort().join(',');
+    const edgeIds = computedEdges.map(e => e.id).sort().join(',');
+
+    // Only update if the IDs actually changed
+    if (prevNodeIdsRef.current !== nodeIds) {
+      prevNodeIdsRef.current = nodeIds;
+      setNodes(computedNodes);
+    }
+    if (prevEdgeIdsRef.current !== edgeIds) {
+      prevEdgeIdsRef.current = edgeIds;
+      setEdges(computedEdges);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedNodes, computedEdges]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -309,7 +325,7 @@ export default function DependencyGraph({
   );
 
   return (
-    <div className="w-full h-[600px] bg-gray-50 border border-gray-200">
+    <div className="w-full h-full min-h-[200px] bg-gray-50">
       <ReactFlow
         nodes={nodes}
         edges={edges}
