@@ -1,11 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Edit, ExternalLink, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal, Button, Badge } from './ui';
 import { DependencyGraph } from './visualizations';
 import { useRecord, useRealtime } from '../hooks/useRealtime';
 import pb from '../lib/pocketbase';
-import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, DependencyExpanded, ChangeLogExpanded, FactsheetExpanded, Dependency } from '../types';
+import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, ChangeLogExpanded, FactsheetExpanded, Dependency } from '../types';
 
 interface FactsheetDetailModalProps {
   factsheetId: string | null;
@@ -21,84 +21,92 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
     factsheet?.type
   );
 
-  // Dependencies where this factsheet depends on others
-  const { records: outgoingDeps } = useRealtime<DependencyExpanded>({
-    collection: 'dependencies',
-    filter: factsheetId ? `factsheet = "${factsheetId}"` : '',
-    expand: 'depends_on',
-  });
-
-  // Dependencies where others depend on this factsheet
-  const { records: incomingDeps } = useRealtime<DependencyExpanded>({
-    collection: 'dependencies',
-    filter: factsheetId ? `depends_on = "${factsheetId}"` : '',
-    expand: 'factsheet',
-  });
-
-  // Get all related factsheet IDs for the mini graph
-  const relatedFactsheetIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (factsheetId) ids.add(factsheetId);
-    outgoingDeps.forEach((dep) => {
-      if (dep.depends_on) ids.add(dep.depends_on);
-    });
-    incomingDeps.forEach((dep) => {
-      if (dep.factsheet) ids.add(dep.factsheet);
-    });
-    return Array.from(ids).sort().join(','); // Stable string for comparison
-  }, [factsheetId, outgoingDeps, incomingDeps]);
-
-  // Fetch related factsheets (not using useRealtime to avoid cascading updates)
+  // Fetch all dependencies and related factsheets for the full dependency chain
+  const [allDependencies, setAllDependencies] = useState<Dependency[]>([]);
   const [relatedFactsheets, setRelatedFactsheets] = useState<FactsheetExpanded[]>([]);
-  useEffect(() => {
-    if (!relatedFactsheetIds) {
-      setRelatedFactsheets([]);
-      return;
-    }
-    const ids = relatedFactsheetIds.split(',').filter(Boolean);
-    if (ids.length === 0) {
-      setRelatedFactsheets([]);
-      return;
-    }
-    const filter = ids.map((id) => `id = "${id}"`).join(' || ');
-    pb.collection('factsheets')
-      .getFullList<FactsheetExpanded>({ filter, expand: 'type' })
-      .then(setRelatedFactsheets)
-      .catch(() => setRelatedFactsheets([]));
-  }, [relatedFactsheetIds]);
 
-  // Combine all dependencies for the graph
-  const allDependencies: Dependency[] = useMemo(() => {
-    const deps: Dependency[] = [];
-    outgoingDeps.forEach((dep) => {
-      deps.push({
-        id: dep.id,
-        factsheet: dep.factsheet,
-        depends_on: dep.depends_on,
-        description: dep.description,
-        collectionId: dep.collectionId,
-        collectionName: dep.collectionName,
-        created: dep.created,
-        updated: dep.updated,
-      });
-    });
-    incomingDeps.forEach((dep) => {
-      // Avoid duplicates
-      if (!deps.some((d) => d.id === dep.id)) {
-        deps.push({
-          id: dep.id,
-          factsheet: dep.factsheet,
-          depends_on: dep.depends_on,
-          description: dep.description,
-          collectionId: dep.collectionId,
-          collectionName: dep.collectionName,
-          created: dep.created,
-          updated: dep.updated,
+  useEffect(() => {
+    if (!factsheetId) {
+      setAllDependencies([]);
+      setRelatedFactsheets([]);
+      return;
+    }
+
+    // Fetch all dependencies to traverse the full chain
+    pb.collection('dependencies')
+      .getFullList<Dependency>()
+      .then((deps) => {
+        // Build adjacency lists for traversal
+        const downstream = new Map<string, string[]>(); // factsheet -> what it depends on
+        const upstream = new Map<string, string[]>();   // factsheet -> what depends on it
+
+        deps.forEach((dep) => {
+          if (!downstream.has(dep.factsheet)) {
+            downstream.set(dep.factsheet, []);
+          }
+          downstream.get(dep.factsheet)!.push(dep.depends_on);
+
+          if (!upstream.has(dep.depends_on)) {
+            upstream.set(dep.depends_on, []);
+          }
+          upstream.get(dep.depends_on)!.push(dep.factsheet);
         });
-      }
-    });
-    return deps;
-  }, [outgoingDeps, incomingDeps]);
+
+        // Find all related factsheet IDs (full chain)
+        const related = new Set<string>();
+        related.add(factsheetId);
+
+        // Traverse downstream (what the focused factsheet depends on, recursively)
+        const traverseDownstream = (id: string) => {
+          const children = downstream.get(id) || [];
+          for (const childId of children) {
+            if (!related.has(childId)) {
+              related.add(childId);
+              traverseDownstream(childId);
+            }
+          }
+        };
+
+        // Traverse upstream (what depends on the focused factsheet, recursively)
+        const traverseUpstream = (id: string) => {
+          const parents = upstream.get(id) || [];
+          for (const parentId of parents) {
+            if (!related.has(parentId)) {
+              related.add(parentId);
+              traverseUpstream(parentId);
+            }
+          }
+        };
+
+        traverseDownstream(factsheetId);
+        traverseUpstream(factsheetId);
+
+        // Filter dependencies to only include those between related factsheets
+        const relevantDeps = deps.filter(
+          (dep) => related.has(dep.factsheet) && related.has(dep.depends_on)
+        );
+        setAllDependencies(relevantDeps);
+
+        // Fetch related factsheets
+        if (related.size > 0) {
+          const filter = Array.from(related).map((id) => `id = "${id}"`).join(' || ');
+          pb.collection('factsheets')
+            .getFullList<FactsheetExpanded>({ filter, expand: 'type' })
+            .then(setRelatedFactsheets)
+            .catch(() => setRelatedFactsheets([]));
+        } else {
+          setRelatedFactsheets([]);
+        }
+      })
+      .catch(() => {
+        setAllDependencies([]);
+        setRelatedFactsheets([]);
+      });
+  }, [factsheetId]);
+
+  // Count direct dependencies for the summary text
+  const directOutgoingCount = allDependencies.filter((d) => d.factsheet === factsheetId).length;
+  const directIncomingCount = allDependencies.filter((d) => d.depends_on === factsheetId).length;
 
   const { records: properties } = useRealtime<FactsheetPropertyExpanded>({
     collection: 'factsheet_properties',
@@ -243,9 +251,9 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                {outgoingDeps.length > 0 && `Depends on ${outgoingDeps.length} factsheet${outgoingDeps.length > 1 ? 's' : ''}`}
-                {outgoingDeps.length > 0 && incomingDeps.length > 0 && ' · '}
-                {incomingDeps.length > 0 && `${incomingDeps.length} factsheet${incomingDeps.length > 1 ? 's' : ''} depend${incomingDeps.length === 1 ? 's' : ''} on this`}
+                {directOutgoingCount > 0 && `Depends on ${directOutgoingCount} factsheet${directOutgoingCount > 1 ? 's' : ''}`}
+                {directOutgoingCount > 0 && directIncomingCount > 0 && ' · '}
+                {directIncomingCount > 0 && `${directIncomingCount} factsheet${directIncomingCount > 1 ? 's' : ''} depend${directIncomingCount === 1 ? 's' : ''} on this`}
               </p>
             </div>
           )}
