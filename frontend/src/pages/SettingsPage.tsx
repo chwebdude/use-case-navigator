@@ -1,6 +1,14 @@
-import { useState, useMemo } from 'react';
-import { Plus, Trash2, GripVertical, Pencil, Check, X, RotateCcw } from 'lucide-react';
-import * as Icons from 'lucide-react';
+import { useState, useMemo } from "react";
+import {
+  Plus,
+  Trash2,
+  GripVertical,
+  Pencil,
+  Check,
+  X,
+  RotateCcw,
+} from "lucide-react";
+import * as Icons from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -9,20 +17,29 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from '@dnd-kit/core';
+} from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { Card, CardTitle, Button, Input } from '../components/ui';
-import { useRealtime } from '../hooks/useRealtime';
-import { useAppSettings, AVAILABLE_ICONS, type IconId } from '../hooks/useAppSettings';
-import pb from '../lib/pocketbase';
-import type { FactsheetType, PropertyDefinition, PropertyOption } from '../types';
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Card, CardTitle, Button, Input } from "../components/ui";
+import { useRealtime } from "../hooks/useRealtime";
+import {
+  useAppSettings,
+  AVAILABLE_ICONS,
+  type IconId,
+} from "../hooks/useAppSettings";
+import pb from "../lib/pocketbase";
+import type {
+  FactsheetType,
+  PropertyDefinition,
+  PropertyOption,
+  MetricExpanded,
+} from "../types";
 
 // Sortable Type Item component
 interface SortableTypeItemProps {
@@ -81,7 +98,9 @@ function SortableTypeItem({
                 type="button"
                 onClick={() => setEditTypeData({ ...editTypeData, color })}
                 className={`w-6 h-6 border-2 ${
-                  editTypeData.color === color ? 'border-primary-900' : 'border-transparent'
+                  editTypeData.color === color
+                    ? "border-primary-900"
+                    : "border-transparent"
                 }`}
                 style={{ backgroundColor: color }}
               />
@@ -90,7 +109,9 @@ function SortableTypeItem({
           <input
             type="text"
             value={editTypeData.name}
-            onChange={(e) => setEditTypeData({ ...editTypeData, name: e.target.value })}
+            onChange={(e) =>
+              setEditTypeData({ ...editTypeData, name: e.target.value })
+            }
             className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
           />
           <Button
@@ -152,6 +173,8 @@ interface SortableOptionItemProps {
   handleSaveOption: () => void;
   handleCancelEditOption: () => void;
   handleDeleteOption: (optionId: string, propertyId: string) => void;
+  handleWeightChange: (optionId: string, weight: number) => void;
+  maxMetricWeight: number;
 }
 
 function SortableOptionItem({
@@ -164,6 +187,8 @@ function SortableOptionItem({
   handleSaveOption,
   handleCancelEditOption,
   handleDeleteOption,
+  handleWeightChange,
+  maxMetricWeight,
 }: SortableOptionItemProps) {
   const {
     attributes,
@@ -193,6 +218,21 @@ function SortableOptionItem({
             onChange={(e) => setEditOptionValue(e.target.value)}
             className="flex-1 px-2 py-1 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
           />
+          <input
+            type="number"
+            min={0}
+            max={maxMetricWeight}
+            value={opt.weight ?? 0}
+            onChange={(e) =>
+              handleWeightChange(
+                opt.id,
+                Number.isNaN(Number(e.target.value))
+                  ? 0
+                  : Number(e.target.value),
+              )
+            }
+            className="w-20 px-2 py-1 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+          />
           <Button
             variant="ghost"
             size="sm"
@@ -215,6 +255,21 @@ function SortableOptionItem({
           <span className="flex-1 text-sm text-gray-700 bg-white px-2 py-1 border border-gray-200">
             {opt.value}
           </span>
+          <input
+            type="number"
+            min={0}
+            max={maxMetricWeight}
+            value={opt.weight ?? 0}
+            onChange={(e) =>
+              handleWeightChange(
+                opt.id,
+                Number.isNaN(Number(e.target.value))
+                  ? 0
+                  : Number(e.target.value),
+              )
+            }
+            className="w-20 px-2 py-1 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+          />
           <Button
             variant="ghost"
             size="sm"
@@ -263,6 +318,9 @@ interface SortablePropertyItemProps {
   handleCancelAddOption: () => void;
   sensors: ReturnType<typeof useSensors>;
   handleOptionReorder: (propertyId: string, event: DragEndEvent) => void;
+  handleWeightChange: (optionId: string, weight: number) => void;
+  handleDistributeWeights: (propertyId: string) => void;
+  maxMetricWeight: number;
 }
 
 function SortablePropertyItem({
@@ -290,6 +348,9 @@ function SortablePropertyItem({
   handleCancelAddOption,
   sensors,
   handleOptionReorder,
+  handleWeightChange,
+  handleDistributeWeights,
+  maxMetricWeight,
 }: SortablePropertyItemProps) {
   const {
     attributes,
@@ -307,7 +368,11 @@ function SortablePropertyItem({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="p-4 bg-gray-50 border border-gray-200">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="p-4 bg-gray-50 border border-gray-200"
+    >
       {/* Property name row */}
       <div className="flex items-center gap-3 mb-3">
         <div {...attributes} {...listeners} className="cursor-move">
@@ -340,7 +405,9 @@ function SortablePropertyItem({
           </>
         ) : (
           <>
-            <div className="flex-1 font-medium text-primary-900">{prop.name}</div>
+            <div className="flex-1 font-medium text-primary-900">
+              {prop.name}
+            </div>
             <Button
               variant="ghost"
               size="sm"
@@ -363,7 +430,9 @@ function SortablePropertyItem({
 
       {/* Options list */}
       <div className="ml-7 space-y-2">
-        <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">Options</div>
+        <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+          Options
+        </div>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -385,10 +454,30 @@ function SortablePropertyItem({
                 handleSaveOption={handleSaveOption}
                 handleCancelEditOption={handleCancelEditOption}
                 handleDeleteOption={handleDeleteOption}
+                handleWeightChange={handleWeightChange}
+                maxMetricWeight={maxMetricWeight}
               />
             ))}
           </SortableContext>
         </DndContext>
+
+        <div className="flex items-center justify-between mt-2">
+          <button
+            onClick={() => handleStartAddOption(prop.id)}
+            className="flex items-center gap-1 text-sm text-accent-500 hover:text-accent-600"
+          >
+            <Plus className="w-3 h-3" />
+            Add option
+          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDistributeWeights(prop.id)}
+            className="text-accent-600 hover:text-accent-700"
+          >
+            Distribute weights
+          </Button>
+        </div>
 
         {/* Add new option */}
         {newOptionForProp === prop.id ? (
@@ -419,29 +508,21 @@ function SortablePropertyItem({
               <X className="w-3 h-3" />
             </Button>
           </div>
-        ) : (
-          <button
-            onClick={() => handleStartAddOption(prop.id)}
-            className="flex items-center gap-1 text-sm text-accent-500 hover:text-accent-600"
-          >
-            <Plus className="w-3 h-3" />
-            Add option
-          </button>
-        )}
+        ) : null}
       </div>
     </div>
   );
 }
 
 const defaultColors = [
-  '#00aeef', // Cerulean
-  '#a8005c', // Magenta
-  '#10b981', // Green
-  '#f59e0b', // Amber
-  '#8b5cf6', // Purple
-  '#ef4444', // Red
-  '#06b6d4', // Cyan
-  '#84cc16', // Lime
+  "#00aeef", // Cerulean
+  "#a8005c", // Magenta
+  "#10b981", // Green
+  "#f59e0b", // Amber
+  "#8b5cf6", // Purple
+  "#ef4444", // Red
+  "#06b6d4", // Cyan
+  "#84cc16", // Lime
 ];
 
 export default function SettingsPage() {
@@ -450,19 +531,28 @@ export default function SettingsPage() {
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
-  // Factsheet Types
-  const { records: factsheetTypes, refresh: refreshTypes } = useRealtime<FactsheetType>({
-    collection: 'factsheet_types',
-    sort: 'order',
-  });
+  // App Settings
+  const {
+    settings: appSettings,
+    setSettings: setAppSettings,
+    resetSettings: resetAppSettings,
+    defaultSettings,
+  } = useAppSettings();
 
-  const [newType, setNewType] = useState({ name: '', color: defaultColors[0] });
+  // Factsheet Types
+  const { records: factsheetTypes, refresh: refreshTypes } =
+    useRealtime<FactsheetType>({
+      collection: "factsheet_types",
+      sort: "order",
+    });
+
+  const [newType, setNewType] = useState({ name: "", color: defaultColors[0] });
   const [savingType, setSavingType] = useState(false);
   const [editingType, setEditingType] = useState<string | null>(null);
-  const [editTypeData, setEditTypeData] = useState({ name: '', color: '' });
+  const [editTypeData, setEditTypeData] = useState({ name: "", color: "" });
 
   // Handle type reorder
   const handleTypeReorder = async (event: DragEndEvent) => {
@@ -477,12 +567,12 @@ export default function SettingsPage() {
     try {
       await Promise.all(
         reordered.map((type, index) =>
-          pb.collection('factsheet_types').update(type.id, { order: index })
-        )
+          pb.collection("factsheet_types").update(type.id, { order: index }),
+        ),
       );
       refreshTypes();
     } catch (err) {
-      console.error('Failed to reorder types:', err);
+      console.error("Failed to reorder types:", err);
     }
   };
 
@@ -491,15 +581,19 @@ export default function SettingsPage() {
 
     setSavingType(true);
     try {
-      await pb.collection('factsheet_types').create({
+      await pb.collection("factsheet_types").create({
         name: newType.name,
         color: newType.color,
         order: factsheetTypes.length,
       });
-      setNewType({ name: '', color: defaultColors[(factsheetTypes.length + 1) % defaultColors.length] });
+      setNewType({
+        name: "",
+        color:
+          defaultColors[(factsheetTypes.length + 1) % defaultColors.length],
+      });
       refreshTypes();
     } catch (err) {
-      console.error('Failed to add factsheet type:', err);
+      console.error("Failed to add factsheet type:", err);
     } finally {
       setSavingType(false);
     }
@@ -514,14 +608,14 @@ export default function SettingsPage() {
     if (!editingType || !editTypeData.name) return;
 
     try {
-      await pb.collection('factsheet_types').update(editingType, {
+      await pb.collection("factsheet_types").update(editingType, {
         name: editTypeData.name,
         color: editTypeData.color,
       });
       setEditingType(null);
       refreshTypes();
     } catch (err) {
-      console.error('Failed to update factsheet type:', err);
+      console.error("Failed to update factsheet type:", err);
     }
   };
 
@@ -530,27 +624,34 @@ export default function SettingsPage() {
   };
 
   const handleDeleteType = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this factsheet type? All factsheets of this type will need to be updated.')) return;
+    if (
+      !confirm(
+        "Are you sure you want to delete this factsheet type? All factsheets of this type will need to be updated.",
+      )
+    )
+      return;
 
     try {
-      await pb.collection('factsheet_types').delete(id);
+      await pb.collection("factsheet_types").delete(id);
       refreshTypes();
     } catch (err) {
-      console.error('Failed to delete factsheet type:', err);
+      console.error("Failed to delete factsheet type:", err);
     }
   };
 
   // Property Definitions
-  const { records: propertyDefinitions, refresh: refreshProps } = useRealtime<PropertyDefinition>({
-    collection: 'property_definitions',
-    sort: 'order',
-  });
+  const { records: propertyDefinitions, refresh: refreshProps } =
+    useRealtime<PropertyDefinition>({
+      collection: "property_definitions",
+      sort: "order",
+    });
 
   // Property Options
-  const { records: propertyOptions, refresh: refreshOptions } = useRealtime<PropertyOption>({
-    collection: 'property_options',
-    sort: 'order',
-  });
+  const { records: propertyOptions, refresh: refreshOptions } =
+    useRealtime<PropertyOption>({
+      collection: "property_options",
+      sort: "order",
+    });
 
   // Group options by property
   const optionsByProperty = useMemo(() => {
@@ -568,46 +669,66 @@ export default function SettingsPage() {
     return map;
   }, [propertyOptions]);
 
-  const [newProp, setNewProp] = useState({ name: '', options: '' });
+  const [newProp, setNewProp] = useState({ name: "", options: "" });
   const [savingProp, setSavingProp] = useState(false);
   const [editingPropName, setEditingPropName] = useState<string | null>(null);
-  const [editPropNameValue, setEditPropNameValue] = useState('');
+  const [editPropNameValue, setEditPropNameValue] = useState("");
   const [editingOption, setEditingOption] = useState<string | null>(null);
-  const [editOptionValue, setEditOptionValue] = useState('');
+  const [editOptionValue, setEditOptionValue] = useState("");
   const [newOptionForProp, setNewOptionForProp] = useState<string | null>(null);
-  const [newOptionValue, setNewOptionValue] = useState('');
+  const [newOptionValue, setNewOptionValue] = useState("");
+  const maxMetricWeight =
+    appSettings.maxMetricWeight ?? defaultSettings.maxMetricWeight;
+
+  const computeDistributedWeights = (count: number, max: number) => {
+    if (count <= 0) return [] as number[];
+    if (count === 1) return [max];
+    const step = max / (count - 1);
+    return Array.from({ length: count }, (_, idx) =>
+      Math.max(0, Math.round(step * idx * 100) / 100),
+    );
+  };
 
   const handleAddProperty = async () => {
     if (!newProp.name || !newProp.options) return;
 
     setSavingProp(true);
     try {
-      const optionValues = newProp.options.split(',').map((o) => o.trim()).filter(Boolean);
+      const optionValues = newProp.options
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean);
       if (optionValues.length === 0) {
-        alert('Please add at least one option');
+        alert("Please add at least one option");
         return;
       }
 
       // Create the property definition first
-      const prop = await pb.collection('property_definitions').create({
+      const prop = await pb.collection("property_definitions").create({
         name: newProp.name,
         order: propertyDefinitions.length,
       });
 
+      const distributedWeights = computeDistributedWeights(
+        optionValues.length,
+        maxMetricWeight,
+      );
+
       // Create options for this property
       for (let i = 0; i < optionValues.length; i++) {
-        await pb.collection('property_options').create({
+        await pb.collection("property_options").create({
           property: prop.id,
           value: optionValues[i],
           order: i,
+          weight: distributedWeights[i] ?? maxMetricWeight,
         });
       }
 
-      setNewProp({ name: '', options: '' });
+      setNewProp({ name: "", options: "" });
       refreshProps();
       refreshOptions();
     } catch (err) {
-      console.error('Failed to add property:', err);
+      console.error("Failed to add property:", err);
     } finally {
       setSavingProp(false);
     }
@@ -622,13 +743,13 @@ export default function SettingsPage() {
     if (!editingPropName || !editPropNameValue.trim()) return;
 
     try {
-      await pb.collection('property_definitions').update(editingPropName, {
+      await pb.collection("property_definitions").update(editingPropName, {
         name: editPropNameValue.trim(),
       });
       setEditingPropName(null);
       refreshProps();
     } catch (err) {
-      console.error('Failed to update property name:', err);
+      console.error("Failed to update property name:", err);
     }
   };
 
@@ -637,20 +758,25 @@ export default function SettingsPage() {
   };
 
   const handleDeleteProperty = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this property and all its options?')) return;
+    if (
+      !confirm(
+        "Are you sure you want to delete this property and all its options?",
+      )
+    )
+      return;
 
     try {
       // Delete all options for this property first
       const options = optionsByProperty.get(id) || [];
       for (const opt of options) {
-        await pb.collection('property_options').delete(opt.id);
+        await pb.collection("property_options").delete(opt.id);
       }
       // Then delete the property
-      await pb.collection('property_definitions').delete(id);
+      await pb.collection("property_definitions").delete(id);
       refreshProps();
       refreshOptions();
     } catch (err) {
-      console.error('Failed to delete property:', err);
+      console.error("Failed to delete property:", err);
     }
   };
 
@@ -664,13 +790,13 @@ export default function SettingsPage() {
     if (!editingOption || !editOptionValue.trim()) return;
 
     try {
-      await pb.collection('property_options').update(editingOption, {
+      await pb.collection("property_options").update(editingOption, {
         value: editOptionValue.trim(),
       });
       setEditingOption(null);
       refreshOptions();
     } catch (err) {
-      console.error('Failed to update option:', err);
+      console.error("Failed to update option:", err);
     }
   };
 
@@ -681,22 +807,22 @@ export default function SettingsPage() {
   const handleDeleteOption = async (optionId: string, propertyId: string) => {
     const options = optionsByProperty.get(propertyId) || [];
     if (options.length <= 1) {
-      alert('Cannot delete the last option. Delete the property instead.');
+      alert("Cannot delete the last option. Delete the property instead.");
       return;
     }
 
     try {
-      await pb.collection('property_options').delete(optionId);
+      await pb.collection("property_options").delete(optionId);
       refreshOptions();
     } catch (err) {
-      console.error('Failed to delete option:', err);
+      console.error("Failed to delete option:", err);
     }
   };
 
   // Add new option to existing property
   const handleStartAddOption = (propId: string) => {
     setNewOptionForProp(propId);
-    setNewOptionValue('');
+    setNewOptionValue("");
   };
 
   const handleAddOption = async () => {
@@ -704,22 +830,53 @@ export default function SettingsPage() {
 
     try {
       const options = optionsByProperty.get(newOptionForProp) || [];
-      await pb.collection('property_options').create({
+      await pb.collection("property_options").create({
         property: newOptionForProp,
         value: newOptionValue.trim(),
         order: options.length,
+        weight: maxMetricWeight,
       });
       setNewOptionForProp(null);
-      setNewOptionValue('');
+      setNewOptionValue("");
       refreshOptions();
     } catch (err) {
-      console.error('Failed to add option:', err);
+      console.error("Failed to add option:", err);
     }
   };
 
   const handleCancelAddOption = () => {
     setNewOptionForProp(null);
-    setNewOptionValue('');
+    setNewOptionValue("");
+  };
+
+  const handleUpdateOptionWeight = async (optionId: string, weight: number) => {
+    const clamped = Math.max(0, Math.min(weight, maxMetricWeight));
+    try {
+      await pb.collection("property_options").update(optionId, {
+        weight: clamped,
+      });
+      refreshOptions();
+    } catch (err) {
+      console.error("Failed to update option weight:", err);
+    }
+  };
+
+  const handleDistributeWeights = async (propertyId: string) => {
+    const opts = optionsByProperty.get(propertyId) || [];
+    if (opts.length === 0) return;
+    const weights = computeDistributedWeights(opts.length, maxMetricWeight);
+    try {
+      await Promise.all(
+        opts.map((opt, idx) =>
+          pb.collection("property_options").update(opt.id, {
+            weight: weights[idx] ?? maxMetricWeight,
+          }),
+        ),
+      );
+      refreshOptions();
+    } catch (err) {
+      console.error("Failed to distribute weights:", err);
+    }
   };
 
   // Handle property definition reorder
@@ -734,17 +891,22 @@ export default function SettingsPage() {
     try {
       await Promise.all(
         reordered.map((prop, index) =>
-          pb.collection('property_definitions').update(prop.id, { order: index })
-        )
+          pb
+            .collection("property_definitions")
+            .update(prop.id, { order: index }),
+        ),
       );
       refreshProps();
     } catch (err) {
-      console.error('Failed to reorder properties:', err);
+      console.error("Failed to reorder properties:", err);
     }
   };
 
   // Handle option reorder within a property
-  const handleOptionReorder = async (propertyId: string, event: DragEndEvent) => {
+  const handleOptionReorder = async (
+    propertyId: string,
+    event: DragEndEvent,
+  ) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -756,24 +918,116 @@ export default function SettingsPage() {
     try {
       await Promise.all(
         reordered.map((opt, index) =>
-          pb.collection('property_options').update(opt.id, { order: index })
-        )
+          pb.collection("property_options").update(opt.id, { order: index }),
+        ),
       );
       refreshOptions();
     } catch (err) {
-      console.error('Failed to reorder options:', err);
+      console.error("Failed to reorder options:", err);
     }
   };
 
-  // App Settings
-  const { settings: appSettings, setSettings: setAppSettings, resetSettings: resetAppSettings, defaultSettings } = useAppSettings();
+  // Metrics (list + create)
+  const { records: metrics, refresh: refreshMetrics } =
+    useRealtime<MetricExpanded>({
+      collection: "metrics",
+      sort: "order",
+      expand: "properties",
+    });
+  const [newMetricName, setNewMetricName] = useState("");
+  const [newMetricProps, setNewMetricProps] = useState<string[]>([]);
+  const [savingMetric, setSavingMetric] = useState(false);
+  const [editingMetric, setEditingMetric] = useState<string | null>(null);
+  const [editMetricName, setEditMetricName] = useState("");
+  const [editMetricProps, setEditMetricProps] = useState<string[]>([]);
+
+  const toggleMetricProp = (propId: string) => {
+    setNewMetricProps((prev) =>
+      prev.includes(propId)
+        ? prev.filter((id) => id !== propId)
+        : [...prev, propId],
+    );
+  };
+
+  const toggleEditMetricProp = (propId: string) => {
+    setEditMetricProps((prev) =>
+      prev.includes(propId)
+        ? prev.filter((id) => id !== propId)
+        : [...prev, propId],
+    );
+  };
+
+  const handleAddMetric = async () => {
+    if (!newMetricName.trim() || newMetricProps.length === 0) return;
+    setSavingMetric(true);
+    try {
+      await pb.collection("metrics").create({
+        name: newMetricName.trim(),
+        properties: newMetricProps,
+        order: metrics.length,
+      });
+      setNewMetricName("");
+      setNewMetricProps([]);
+      refreshMetrics();
+    } catch (err) {
+      console.error("Failed to add metric:", err);
+    } finally {
+      setSavingMetric(false);
+    }
+  };
+
+  const handleDeleteMetric = async (id: string) => {
+    if (!confirm("Delete this metric?")) return;
+    try {
+      await pb.collection("metrics").delete(id);
+      refreshMetrics();
+    } catch (err) {
+      console.error("Failed to delete metric:", err);
+    }
+  };
+
+  const handleStartEditMetric = (m: MetricExpanded) => {
+    setEditingMetric(m.id);
+    setEditMetricName(m.name);
+    const ids =
+      m.properties && m.properties.length > 0
+        ? m.properties
+        : (m.expand?.properties || []).map((p) => p.id);
+    setEditMetricProps(ids);
+  };
+
+  const handleCancelEditMetric = () => {
+    setEditingMetric(null);
+    setEditMetricName("");
+    setEditMetricProps([]);
+  };
+
+  const handleSaveMetric = async () => {
+    if (!editingMetric) return;
+    if (!editMetricName.trim() || editMetricProps.length === 0) return;
+    setSavingMetric(true);
+    try {
+      await pb.collection("metrics").update(editingMetric, {
+        name: editMetricName.trim(),
+        properties: editMetricProps,
+      });
+      handleCancelEditMetric();
+      refreshMetrics();
+    } catch (err) {
+      console.error("Failed to update metric:", err);
+    } finally {
+      setSavingMetric(false);
+    }
+  };
 
   return (
     <div className="max-w-3xl space-y-6">
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-primary-900">Settings</h1>
-        <p className="text-gray-500 mt-1">Configure application and factsheet settings</p>
+        <p className="text-gray-500 mt-1">
+          Configure application and factsheet settings
+        </p>
       </div>
 
       {/* Application Settings */}
@@ -792,6 +1046,19 @@ export default function SettingsPage() {
             onChange={(e) => setAppSettings({ title: e.target.value })}
           />
 
+          <Input
+            label="Max Metric Weight"
+            type="number"
+            min={0}
+            value={appSettings.maxMetricWeight}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              if (Number.isNaN(val)) return;
+              setAppSettings({ maxMetricWeight: val });
+            }}
+            hint="Global maximum weight used when distributing option weights."
+          />
+
           {/* Icon Selection */}
           <div>
             <label className="block text-sm font-medium text-primary-900 mb-3">
@@ -799,7 +1066,9 @@ export default function SettingsPage() {
             </label>
             <div className="grid grid-cols-6 gap-3">
               {AVAILABLE_ICONS.map(({ id, label }) => {
-                const IconComponent = Icons[id] as React.ComponentType<{ className?: string }>;
+                const IconComponent = Icons[id] as React.ComponentType<{
+                  className?: string;
+                }>;
                 return (
                   <button
                     key={id}
@@ -807,8 +1076,8 @@ export default function SettingsPage() {
                     onClick={() => setAppSettings({ icon: id as IconId })}
                     className={`flex flex-col items-center gap-2 p-3 border-2 transition-colors ${
                       appSettings.icon === id
-                        ? 'border-accent-500 bg-accent-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? "border-accent-500 bg-accent-50"
+                        : "border-gray-200 hover:border-gray-300"
                     }`}
                     title={label}
                   >
@@ -826,7 +1095,11 @@ export default function SettingsPage() {
               variant="secondary"
               onClick={resetAppSettings}
               icon={<RotateCcw className="w-4 h-4" />}
-              disabled={appSettings.title === defaultSettings.title && appSettings.icon === defaultSettings.icon}
+              disabled={
+                appSettings.title === defaultSettings.title &&
+                appSettings.icon === defaultSettings.icon &&
+                appSettings.maxMetricWeight === defaultSettings.maxMetricWeight
+              }
             >
               Reset to Defaults
             </Button>
@@ -838,7 +1111,8 @@ export default function SettingsPage() {
       <Card>
         <CardTitle>Factsheet Types</CardTitle>
         <p className="text-sm text-gray-500 mt-1 mb-6">
-          Define the types of factsheets (e.g., Use Case, Knowledge, Data Source). Each type has its own color.
+          Define the types of factsheets (e.g., Use Case, Knowledge, Data
+          Source). Each type has its own color.
         </p>
 
         {/* Existing types */}
@@ -871,7 +1145,8 @@ export default function SettingsPage() {
 
           {factsheetTypes.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              No factsheet types defined yet. Add types like "Use Case", "Knowledge", or "Data Source".
+              No factsheet types defined yet. Add types like "Use Case",
+              "Knowledge", or "Data Source".
             </div>
           )}
         </div>
@@ -885,7 +1160,9 @@ export default function SettingsPage() {
                 label="Type Name"
                 placeholder="e.g., Use Case"
                 value={newType.name}
-                onChange={(e) => setNewType({ ...newType, name: e.target.value })}
+                onChange={(e) =>
+                  setNewType({ ...newType, name: e.target.value })
+                }
               />
             </div>
             <div>
@@ -899,7 +1176,9 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => setNewType({ ...newType, color })}
                     className={`w-8 h-8 border-2 ${
-                      newType.color === color ? 'border-primary-900' : 'border-transparent'
+                      newType.color === color
+                        ? "border-primary-900"
+                        : "border-transparent"
                     }`}
                     style={{ backgroundColor: color }}
                   />
@@ -922,7 +1201,8 @@ export default function SettingsPage() {
       <Card>
         <CardTitle>Property Definitions</CardTitle>
         <p className="text-sm text-gray-500 mt-1 mb-6">
-          Define the properties that can be assigned to factsheets. Each property has a list of options that can be selected.
+          Define the properties that can be assigned to factsheets. Each
+          property has a list of options that can be selected.
         </p>
 
         {/* Existing properties */}
@@ -965,6 +1245,9 @@ export default function SettingsPage() {
                     handleCancelAddOption={handleCancelAddOption}
                     sensors={sensors}
                     handleOptionReorder={handleOptionReorder}
+                    handleWeightChange={handleUpdateOptionWeight}
+                    handleDistributeWeights={handleDistributeWeights}
+                    maxMetricWeight={maxMetricWeight}
                   />
                 );
               })}
@@ -980,7 +1263,9 @@ export default function SettingsPage() {
 
         {/* Add new property */}
         <div className="border-t border-gray-200 pt-6">
-          <h4 className="font-medium text-primary-900 mb-4">Add New Property</h4>
+          <h4 className="font-medium text-primary-900 mb-4">
+            Add New Property
+          </h4>
           <div className="space-y-4">
             <Input
               label="Property Name"
@@ -992,7 +1277,9 @@ export default function SettingsPage() {
               label="Initial Options (comma-separated)"
               placeholder="e.g., Low, Medium, High"
               value={newProp.options}
-              onChange={(e) => setNewProp({ ...newProp, options: e.target.value })}
+              onChange={(e) =>
+                setNewProp({ ...newProp, options: e.target.value })
+              }
               hint="Enter the initial values for this property, separated by commas. You can add more options later."
             />
             <Button
@@ -1007,14 +1294,168 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* Metrics */}
+      <Card>
+        <CardTitle>Metrics</CardTitle>
+        <p className="text-sm text-gray-500 mt-1 mb-6">
+          Create metrics composed of one or more properties. These can be used
+          to group or evaluate factsheets.
+        </p>
+
+        {/* Existing metrics */}
+        <div className="space-y-3 mb-6">
+          {metrics.map((m) => (
+            <div key={m.id} className="p-3 bg-gray-50">
+              {editingMetric === m.id ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editMetricName}
+                      onChange={(e) => setEditMetricName(e.target.value)}
+                      className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                      placeholder="Metric name"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+                      Properties
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {propertyDefinitions.map((prop) => (
+                        <label
+                          key={prop.id}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4"
+                            checked={editMetricProps.includes(prop.id)}
+                            onChange={() => toggleEditMetricProp(prop.id)}
+                          />
+                          <span>{prop.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSaveMetric}
+                      className="text-green-600 hover:text-green-700"
+                      loading={savingMetric}
+                      disabled={
+                        !editMetricName.trim() || editMetricProps.length === 0
+                      }
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelEditMetric}
+                      className="text-gray-400 hover:text-gray-600"
+                      disabled={savingMetric}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="font-medium text-primary-900">{m.name}</div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      {(m.expand?.properties || [])
+                        .map((p) => p.name)
+                        .join(", ") || "No properties"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleStartEditMetric(m)}
+                      className="text-gray-400 hover:text-accent-500"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteMetric(m.id)}
+                      className="text-gray-400 hover:text-red-500"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {metrics.length === 0 && (
+            <div className="text-center py-8 text-gray-500">No metrics yet</div>
+          )}
+        </div>
+
+        {/* Add new metric */}
+        <div className="border-t border-gray-200 pt-6">
+          <h4 className="font-medium text-primary-900 mb-4">Add New Metric</h4>
+          <div className="space-y-4">
+            <Input
+              label="Metric Name"
+              placeholder="e.g., Priority Score"
+              value={newMetricName}
+              onChange={(e) => setNewMetricName(e.target.value)}
+            />
+            <div>
+              <label className="block text-sm font-medium text-primary-900 mb-2">
+                Properties
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {propertyDefinitions.map((prop) => (
+                  <label
+                    key={prop.id}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4"
+                      checked={newMetricProps.includes(prop.id)}
+                      onChange={() => toggleMetricProp(prop.id)}
+                    />
+                    <span>{prop.name}</span>
+                  </label>
+                ))}
+              </div>
+              {propertyDefinitions.length === 0 && (
+                <p className="text-sm text-gray-500">
+                  No properties available. Define properties above first.
+                </p>
+              )}
+            </div>
+            <Button
+              onClick={handleAddMetric}
+              loading={savingMetric}
+              disabled={!newMetricName.trim() || newMetricProps.length === 0}
+              icon={<Plus className="w-4 h-4" />}
+            >
+              Add Metric
+            </Button>
+          </div>
+        </div>
+      </Card>
+
       {/* PocketBase Admin */}
       <Card>
         <CardTitle>PocketBase Admin</CardTitle>
         <p className="text-sm text-gray-500 mt-1 mb-4">
-          Access the PocketBase admin dashboard to manage collections and data directly.
+          Access the PocketBase admin dashboard to manage collections and data
+          directly.
         </p>
         <a
-          href={`${import.meta.env.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090'}/_/`}
+          href={`${import.meta.env.VITE_POCKETBASE_URL || "http://127.0.0.1:8090"}/_/`}
           target="_blank"
           rel="noopener noreferrer"
         >

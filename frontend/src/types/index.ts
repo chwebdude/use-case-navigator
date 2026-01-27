@@ -1,4 +1,4 @@
-import type { RecordModel } from 'pocketbase';
+import type { RecordModel } from "pocketbase";
 
 export interface FactsheetType extends RecordModel {
   name: string;
@@ -11,7 +11,7 @@ export interface Factsheet extends RecordModel {
   name: string;
   description: string;
   type: string;
-  status: 'draft' | 'active' | 'archived';
+  status: "draft" | "active" | "archived";
   responsibility?: string;
   benefits?: string;
   what_it_does?: string;
@@ -34,6 +34,7 @@ export interface PropertyOption extends RecordModel {
   property: string;
   value: string;
   order?: number;
+  weight?: number;
 }
 
 export interface FactsheetProperty extends RecordModel {
@@ -70,13 +71,27 @@ export interface FactsheetPropertyExpanded extends FactsheetProperty {
   };
 }
 
+// Metrics
+export interface Metric extends RecordModel {
+  name: string;
+  properties: string[]; // Relation to PropertyDefinition (multi)
+  order?: number;
+  description?: string;
+}
+
+export interface MetricExpanded extends Metric {
+  expand?: {
+    properties?: PropertyDefinition[];
+  };
+}
+
 export type ChangeAction =
-  | 'created'
-  | 'updated'
-  | 'deleted'
-  | 'dependency_added'
-  | 'dependency_removed'
-  | 'dependency_updated';
+  | "created"
+  | "updated"
+  | "deleted"
+  | "dependency_added"
+  | "dependency_removed"
+  | "dependency_updated";
 
 export interface ChangeLog extends RecordModel {
   factsheet: string;
@@ -93,4 +108,3 @@ export interface ChangeLogExpanded extends ChangeLog {
     related_factsheet?: Factsheet;
   };
 }
-

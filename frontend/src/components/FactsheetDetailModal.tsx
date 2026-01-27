@@ -1,29 +1,52 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Edit, ExternalLink, History, ChevronDown, ChevronRight } from 'lucide-react';
-import { Modal, Button, Badge } from './ui';
-import { DependencyGraph } from './visualizations';
-import { useRecord, useRealtime } from '../hooks/useRealtime';
-import pb from '../lib/pocketbase';
-import type { Factsheet, FactsheetType, FactsheetPropertyExpanded, ChangeLogExpanded, FactsheetExpanded, Dependency } from '../types';
+import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
+import {
+  Edit,
+  ExternalLink,
+  History,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
+import { Modal, Button, Badge, MetricBadge } from "./ui";
+import { DependencyGraph, SpiderDiagram } from "./visualizations";
+import type { SpiderDataPoint } from "./visualizations/SpiderDiagram";
+import { useRecord, useRealtime } from "../hooks/useRealtime";
+import pb from "../lib/pocketbase";
+import type {
+  Factsheet,
+  FactsheetType,
+  FactsheetPropertyExpanded,
+  ChangeLogExpanded,
+  FactsheetExpanded,
+  Dependency,
+  MetricExpanded,
+} from "../types";
 
 interface FactsheetDetailModalProps {
   factsheetId: string | null;
   onClose: () => void;
 }
 
-export default function FactsheetDetailModal({ factsheetId, onClose }: FactsheetDetailModalProps) {
+export default function FactsheetDetailModal({
+  factsheetId,
+  onClose,
+}: FactsheetDetailModalProps) {
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
-  const { record: factsheet, loading } = useRecord<Factsheet>('factsheets', factsheetId || undefined);
+  const { record: factsheet, loading } = useRecord<Factsheet>(
+    "factsheets",
+    factsheetId || undefined,
+  );
   const { record: factsheetType } = useRecord<FactsheetType>(
-    'factsheet_types',
-    factsheet?.type
+    "factsheet_types",
+    factsheet?.type,
   );
 
   // Fetch all dependencies and related factsheets for the full dependency chain
   const [allDependencies, setAllDependencies] = useState<Dependency[]>([]);
-  const [relatedFactsheets, setRelatedFactsheets] = useState<FactsheetExpanded[]>([]);
+  const [relatedFactsheets, setRelatedFactsheets] = useState<
+    FactsheetExpanded[]
+  >([]);
 
   useEffect(() => {
     if (!factsheetId) {
@@ -33,12 +56,12 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
     }
 
     // Fetch all dependencies to traverse the full chain
-    pb.collection('dependencies')
+    pb.collection("dependencies")
       .getFullList<Dependency>()
       .then((deps) => {
         // Build adjacency lists for traversal
         const downstream = new Map<string, string[]>(); // factsheet -> what it depends on
-        const upstream = new Map<string, string[]>();   // factsheet -> what depends on it
+        const upstream = new Map<string, string[]>(); // factsheet -> what depends on it
 
         deps.forEach((dep) => {
           if (!downstream.has(dep.factsheet)) {
@@ -83,15 +106,17 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
 
         // Filter dependencies to only include those between related factsheets
         const relevantDeps = deps.filter(
-          (dep) => related.has(dep.factsheet) && related.has(dep.depends_on)
+          (dep) => related.has(dep.factsheet) && related.has(dep.depends_on),
         );
         setAllDependencies(relevantDeps);
 
         // Fetch related factsheets
         if (related.size > 0) {
-          const filter = Array.from(related).map((id) => `id = "${id}"`).join(' || ');
-          pb.collection('factsheets')
-            .getFullList<FactsheetExpanded>({ filter, expand: 'type' })
+          const filter = Array.from(related)
+            .map((id) => `id = "${id}"`)
+            .join(" || ");
+          pb.collection("factsheets")
+            .getFullList<FactsheetExpanded>({ filter, expand: "type" })
             .then(setRelatedFactsheets)
             .catch(() => setRelatedFactsheets([]));
         } else {
@@ -105,42 +130,113 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
   }, [factsheetId]);
 
   // Count direct dependencies for the summary text
-  const directOutgoingCount = allDependencies.filter((d) => d.factsheet === factsheetId).length;
-  const directIncomingCount = allDependencies.filter((d) => d.depends_on === factsheetId).length;
+  const directOutgoingCount = allDependencies.filter(
+    (d) => d.factsheet === factsheetId,
+  ).length;
+  const directIncomingCount = allDependencies.filter(
+    (d) => d.depends_on === factsheetId,
+  ).length;
 
   const { records: properties } = useRealtime<FactsheetPropertyExpanded>({
-    collection: 'factsheet_properties',
-    filter: factsheetId ? `factsheet = "${factsheetId}"` : '',
-    expand: 'property,option',
+    collection: "factsheet_properties",
+    filter: factsheetId ? `factsheet = "${factsheetId}"` : "",
+    expand: "property,option",
   });
 
   const { records: changeLogs } = useRealtime<ChangeLogExpanded>({
-    collection: 'change_log',
-    filter: factsheetId ? `factsheet = "${factsheetId}"` : '',
-    sort: '-created',
-    expand: 'related_factsheet',
+    collection: "change_log",
+    filter: factsheetId ? `factsheet = "${factsheetId}"` : "",
+    sort: "-created",
+    expand: "related_factsheet",
+  });
+
+  const { records: metrics } = useRealtime<MetricExpanded>({
+    collection: "metrics",
+    sort: "order",
+    expand: "properties",
   });
 
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case 'active':
-        return 'success';
-      case 'draft':
-        return 'default';
-      case 'archived':
-        return 'warning';
+      case "active":
+        return "success";
+      case "draft":
+        return "default";
+      case "archived":
+        return "warning";
       default:
-        return 'default';
+        return "default";
     }
   };
 
-  const typeColor = factsheetType?.color || '#6b7280';
+  const typeColor = factsheetType?.color || "#6b7280";
+
+  const propertyMap = useMemo(() => {
+    const map = new Map<string, FactsheetPropertyExpanded>();
+    properties.forEach((fp) => {
+      map.set(fp.property, fp);
+    });
+    return map;
+  }, [properties]);
+
+  const computeMetricScore = (metric: MetricExpanded) => {
+    const props = metric.properties?.length
+      ? metric.properties
+      : (metric.expand?.properties?.map((p) => p.id) ?? []);
+    if (props.length === 0) return null;
+
+    let sum = 0;
+    let count = 0;
+    props.forEach((pid) => {
+      const fp = propertyMap.get(pid);
+      if (!fp) return;
+      const w =
+        typeof fp.expand?.option?.weight === "number"
+          ? fp.expand.option.weight
+          : 0;
+      sum += w;
+      count += 1;
+    });
+    if (count === 0) return null;
+    return sum / count;
+  };
+
+  // Spider diagram data for this factsheet
+  const spiderData: SpiderDataPoint[] = useMemo(() => {
+    if (!factsheet || metrics.length < 3) return [];
+
+    const values = metrics
+      .map((metric) => {
+        const score = computeMetricScore(metric);
+        return {
+          metric: metric.name,
+          value: score ?? 0,
+        };
+      })
+      .filter(
+        (v) =>
+          v.value > 0 || metrics.every((m) => computeMetricScore(m) !== null),
+      );
+
+    if (values.length < 3) return [];
+
+    return [
+      {
+        id: factsheet.id,
+        name: factsheet.name,
+        color: typeColor,
+        values,
+      },
+    ];
+  }, [factsheet, metrics, propertyMap, typeColor]);
+
+  const metricNames = useMemo(() => metrics.map((m) => m.name), [metrics]);
 
   return (
     <Modal
       isOpen={factsheetId !== null}
       onClose={onClose}
-      title={loading ? 'Loading...' : factsheet?.name || 'Factsheet'}
+      title={loading ? "Loading..." : factsheet?.name || "Factsheet"}
       size="full"
     >
       {loading ? (
@@ -161,30 +257,76 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
                 {factsheetType.name}
               </span>
             )}
-            <Badge variant={getStatusVariant(factsheet.status)}>{factsheet.status}</Badge>
+            <Badge variant={getStatusVariant(factsheet.status)}>
+              {factsheet.status}
+            </Badge>
           </div>
 
           {/* Description */}
           {factsheet.description && (
             <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-1">Description</h4>
-              <p className="text-gray-700 whitespace-pre-wrap">{factsheet.description}</p>
+              <h4 className="text-sm font-medium text-gray-500 mb-1">
+                Description
+              </h4>
+              <p className="text-gray-700 whitespace-pre-wrap">
+                {factsheet.description}
+              </p>
             </div>
           )}
 
           {/* Properties */}
           {properties.length > 0 && (
             <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Properties</h4>
+              <h4 className="text-sm font-medium text-gray-500 mb-2">
+                Properties
+              </h4>
               <div className="grid grid-cols-2 gap-3">
                 {properties.map((prop) => (
                   <div key={prop.id} className="bg-gray-50 p-2">
-                    <p className="text-xs text-gray-500">{prop.expand?.property?.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {prop.expand?.property?.name}
+                    </p>
                     <p className="text-sm font-medium text-primary-900">
-                      {prop.expand?.option?.value || 'Not set'}
+                      {prop.expand?.option?.value || "Not set"}
                     </p>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Metrics */}
+          {metrics.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-500 mb-3">
+                Metrics
+              </h4>
+              {/* Spider Diagram */}
+              {spiderData.length > 0 && metricNames.length >= 3 && (
+                <div className="flex justify-center mb-4">
+                  <SpiderDiagram
+                    data={spiderData}
+                    metrics={metricNames}
+                    maxValue={10}
+                    size={280}
+                    showLabels={true}
+                    showLegend={false}
+                    interactive={false}
+                  />
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                {metrics.map((metric) => {
+                  const score = computeMetricScore(metric);
+                  return score !== null ? (
+                    <MetricBadge
+                      key={metric.id}
+                      name={metric.name}
+                      score={score}
+                      variant="default"
+                    />
+                  ) : null;
+                })}
               </div>
             </div>
           )}
@@ -193,14 +335,18 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {factsheet.responsibility && (
               <div>
-                <h4 className="text-sm font-medium text-gray-500 mb-1">Responsibility</h4>
+                <h4 className="text-sm font-medium text-gray-500 mb-1">
+                  Responsibility
+                </h4>
                 <p className="text-gray-700">{factsheet.responsibility}</p>
               </div>
             )}
 
             {factsheet.what_it_does && (
               <div>
-                <h4 className="text-sm font-medium text-gray-500 mb-1">What it does</h4>
+                <h4 className="text-sm font-medium text-gray-500 mb-1">
+                  What it does
+                </h4>
                 <div
                   className="text-gray-700 prose prose-sm max-w-none"
                   dangerouslySetInnerHTML={{ __html: factsheet.what_it_does }}
@@ -210,7 +356,9 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
 
             {factsheet.benefits && (
               <div>
-                <h4 className="text-sm font-medium text-gray-500 mb-1">Benefits</h4>
+                <h4 className="text-sm font-medium text-gray-500 mb-1">
+                  Benefits
+                </h4>
                 <div
                   className="text-gray-700 prose prose-sm max-w-none"
                   dangerouslySetInnerHTML={{ __html: factsheet.benefits }}
@@ -220,10 +368,14 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
 
             {factsheet.problems_addressed && (
               <div>
-                <h4 className="text-sm font-medium text-gray-500 mb-1">Problems Addressed</h4>
+                <h4 className="text-sm font-medium text-gray-500 mb-1">
+                  Problems Addressed
+                </h4>
                 <div
                   className="text-gray-700 prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: factsheet.problems_addressed }}
+                  dangerouslySetInnerHTML={{
+                    __html: factsheet.problems_addressed,
+                  }}
                 />
               </div>
             )}
@@ -231,7 +383,9 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
 
           {factsheet.potential_ui && (
             <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-1">Potential User Interface</h4>
+              <h4 className="text-sm font-medium text-gray-500 mb-1">
+                Potential User Interface
+              </h4>
               <div
                 className="text-gray-700 prose prose-sm max-w-none"
                 dangerouslySetInnerHTML={{ __html: factsheet.potential_ui }}
@@ -242,7 +396,9 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
           {/* Dependencies Graph */}
           {relatedFactsheets.length > 1 && (
             <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Dependencies</h4>
+              <h4 className="text-sm font-medium text-gray-500 mb-2">
+                Dependencies
+              </h4>
               <div className="h-[500px] border border-gray-200 rounded-lg overflow-hidden">
                 <DependencyGraph
                   factsheets={relatedFactsheets}
@@ -251,9 +407,11 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                {directOutgoingCount > 0 && `Depends on ${directOutgoingCount} factsheet${directOutgoingCount > 1 ? 's' : ''}`}
-                {directOutgoingCount > 0 && directIncomingCount > 0 && ' · '}
-                {directIncomingCount > 0 && `${directIncomingCount} factsheet${directIncomingCount > 1 ? 's' : ''} depend${directIncomingCount === 1 ? 's' : ''} on this`}
+                {directOutgoingCount > 0 &&
+                  `Depends on ${directOutgoingCount} factsheet${directOutgoingCount > 1 ? "s" : ""}`}
+                {directOutgoingCount > 0 && directIncomingCount > 0 && " · "}
+                {directIncomingCount > 0 &&
+                  `${directIncomingCount} factsheet${directIncomingCount > 1 ? "s" : ""} depend${directIncomingCount === 1 ? "s" : ""} on this`}
               </p>
             </div>
           )}
@@ -284,7 +442,9 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
                           {new Date(log.created).toLocaleDateString()}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">by {log.username}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        by {log.username}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -295,12 +455,20 @@ export default function FactsheetDetailModal({ factsheetId, onClose }: Factsheet
           {/* Actions */}
           <div className="flex gap-3 pt-4 border-t border-gray-200">
             <Link to={`/factsheets/${factsheetId}/edit`} onClick={onClose}>
-              <Button variant="secondary" size="sm" icon={<Edit className="w-4 h-4" />}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Edit className="w-4 h-4" />}
+              >
                 Edit
               </Button>
             </Link>
             <Link to={`/factsheets/${factsheetId}`} onClick={onClose}>
-              <Button variant="ghost" size="sm" icon={<ExternalLink className="w-4 h-4" />}>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<ExternalLink className="w-4 h-4" />}
+              >
                 Open Full Page
               </Button>
             </Link>

@@ -1,17 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
-import { Card, Button, Input, Select } from '../components/ui';
-import { Textarea } from '../components/ui/Input';
-import { useRecord, useRealtime } from '../hooks/useRealtime';
-import { useChangeLog } from '../hooks/useChangeLog';
-import pb from '../lib/pocketbase';
-import type { Factsheet, FactsheetType, PropertyDefinition, PropertyOption, FactsheetProperty } from '../types';
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Save } from "lucide-react";
+import { Card, Button, Input, Select } from "../components/ui";
+import { Textarea } from "../components/ui/Input";
+import { useRecord, useRealtime } from "../hooks/useRealtime";
+import { useChangeLog } from "../hooks/useChangeLog";
+import pb from "../lib/pocketbase";
+import type {
+  Factsheet,
+  FactsheetType,
+  PropertyDefinition,
+  PropertyOption,
+  FactsheetProperty,
+} from "../types";
 
 const statusOptions = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'active', label: 'Active' },
-  { value: 'archived', label: 'Archived' },
+  { value: "draft", label: "Draft" },
+  { value: "active", label: "Active" },
+  { value: "archived", label: "Archived" },
 ];
 
 export default function FactsheetForm() {
@@ -19,34 +25,36 @@ export default function FactsheetForm() {
   const navigate = useNavigate();
   const isEdit = Boolean(id);
 
-  const { record: existingFactsheet, loading: loadingRecord } = useRecord<Factsheet>(
-    'factsheets',
-    id
-  );
+  const { record: existingFactsheet, loading: loadingRecord } =
+    useRecord<Factsheet>("factsheets", id);
 
   const { records: factsheetTypes } = useRealtime<FactsheetType>({
-    collection: 'factsheet_types',
-    sort: 'order',
+    collection: "factsheet_types",
+    sort: "order",
   });
 
   const { records: propertyDefinitions } = useRealtime<PropertyDefinition>({
-    collection: 'property_definitions',
-    sort: 'order',
+    collection: "property_definitions",
+    sort: "order",
   });
 
   const { records: propertyOptions } = useRealtime<PropertyOption>({
-    collection: 'property_options',
-    sort: 'order',
+    collection: "property_options",
+    sort: "order",
   });
 
   const { records: existingProperties } = useRealtime<FactsheetProperty>({
-    collection: 'factsheet_properties',
-    filter: id ? `factsheet = "${id}"` : '',
+    collection: "factsheet_properties",
+    filter: id ? `factsheet = "${id}"` : 'id = ""',
   });
 
-  const { logFactsheetCreated, logFactsheetUpdated, logPropertyChanged } = useChangeLog();
+  const { logFactsheetCreated, logFactsheetUpdated, logPropertyChanged } =
+    useChangeLog();
 
-  const typeOptions = factsheetTypes.map((t) => ({ value: t.id, label: t.name }));
+  const typeOptions = factsheetTypes.map((t) => ({
+    value: t.id,
+    label: t.name,
+  }));
 
   // Group options by property
   const optionsByProperty = useMemo(() => {
@@ -64,17 +72,19 @@ export default function FactsheetForm() {
   }, [propertyOptions]);
 
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    type: '',
-    status: 'draft',
-    responsibility: '',
-    benefits: '',
-    what_it_does: '',
-    problems_addressed: '',
-    potential_ui: '',
+    name: "",
+    description: "",
+    type: "",
+    status: "draft",
+    responsibility: "",
+    benefits: "",
+    what_it_does: "",
+    problems_addressed: "",
+    potential_ui: "",
   });
-  const [propertyValues, setPropertyValues] = useState<Record<string, string>>({});
+  const [propertyValues, setPropertyValues] = useState<Record<string, string>>(
+    {},
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,28 +92,43 @@ export default function FactsheetForm() {
     if (existingFactsheet) {
       setFormData({
         name: existingFactsheet.name,
-        description: existingFactsheet.description || '',
+        description: existingFactsheet.description || "",
         type: existingFactsheet.type,
         status: existingFactsheet.status,
-        responsibility: existingFactsheet.responsibility || '',
-        benefits: existingFactsheet.benefits || '',
-        what_it_does: existingFactsheet.what_it_does || '',
-        problems_addressed: existingFactsheet.problems_addressed || '',
-        potential_ui: existingFactsheet.potential_ui || '',
+        responsibility: existingFactsheet.responsibility || "",
+        benefits: existingFactsheet.benefits || "",
+        what_it_does: existingFactsheet.what_it_does || "",
+        problems_addressed: existingFactsheet.problems_addressed || "",
+        potential_ui: existingFactsheet.potential_ui || "",
       });
     }
   }, [existingFactsheet]);
 
   // Load existing property values when editing
   useEffect(() => {
-    if (existingProperties.length > 0) {
+    if (isEdit && existingProperties.length > 0) {
       const values: Record<string, string> = {};
       existingProperties.forEach((prop) => {
         values[prop.property] = prop.option;
       });
       setPropertyValues(values);
     }
-  }, [existingProperties]);
+  }, [existingProperties, isEdit]);
+
+  // Initialize property values with empty strings for new factsheets
+  useEffect(() => {
+    if (
+      !isEdit &&
+      propertyDefinitions.length > 0 &&
+      Object.keys(propertyValues).length === 0
+    ) {
+      const initialValues: Record<string, string> = {};
+      propertyDefinitions.forEach((propDef) => {
+        initialValues[propDef.id] = "";
+      });
+      setPropertyValues(initialValues);
+    }
+  }, [propertyDefinitions, isEdit, propertyValues]);
 
   // Set default type when types are loaded
   useEffect(() => {
@@ -119,17 +144,17 @@ export default function FactsheetForm() {
   const getOptionsForProperty = (propDefId: string) => {
     const opts = optionsByProperty.get(propDefId) || [];
     return [
-      { value: '', label: 'Select...' },
+      { value: "", label: "Select..." },
       ...opts.map((opt) => ({ value: opt.id, label: opt.value })),
     ];
   };
 
   // Helper to truncate long values for display
   const truncate = (str: string, maxLen = 50) => {
-    if (!str) return '';
+    if (!str) return "";
     // Strip HTML tags for display
-    const plain = str.replace(/<[^>]*>/g, '');
-    return plain.length > maxLen ? plain.substring(0, maxLen) + '...' : plain;
+    const plain = str.replace(/<[^>]*>/g, "");
+    return plain.length > maxLen ? plain.substring(0, maxLen) + "..." : plain;
   };
 
   // Helper to get option value by id
@@ -143,7 +168,7 @@ export default function FactsheetForm() {
     setError(null);
 
     if (!formData.type) {
-      setError('Please select a factsheet type');
+      setError("Please select a factsheet type");
       return;
     }
 
@@ -154,40 +179,93 @@ export default function FactsheetForm() {
 
       if (isEdit && id) {
         // Track which fields changed with old/new values
-        const fieldChanges: { field: string; oldValue?: string; newValue?: string }[] = [];
+        const fieldChanges: {
+          field: string;
+          oldValue?: string;
+          newValue?: string;
+        }[] = [];
         if (existingFactsheet) {
           if (formData.name !== existingFactsheet.name) {
-            fieldChanges.push({ field: 'name', oldValue: existingFactsheet.name, newValue: formData.name });
+            fieldChanges.push({
+              field: "name",
+              oldValue: existingFactsheet.name,
+              newValue: formData.name,
+            });
           }
-          if (formData.description !== (existingFactsheet.description || '')) {
-            fieldChanges.push({ field: 'description', oldValue: truncate(existingFactsheet.description || ''), newValue: truncate(formData.description) });
+          if (formData.description !== (existingFactsheet.description || "")) {
+            fieldChanges.push({
+              field: "description",
+              oldValue: truncate(existingFactsheet.description || ""),
+              newValue: truncate(formData.description),
+            });
           }
           if (formData.type !== existingFactsheet.type) {
-            const oldType = factsheetTypes.find((t) => t.id === existingFactsheet.type)?.name || existingFactsheet.type;
-            const newType = factsheetTypes.find((t) => t.id === formData.type)?.name || formData.type;
-            fieldChanges.push({ field: 'type', oldValue: oldType, newValue: newType });
+            const oldType =
+              factsheetTypes.find((t) => t.id === existingFactsheet.type)
+                ?.name || existingFactsheet.type;
+            const newType =
+              factsheetTypes.find((t) => t.id === formData.type)?.name ||
+              formData.type;
+            fieldChanges.push({
+              field: "type",
+              oldValue: oldType,
+              newValue: newType,
+            });
           }
           if (formData.status !== existingFactsheet.status) {
-            fieldChanges.push({ field: 'status', oldValue: existingFactsheet.status, newValue: formData.status });
+            fieldChanges.push({
+              field: "status",
+              oldValue: existingFactsheet.status,
+              newValue: formData.status,
+            });
           }
-          if (formData.responsibility !== (existingFactsheet.responsibility || '')) {
-            fieldChanges.push({ field: 'responsibility', oldValue: truncate(existingFactsheet.responsibility || ''), newValue: truncate(formData.responsibility) });
+          if (
+            formData.responsibility !== (existingFactsheet.responsibility || "")
+          ) {
+            fieldChanges.push({
+              field: "responsibility",
+              oldValue: truncate(existingFactsheet.responsibility || ""),
+              newValue: truncate(formData.responsibility),
+            });
           }
-          if (formData.benefits !== (existingFactsheet.benefits || '')) {
-            fieldChanges.push({ field: 'benefits', oldValue: truncate(existingFactsheet.benefits || ''), newValue: truncate(formData.benefits) });
+          if (formData.benefits !== (existingFactsheet.benefits || "")) {
+            fieldChanges.push({
+              field: "benefits",
+              oldValue: truncate(existingFactsheet.benefits || ""),
+              newValue: truncate(formData.benefits),
+            });
           }
-          if (formData.what_it_does !== (existingFactsheet.what_it_does || '')) {
-            fieldChanges.push({ field: 'what_it_does', oldValue: truncate(existingFactsheet.what_it_does || ''), newValue: truncate(formData.what_it_does) });
+          if (
+            formData.what_it_does !== (existingFactsheet.what_it_does || "")
+          ) {
+            fieldChanges.push({
+              field: "what_it_does",
+              oldValue: truncate(existingFactsheet.what_it_does || ""),
+              newValue: truncate(formData.what_it_does),
+            });
           }
-          if (formData.problems_addressed !== (existingFactsheet.problems_addressed || '')) {
-            fieldChanges.push({ field: 'problems_addressed', oldValue: truncate(existingFactsheet.problems_addressed || ''), newValue: truncate(formData.problems_addressed) });
+          if (
+            formData.problems_addressed !==
+            (existingFactsheet.problems_addressed || "")
+          ) {
+            fieldChanges.push({
+              field: "problems_addressed",
+              oldValue: truncate(existingFactsheet.problems_addressed || ""),
+              newValue: truncate(formData.problems_addressed),
+            });
           }
-          if (formData.potential_ui !== (existingFactsheet.potential_ui || '')) {
-            fieldChanges.push({ field: 'potential_ui', oldValue: truncate(existingFactsheet.potential_ui || ''), newValue: truncate(formData.potential_ui) });
+          if (
+            formData.potential_ui !== (existingFactsheet.potential_ui || "")
+          ) {
+            fieldChanges.push({
+              field: "potential_ui",
+              oldValue: truncate(existingFactsheet.potential_ui || ""),
+              newValue: truncate(formData.potential_ui),
+            });
           }
         }
 
-        await pb.collection('factsheets').update(id, formData);
+        await pb.collection("factsheets").update(id, formData);
         factsheetId = id;
 
         // Log the update with field details
@@ -195,7 +273,7 @@ export default function FactsheetForm() {
           await logFactsheetUpdated(factsheetId, formData.name, fieldChanges);
         }
       } else {
-        const created = await pb.collection('factsheets').create(formData);
+        const created = await pb.collection("factsheets").create(formData);
         factsheetId = created.id;
 
         // Log the creation
@@ -205,39 +283,61 @@ export default function FactsheetForm() {
       // Save property values and track changes
       for (const propDef of propertyDefinitions) {
         const newOptionId = propertyValues[propDef.id];
-        const existing = existingProperties.find((p) => p.property === propDef.id);
-        const oldOptionValue = existing ? getOptionValue(existing.option) : null;
+        const existing = isEdit
+          ? existingProperties.find((p) => p.property === propDef.id)
+          : undefined;
+        const oldOptionValue = existing
+          ? getOptionValue(existing.option)
+          : null;
         const newOptionValue = newOptionId ? getOptionValue(newOptionId) : null;
 
-        if (newOptionId && newOptionId.trim()) {
+        // Check if there's a valid option selected (not empty string)
+        if (newOptionId && newOptionId !== "" && newOptionId.trim()) {
           if (existing) {
             // Only update and log if the value actually changed
             if (existing.option !== newOptionId) {
-              await pb.collection('factsheet_properties').update(existing.id, {
+              await pb.collection("factsheet_properties").update(existing.id, {
                 option: newOptionId,
               });
-              await logPropertyChanged(factsheetId, propDef.name, oldOptionValue, newOptionValue);
+              await logPropertyChanged(
+                factsheetId,
+                propDef.name,
+                oldOptionValue,
+                newOptionValue,
+              );
             }
           } else {
-            await pb.collection('factsheet_properties').create({
+            // Create new property record
+            await pb.collection("factsheet_properties").create({
               factsheet: factsheetId,
               property: propDef.id,
               option: newOptionId,
             });
             // Log property set (only for edits, not for new factsheets)
             if (isEdit) {
-              await logPropertyChanged(factsheetId, propDef.name, null, newOptionValue);
+              await logPropertyChanged(
+                factsheetId,
+                propDef.name,
+                null,
+                newOptionValue,
+              );
             }
           }
         } else if (existing) {
-          await pb.collection('factsheet_properties').delete(existing.id);
-          await logPropertyChanged(factsheetId, propDef.name, oldOptionValue, null);
+          // Remove property if it exists but no longer has a value
+          await pb.collection("factsheet_properties").delete(existing.id);
+          await logPropertyChanged(
+            factsheetId,
+            propDef.name,
+            oldOptionValue,
+            null,
+          );
         }
       }
 
-      navigate('/factsheets');
+      navigate("/factsheets");
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save factsheet');
+      setError(err instanceof Error ? err.message : "Failed to save factsheet");
     } finally {
       setSaving(false);
     }
@@ -272,11 +372,14 @@ export default function FactsheetForm() {
           <h1 className="text-2xl font-bold text-primary-900">New Factsheet</h1>
         </div>
         <Card className="text-center py-12">
-          <h3 className="text-lg font-medium text-primary-900">No factsheet types defined</h3>
+          <h3 className="text-lg font-medium text-primary-900">
+            No factsheet types defined
+          </h3>
           <p className="text-gray-500 mt-2">
-            Please create at least one factsheet type in Settings before creating a factsheet.
+            Please create at least one factsheet type in Settings before
+            creating a factsheet.
           </p>
-          <Button className="mt-4" onClick={() => navigate('/settings')}>
+          <Button className="mt-4" onClick={() => navigate("/settings")}>
             Go to Settings
           </Button>
         </Card>
@@ -297,7 +400,7 @@ export default function FactsheetForm() {
           Back
         </Button>
         <h1 className="text-2xl font-bold text-primary-900">
-          {isEdit ? 'Edit Factsheet' : 'New Factsheet'}
+          {isEdit ? "Edit Factsheet" : "New Factsheet"}
         </h1>
       </div>
 
@@ -339,21 +442,27 @@ export default function FactsheetForm() {
             label="Status"
             options={statusOptions}
             value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, status: e.target.value })
+            }
           />
 
           {/* Property selections */}
           {propertyDefinitions.length > 0 && (
             <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-4">Properties</h3>
+              <h3 className="text-sm font-medium text-gray-700 mb-4">
+                Properties
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 {propertyDefinitions.map((propDef) => (
                   <Select
                     key={propDef.id}
                     label={propDef.name}
                     options={getOptionsForProperty(propDef.id)}
-                    value={propertyValues[propDef.id] || ''}
-                    onChange={(e) => handlePropertyChange(propDef.id, e.target.value)}
+                    value={propertyValues[propDef.id] || ""}
+                    onChange={(e) =>
+                      handlePropertyChange(propDef.id, e.target.value)
+                    }
                   />
                 ))}
               </div>
@@ -361,21 +470,27 @@ export default function FactsheetForm() {
           )}
 
           <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-sm font-medium text-gray-700 mb-4">Additional Details</h3>
+            <h3 className="text-sm font-medium text-gray-700 mb-4">
+              Additional Details
+            </h3>
 
             <div className="space-y-6">
               <Input
                 label="Responsibility"
                 placeholder="Who is responsible for this?"
                 value={formData.responsibility}
-                onChange={(e) => setFormData({ ...formData, responsibility: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, responsibility: e.target.value })
+                }
               />
 
               <Textarea
                 label="Benefits"
                 placeholder="What are the benefits?"
                 value={formData.benefits}
-                onChange={(e) => setFormData({ ...formData, benefits: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, benefits: e.target.value })
+                }
                 rows={3}
               />
 
@@ -383,7 +498,9 @@ export default function FactsheetForm() {
                 label="What it does"
                 placeholder="Describe what this does..."
                 value={formData.what_it_does}
-                onChange={(e) => setFormData({ ...formData, what_it_does: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, what_it_does: e.target.value })
+                }
                 rows={3}
               />
 
@@ -391,7 +508,12 @@ export default function FactsheetForm() {
                 label="Problems addressed"
                 placeholder="What problems does this address?"
                 value={formData.problems_addressed}
-                onChange={(e) => setFormData({ ...formData, problems_addressed: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    problems_addressed: e.target.value,
+                  })
+                }
                 rows={3}
               />
 
@@ -399,7 +521,9 @@ export default function FactsheetForm() {
                 label="Potential User Interface"
                 placeholder="Describe the potential user interface..."
                 value={formData.potential_ui}
-                onChange={(e) => setFormData({ ...formData, potential_ui: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, potential_ui: e.target.value })
+                }
                 rows={3}
               />
             </div>
@@ -411,7 +535,7 @@ export default function FactsheetForm() {
               loading={saving}
               icon={<Save className="w-4 h-4" />}
             >
-              {isEdit ? 'Save Changes' : 'Create Factsheet'}
+              {isEdit ? "Save Changes" : "Create Factsheet"}
             </Button>
             <Button
               type="button"
