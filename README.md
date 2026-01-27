@@ -1,4 +1,4 @@
-# AI Use Case Navigator
+# Use Case Navigator
 
 This is a vibe coding project. Use with care!
 

@@ -1,11 +1,12 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   FileText,
   GitBranch,
   Grid3X3,
+  Radar,
   Settings,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface NavItem {
   to: string;
@@ -14,14 +15,39 @@ interface NavItem {
 }
 
 const mainNavItems: NavItem[] = [
-  { to: '/', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard' },
-  { to: '/factsheets', icon: <FileText className="w-5 h-5" />, label: 'Factsheets' },
-  { to: '/dependencies', icon: <GitBranch className="w-5 h-5" />, label: 'Dependencies' },
-  { to: '/matrix', icon: <Grid3X3 className="w-5 h-5" />, label: 'Matrix View' },
+  {
+    to: "/",
+    icon: <LayoutDashboard className="w-5 h-5" />,
+    label: "Dashboard",
+  },
+  {
+    to: "/factsheets",
+    icon: <FileText className="w-5 h-5" />,
+    label: "Factsheets",
+  },
+  {
+    to: "/dependencies",
+    icon: <GitBranch className="w-5 h-5" />,
+    label: "Dependencies",
+  },
+  {
+    to: "/matrix",
+    icon: <Grid3X3 className="w-5 h-5" />,
+    label: "Matrix View",
+  },
+  {
+    to: "/spider",
+    icon: <Radar className="w-5 h-5" />,
+    label: "Spider Diagram",
+  },
 ];
 
 const settingsNavItems: NavItem[] = [
-  { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Settings' },
+  {
+    to: "/settings",
+    icon: <Settings className="w-5 h-5" />,
+    label: "Settings",
+  },
 ];
 
 function NavSection({ title, items }: { title?: string; items: NavItem[] }) {
@@ -40,8 +66,8 @@ function NavSection({ title, items }: { title?: string; items: NavItem[] }) {
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm font-medium mx-2 transition-colors ${
                 isActive
-                  ? 'bg-accent-500 text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-primary-900'
+                  ? "bg-accent-500 text-white"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-primary-900"
               }`
             }
           >
