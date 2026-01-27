@@ -13,6 +13,7 @@ import {
   MatrixPage,
   SettingsPage,
   SpiderPage,
+  ScatterPage,
 } from "./pages";
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
           <Route path="dependencies" element={<DependenciesPage />} />
           <Route path="matrix" element={<MatrixPage />} />
           <Route path="spider" element={<SpiderPage />} />
+          <Route path="scatter" element={<ScatterPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

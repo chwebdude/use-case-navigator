@@ -40,6 +40,11 @@ const mainNavItems: NavItem[] = [
     icon: <Radar className="w-5 h-5" />,
     label: "Spider Diagram",
   },
+  {
+    to: "/scatter",
+    icon: <Grid3X3 className="w-5 h-5" />,
+    label: "Scatter Plot",
+  },
 ];
 
 const settingsNavItems: NavItem[] = [

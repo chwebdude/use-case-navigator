@@ -8,3 +8,4 @@ export { default as DependenciesPage } from "./DependenciesPage";
 export { default as MatrixPage } from "./MatrixPage";
 export { default as SettingsPage } from "./SettingsPage";
 export { default as SpiderPage } from "./SpiderPage";
+export { default as ScatterPage } from "./ScatterPage";

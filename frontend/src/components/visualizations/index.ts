@@ -10,3 +10,8 @@ export {
   default as SpiderDiagram,
   type SpiderDataPoint,
 } from "./SpiderDiagram";
+export {
+  default as ScatterPlot,
+  type ScatterPoint,
+  type AxisTick,
+} from "./ScatterPlot";
