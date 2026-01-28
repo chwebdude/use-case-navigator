@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Grid3X3 } from "lucide-react";
 import { Card, CardTitle, Badge, Select } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
@@ -7,6 +7,7 @@ import {
   type FactsheetPropertyExpanded,
   type PropertyDefinition,
   type PropertyOption,
+  type MetricExpanded,
 } from "../types";
 import { useRealtime } from "../hooks/useRealtime";
 import { useQueryStates } from "../hooks/useQueryState";
@@ -32,6 +33,8 @@ const colorPalette = [
   "#a855f7",
 ];
 
+type AxisMode = "properties" | "metrics";
+
 export default function ScatterPage() {
   const [state, setState] = useQueryStates({
     search: "",
@@ -40,9 +43,10 @@ export default function ScatterPage() {
     propertyFilters: {} as Record<string, string>,
     xAxis: "",
     yAxis: "",
+    axisMode: "properties" as AxisMode,
   });
 
-  const { search, statusFilter, typeFilter, propertyFilters, xAxis, yAxis } =
+  const { search, statusFilter, typeFilter, propertyFilters, xAxis, yAxis, axisMode } =
     state;
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
@@ -51,11 +55,13 @@ export default function ScatterPage() {
     setState("propertyFilters", v);
   const setXAxis = (v: string) => setState("xAxis", v);
   const setYAxis = (v: string) => setState("yAxis", v);
+  const setAxisMode = (v: AxisMode) => setState("axisMode", v);
 
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
     null,
   );
+  const prevAxisModeRef = useRef<AxisMode>(axisMode);
   const { settings } = useAppSettings();
 
   const { records: factsheets } = useRealtime<FactsheetExpanded>({
@@ -75,6 +81,20 @@ export default function ScatterPage() {
     collection: "property_options",
     sort: "order",
   });
+  const { records: metrics } = useRealtime<MetricExpanded>({
+    collection: "metrics",
+    sort: "order",
+    expand: "properties",
+  });
+
+  // Clear axes only when user actively changes mode (not on initial URL restoration)
+  useEffect(() => {
+    if (prevAxisModeRef.current !== axisMode) {
+      setXAxis("");
+      setYAxis("");
+      prevAxisModeRef.current = axisMode;
+    }
+  }, [axisMode, setXAxis, setYAxis]);
 
   const optionsByProperty = useMemo(() => {
     const map = new Map<string, PropertyOption[]>();
@@ -126,10 +146,51 @@ export default function ScatterPage() {
     propertyLookup,
   ]);
 
-  const axisOptions = propertyDefinitions.map((p) => ({
+  const computeMetricScore = (
+    metricId: string,
+    factsheetId: string,
+  ): number | null => {
+    const metric = metrics.find((m) => m.id === metricId);
+    if (!metric) return null;
+
+    const propIds = metric.properties?.length
+      ? metric.properties
+      : (metric.expand?.properties?.map((p) => p.id) ?? []);
+
+    if (propIds.length === 0) return null;
+
+    const factsheetPropMap = propertyLookup.get(factsheetId);
+    if (!factsheetPropMap) return null;
+
+    let sum = 0;
+    let count = 0;
+    propIds.forEach((pid) => {
+      const fp = factsheetPropMap.get(pid);
+      if (!fp) return;
+      const w =
+        typeof fp.expand?.option?.weight === "number"
+          ? fp.expand.option.weight
+          : 0;
+      sum += w;
+      count += 1;
+    });
+
+    if (count === 0) return null;
+    return sum / count;
+  };
+
+  const propertyAxisOptions = propertyDefinitions.map((p) => ({
     value: p.id,
     label: p.name,
   }));
+
+  const metricAxisOptions = metrics.map((m) => ({
+    value: m.id,
+    label: m.name,
+  }));
+
+  const axisOptions =
+    axisMode === "metrics" ? metricAxisOptions : propertyAxisOptions;
 
   const xTicks: AxisTick[] = useMemo(() => {
     if (!xAxis) return [];
@@ -151,27 +212,39 @@ export default function ScatterPage() {
 
   const points: ScatterPoint[] = useMemo(() => {
     const getNumericValue = (
-      propId: string,
+      axisId: string,
       fp?: FactsheetPropertyExpanded,
     ) => {
-      if (!propId || !fp) return null;
+      if (!axisId || !fp) return null;
       const w = fp.expand?.option?.weight;
       if (typeof w === "number") return w;
-      const opts = optionsByProperty.get(propId) || [];
+      const opts = optionsByProperty.get(axisId) || [];
       const val = fp.expand?.option?.value;
       const idx = opts.findIndex((o) => o.value === val);
       return idx >= 0 ? idx + 1 : null;
     };
 
+    const getValue = (
+      axisId: string,
+      factsheetId: string,
+      mode: AxisMode,
+    ): number | null => {
+      if (mode === "metrics") {
+        return computeMetricScore(axisId, factsheetId);
+      } else {
+        const fp = propertyLookup.get(factsheetId)?.get(axisId);
+        return getNumericValue(axisId, fp);
+      }
+    };
+
+    const max = settings.maxMetricWeight ?? 10;
+
     return filteredFactsheets
       .map((fs, index) => {
         const typeColor =
           fs.expand?.type?.color || colorPalette[index % colorPalette.length];
-        const xFp = xAxis ? propertyLookup.get(fs.id)?.get(xAxis) : undefined;
-        const yFp = yAxis ? propertyLookup.get(fs.id)?.get(yAxis) : undefined;
-        const max = settings.maxMetricWeight ?? 10;
-        const xValRaw = getNumericValue(xAxis, xFp);
-        const yValRaw = getNumericValue(yAxis, yFp);
+        const xValRaw = getValue(xAxis, fs.id, axisMode);
+        const yValRaw = getValue(yAxis, fs.id, axisMode);
         const xVal =
           xValRaw == null ? null : Math.max(0, Math.min(max, xValRaw));
         const yVal =
@@ -183,9 +256,11 @@ export default function ScatterPage() {
     filteredFactsheets,
     xAxis,
     yAxis,
+    axisMode,
     propertyLookup,
     optionsByProperty,
     settings.maxMetricWeight,
+    computeMetricScore,
   ]);
 
   const clearAllFilters = () => {
@@ -238,45 +313,84 @@ export default function ScatterPage() {
       />
 
       <Card padding="sm">
-        <div className="flex gap-6 items-end">
-          <div className="w-56">
-            <Select
-              label="X Axis (Horizontal)"
-              options={axisOptions}
-              value={xAxis}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                setXAxis(e.target.value)
-              }
-              placeholder="Select property..."
-            />
+        <div className="space-y-4">
+          <div className="flex gap-4 items-center">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setAxisMode("properties")}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  axisMode === "properties"
+                    ? "bg-accent-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Properties
+              </button>
+              <button
+                onClick={() => setAxisMode("metrics")}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  axisMode === "metrics"
+                    ? "bg-accent-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Metrics
+              </button>
+            </div>
+            <p className="text-sm text-gray-600">
+              {axisMode === "metrics"
+                ? "Select metrics to compute weighted scores"
+                : "Select properties with their corresponding weights"}
+            </p>
           </div>
-          <div className="w-56">
-            <Select
-              label="Y Axis (Vertical)"
-              options={axisOptions}
-              value={yAxis}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                setYAxis(e.target.value)
-              }
-              placeholder="Select property..."
-            />
+          <div className="flex gap-6 items-end">
+            <div className="w-56">
+              <Select
+                label="X Axis (Horizontal)"
+                options={axisOptions}
+                value={xAxis}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setXAxis(e.target.value)
+                }
+                placeholder={`Select ${axisMode}...`}
+              />
+            </div>
+            <div className="w-56">
+              <Select
+                label="Y Axis (Vertical)"
+                options={axisOptions}
+                value={yAxis}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setYAxis(e.target.value)
+                }
+                placeholder={`Select ${axisMode}...`}
+              />
+            </div>
           </div>
         </div>
       </Card>
 
       <Card>
         <div className="flex items-center justify-between mb-4">
-          <CardTitle>Scatter by Property Weights</CardTitle>
+          <CardTitle>
+            Scatter Plot
+            {axisMode === "metrics" && " (Metric Scores)"}
+            {axisMode === "properties" && " (Property Weights)"}
+          </CardTitle>
           <Badge variant="default">{points.length} points</Badge>
         </div>
         {xAxis && yAxis ? (
           <ScatterPlot
             points={points}
             xLabel={
-              propertyDefinitions.find((p) => p.id === xAxis)?.name || "X"
+              axisMode === "metrics"
+                ? metrics.find((m) => m.id === xAxis)?.name || "X"
+                : propertyDefinitions.find((p) => p.id === xAxis)?.name || "X"
             }
             yLabel={
-              propertyDefinitions.find((p) => p.id === yAxis)?.name || "Y"
+              axisMode === "metrics"
+                ? metrics.find((m) => m.id === yAxis)?.name || "Y"
+                : propertyDefinitions.find((p) => p.id === yAxis)?.name || "Y"
             }
             xTicks={xTicks}
             yTicks={yTicks}
