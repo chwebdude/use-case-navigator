@@ -46,8 +46,15 @@ export default function ScatterPage() {
     axisMode: "properties" as AxisMode,
   });
 
-  const { search, statusFilter, typeFilter, propertyFilters, xAxis, yAxis, axisMode } =
-    state;
+  const {
+    search,
+    statusFilter,
+    typeFilter,
+    propertyFilters,
+    xAxis,
+    yAxis,
+    axisMode,
+  } = state;
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
   const setTypeFilter = (v: string) => setState("typeFilter", v);
