@@ -4,6 +4,7 @@ import { Card, CardTitle, Badge, Select } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
 import {
   type FactsheetExpanded,
+  type FactsheetType,
   type FactsheetPropertyExpanded,
   type PropertyDefinition,
   type PropertyOption,
@@ -76,6 +77,12 @@ export default function ScatterPage() {
     sort: "-created",
     expand: "type",
   });
+
+  const { records: factsheetTypes } = useRealtime<FactsheetType>({
+    collection: "factsheet_types",
+    sort: "order",
+  });
+
   const { records: factsheetProps } = useRealtime<FactsheetPropertyExpanded>({
     collection: "factsheet_properties",
     expand: "option",
@@ -312,6 +319,7 @@ export default function ScatterPage() {
         }
         propertyDefinitions={propertyDefinitions}
         propertyOptions={propertyOptions}
+        factsheetTypes={factsheetTypes}
         hasFilters={hasFilters}
         onClearFilters={clearAllFilters}
         filteredCount={filteredFactsheets.length}

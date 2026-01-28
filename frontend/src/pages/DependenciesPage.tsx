@@ -400,6 +400,7 @@ export default function DependenciesPage() {
         }
         propertyDefinitions={propertyDefinitions}
         propertyOptions={propertyOptions}
+        factsheetTypes={factsheetTypes}
         hasFilters={hasFilters}
         onClearFilters={clearAllFilters}
         filteredCount={filteredFactsheets.length}

@@ -8,6 +8,7 @@ import { useRealtime } from "../hooks/useRealtime";
 import { useQueryStates } from "../hooks/useQueryState";
 import type {
   FactsheetExpanded,
+  FactsheetType,
   MetricExpanded,
   FactsheetPropertyExpanded,
   PropertyDefinition,
@@ -73,6 +74,11 @@ export default function SpiderPage() {
     collection: "factsheets",
     sort: "-created",
     expand: "type",
+  });
+
+  const { records: factsheetTypes } = useRealtime<FactsheetType>({
+    collection: "factsheet_types",
+    sort: "order",
   });
 
   const { records: metrics } = useRealtime<MetricExpanded>({
@@ -321,6 +327,7 @@ export default function SpiderPage() {
         }
         propertyDefinitions={propertyDefinitions}
         propertyOptions={propertyOptions}
+        factsheetTypes={factsheetTypes}
         hasFilters={hasFilters}
         onClearFilters={clearAllFilters}
         filteredCount={filteredFactsheets.length}

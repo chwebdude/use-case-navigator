@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 import { Card, Select, Button } from "./ui";
-import type { PropertyDefinition, PropertyOption } from "../types";
+import type { PropertyDefinition, PropertyOption, FactsheetType } from "../types";
 import { useMemo } from "react";
 
 interface FilterBarProps {
@@ -18,6 +18,7 @@ interface FilterBarProps {
 
   propertyDefinitions: PropertyDefinition[];
   propertyOptions: PropertyOption[];
+  factsheetTypes: FactsheetType[];
 
   hasFilters: boolean;
   onClearFilters: () => void;
@@ -41,6 +42,7 @@ export function FilterBar({
   onPropertyFilterChange,
   propertyDefinitions,
   propertyOptions,
+  factsheetTypes,
   hasFilters,
   onClearFilters,
   filteredCount,
@@ -102,15 +104,12 @@ export function FilterBar({
               label="Type"
               options={[
                 { value: "", label: "All Types" },
-                ...Array.from(
-                  new Set(propertyDefinitions.map((p) => p.id)),
-                ).map((id) => {
-                  const prop = propertyDefinitions.find((p) => p.id === id);
-                  return {
-                    value: id,
-                    label: prop?.name || id,
-                  };
-                }),
+                ...factsheetTypes
+                  .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                  .map((type) => ({
+                    value: type.id,
+                    label: type.name,
+                  })),
               ]}
               value={typeFilter}
               onChange={(e) => onTypeChange(e.target.value)}

@@ -326,6 +326,7 @@ export default function MatrixPage() {
         }
         propertyDefinitions={propertyDefinitions}
         propertyOptions={propertyOptions}
+        factsheetTypes={factsheetTypes}
         hasFilters={hasFilters}
         onClearFilters={clearAllFilters}
         filteredCount={filteredFactsheets.length}
