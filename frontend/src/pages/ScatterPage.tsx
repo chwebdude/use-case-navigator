@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { Search, Filter, Grid3X3 } from "lucide-react";
-import { Card, CardTitle, Button, Select, Badge } from "../components/ui";
+import { Grid3X3 } from "lucide-react";
+import { Card, CardTitle, Badge, Select } from "../components/ui";
+import { FilterBar } from "../components/FilterBar";
 import {
   type FactsheetExpanded,
-  type FactsheetType,
   type FactsheetPropertyExpanded,
   type PropertyDefinition,
   type PropertyOption,
@@ -16,13 +16,6 @@ import ScatterPlot, {
 } from "../components/visualizations/ScatterPlot";
 import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import { useAppSettings } from "../hooks/useAppSettings";
-
-const statusOptions = [
-  { value: "", label: "All Statuses" },
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "archived", label: "Archived" },
-];
 
 const colorPalette = [
   "#3b82f6",
@@ -70,10 +63,6 @@ export default function ScatterPage() {
     sort: "-created",
     expand: "type",
   });
-  const { records: factsheetTypes } = useRealtime<FactsheetType>({
-    collection: "factsheet_types",
-    sort: "order",
-  });
   const { records: factsheetProps } = useRealtime<FactsheetPropertyExpanded>({
     collection: "factsheet_properties",
     expand: "option",
@@ -87,15 +76,12 @@ export default function ScatterPage() {
     sort: "order",
   });
 
-  const typeOptions = [
-    { value: "", label: "All Types" },
-    ...factsheetTypes.map((t) => ({ value: t.id, label: t.name })),
-  ];
-
   const optionsByProperty = useMemo(() => {
     const map = new Map<string, PropertyOption[]>();
     propertyOptions.forEach((opt) => {
-      if (!map.has(opt.property)) map.set(opt.property, []);
+      if (!map.has(opt.property)) {
+        map.set(opt.property, []);
+      }
       map.get(opt.property)!.push(opt);
     });
     map.forEach((opts) => {
@@ -231,6 +217,26 @@ export default function ScatterPage() {
         </div>
       </div>
 
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        typeFilter={typeFilter}
+        onTypeChange={setTypeFilter}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        propertyFilters={propertyFilters}
+        onPropertyFilterChange={(propId, value) =>
+          setPropertyFilters({ ...propertyFilters, [propId]: value })
+        }
+        propertyDefinitions={propertyDefinitions}
+        propertyOptions={propertyOptions}
+        hasFilters={hasFilters}
+        onClearFilters={clearAllFilters}
+        filteredCount={filteredFactsheets.length}
+        totalCount={factsheets.length}
+        excludePropertyIds={[xAxis, yAxis]}
+      />
+
       <Card padding="sm">
         <div className="flex gap-6 items-end">
           <div className="w-56">
@@ -238,7 +244,9 @@ export default function ScatterPage() {
               label="X Axis (Horizontal)"
               options={axisOptions}
               value={xAxis}
-              onChange={(e) => setXAxis(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setXAxis(e.target.value)
+              }
               placeholder="Select property..."
             />
           </div>
@@ -247,70 +255,12 @@ export default function ScatterPage() {
               label="Y Axis (Vertical)"
               options={axisOptions}
               value={yAxis}
-              onChange={(e) => setYAxis(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setYAxis(e.target.value)
+              }
               placeholder="Select property..."
             />
           </div>
-        </div>
-      </Card>
-
-      <Card padding="sm">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search factsheets..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div className="w-40">
-            <Select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              options={typeOptions}
-            />
-          </div>
-          <div className="w-40">
-            <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              options={statusOptions}
-            />
-          </div>
-          {propertyDefinitions
-            .filter((prop) => prop.id !== xAxis && prop.id !== yAxis)
-            .map((propDef) => {
-              const opts = optionsByProperty.get(propDef.id) || [];
-              if (opts.length === 0) return null;
-              return (
-                <div key={propDef.id} className="w-40">
-                  <Select
-                    value={propertyFilters[propDef.id] || ""}
-                    onChange={(e) =>
-                      setPropertyFilters({
-                        ...propertyFilters,
-                        [propDef.id]: e.target.value,
-                      })
-                    }
-                    options={[
-                      { value: "", label: `All ${propDef.name}` },
-                      ...opts.map((o) => ({ value: o.value, label: o.value })),
-                    ]}
-                  />
-                </div>
-              );
-            })}
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearAllFilters}>
-              <Filter className="w-4 h-4 mr-1" />
-              Clear filters
-            </Button>
-          )}
         </div>
       </Card>
 

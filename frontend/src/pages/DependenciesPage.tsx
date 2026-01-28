@@ -8,7 +8,8 @@ import {
   Focus,
   EyeOff,
 } from "lucide-react";
-import { Card, CardTitle, Select, Button, Modal } from "../components/ui";
+import { Card, CardTitle, Button, Modal } from "../components/ui";
+import { FilterBar } from "../components/FilterBar";
 import { Textarea } from "../components/ui/Input";
 import {
   DependencyGraph,
@@ -28,15 +29,9 @@ import type {
   FactsheetPropertyExpanded,
 } from "../types";
 
-const statusOptions = [
-  { value: "", label: "All Statuses" },
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "archived", label: "Archived" },
-];
-
 export default function DependenciesPage() {
   const [state, setState] = useQueryStates({
+    search: "",
     typeFilter: "",
     statusFilter: "",
     propertyFilters: {} as Record<string, string>,
@@ -47,6 +42,7 @@ export default function DependenciesPage() {
   });
 
   const {
+    search,
     typeFilter,
     statusFilter,
     propertyFilters,
@@ -55,6 +51,7 @@ export default function DependenciesPage() {
     focusedFactsheetId,
     unrelatedDisplayMode,
   } = state;
+  const setSearch = (v: string) => setState("search", v);
   const setTypeFilter = (v: string) => setState("typeFilter", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
   const setPropertyFilters = (v: Record<string, string>) =>
@@ -128,27 +125,6 @@ export default function DependenciesPage() {
   const { logDependencyAdded, logDependencyRemoved, logDependencyUpdated } =
     useChangeLog();
 
-  const typeOptions = [
-    { value: "", label: "All Types" },
-    ...factsheetTypes.map((t) => ({ value: t.id, label: t.name })),
-  ];
-
-  // Group options by property for filter dropdowns
-  const optionsByProperty = useMemo(() => {
-    const map = new Map<string, PropertyOption[]>();
-    propertyOptions.forEach((opt) => {
-      if (!map.has(opt.property)) {
-        map.set(opt.property, []);
-      }
-      map.get(opt.property)!.push(opt);
-    });
-    // Sort options within each property by order
-    map.forEach((opts) => {
-      opts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    });
-    return map;
-  }, [propertyOptions]);
-
   // Build property lookup: factsheetId -> { propertyId -> optionValue }
   const propertyLookup = useMemo(() => {
     const lookup = new Map<string, Map<string, string>>();
@@ -168,6 +144,10 @@ export default function DependenciesPage() {
   // Filter factsheets
   const filteredFactsheets = useMemo(() => {
     return factsheets.filter((fs) => {
+      const matchesSearch =
+        search === "" ||
+        fs.name.toLowerCase().includes(search.toLowerCase()) ||
+        fs.description?.toLowerCase().includes(search.toLowerCase());
       const matchesType = typeFilter === "" || fs.type === typeFilter;
       const matchesStatus = statusFilter === "" || fs.status === statusFilter;
 
@@ -180,9 +160,16 @@ export default function DependenciesPage() {
         },
       );
 
-      return matchesType && matchesStatus && matchesProperties;
+      return matchesSearch && matchesType && matchesStatus && matchesProperties;
     });
-  }, [factsheets, typeFilter, statusFilter, propertyFilters, propertyLookup]);
+  }, [
+    factsheets,
+    search,
+    typeFilter,
+    statusFilter,
+    propertyFilters,
+    propertyLookup,
+  ]);
 
   // Filter dependencies to only include those where both factsheets are visible
   const filteredDependencies = useMemo(() => {
@@ -332,6 +319,7 @@ export default function DependenciesPage() {
   };
 
   const clearAllFilters = () => {
+    setSearch("");
     setTypeFilter("");
     setStatusFilter("");
     setPropertyFilters({});
@@ -380,6 +368,7 @@ export default function DependenciesPage() {
 
   const loading = loadingFactsheets || loadingDeps;
   const hasFilters =
+    search !== "" ||
     typeFilter !== "" ||
     statusFilter !== "" ||
     Object.values(propertyFilters).some((v) => v !== "");
@@ -397,59 +386,26 @@ export default function DependenciesPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <Card padding="sm">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="w-40">
-            <Select
-              label="Type"
-              options={typeOptions}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            />
-          </div>
-          <div className="w-40">
-            <Select
-              label="Status"
-              options={statusOptions}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            />
-          </div>
-          {propertyDefinitions.map((prop) => {
-            const opts = optionsByProperty.get(prop.id) || [];
-            return (
-              <div key={prop.id} className="w-40">
-                <Select
-                  label={prop.name}
-                  options={[
-                    { value: "", label: `All ${prop.name}` },
-                    ...opts.map((opt) => ({
-                      value: opt.value,
-                      label: opt.value,
-                    })),
-                  ]}
-                  value={propertyFilters[prop.id] || ""}
-                  onChange={(e) =>
-                    setPropertyFilters({
-                      ...propertyFilters,
-                      [prop.id]: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            );
-          })}
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearAllFilters}>
-              Clear Filters
-            </Button>
-          )}
-          <div className="ml-auto flex items-center gap-4">
-            <span className="text-sm text-gray-500">
-              {filteredFactsheets.length} of {factsheets.length} factsheets
-            </span>
-
+      {/* Filters and Additional Settings */}
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        typeFilter={typeFilter}
+        onTypeChange={setTypeFilter}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        propertyFilters={propertyFilters}
+        onPropertyFilterChange={(propId, value) =>
+          setPropertyFilters({ ...propertyFilters, [propId]: value })
+        }
+        propertyDefinitions={propertyDefinitions}
+        propertyOptions={propertyOptions}
+        hasFilters={hasFilters}
+        onClearFilters={clearAllFilters}
+        filteredCount={filteredFactsheets.length}
+        totalCount={factsheets.length}
+        additionalSettings={
+          <div className="flex items-center gap-4">
             {/* Property display dropdown */}
             {propertyDefinitions.length > 0 && (
               <div className="relative" ref={dropdownRef}>
@@ -575,8 +531,8 @@ export default function DependenciesPage() {
               Auto Align
             </Button>
           </div>
-        </div>
-      </Card>
+        }
+      />
 
       {/* Legend */}
       <Card padding="sm">

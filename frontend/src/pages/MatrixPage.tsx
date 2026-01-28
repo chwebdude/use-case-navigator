@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Eye, ChevronDown, Check } from "lucide-react";
 import { Card, CardTitle, Select, Button } from "../components/ui";
+import { FilterBar } from "../components/FilterBar";
 import {
   PropertyMatrix,
   type FactsheetMoveData,
@@ -20,15 +21,9 @@ import type {
   FactsheetProperty,
 } from "../types";
 
-const statusOptions = [
-  { value: "", label: "All Statuses" },
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "archived", label: "Archived" },
-];
-
 export default function MatrixPage() {
   const [state, setState] = useQueryStates({
+    search: "",
     xAxis: "",
     yAxis: "",
     typeFilter: "",
@@ -38,6 +33,7 @@ export default function MatrixPage() {
   });
 
   const {
+    search,
     xAxis,
     yAxis,
     typeFilter,
@@ -45,6 +41,7 @@ export default function MatrixPage() {
     propertyFilters,
     displayProperties,
   } = state;
+  const setSearch = (v: string) => setState("search", v);
   const setXAxis = (v: string) => setState("xAxis", v);
   const setYAxis = (v: string) => setState("yAxis", v);
   const setTypeFilter = (v: string) => setState("typeFilter", v);
@@ -127,6 +124,7 @@ export default function MatrixPage() {
   };
 
   const clearAllFilters = () => {
+    setSearch("");
     setTypeFilter("");
     setStatusFilter("");
     setPropertyFilters({});
@@ -245,22 +243,6 @@ export default function MatrixPage() {
     }
   };
 
-  // Group options by property for filter dropdowns
-  const optionsByProperty = useMemo(() => {
-    const map = new Map<string, PropertyOption[]>();
-    propertyOptions.forEach((opt) => {
-      if (!map.has(opt.property)) {
-        map.set(opt.property, []);
-      }
-      map.get(opt.property)!.push(opt);
-    });
-    // Sort options within each property by order
-    map.forEach((opts) => {
-      opts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    });
-    return map;
-  }, [propertyOptions]);
-
   // Build property lookup: factsheetId -> { propertyId -> optionValue }
   const propertyLookup = useMemo(() => {
     const lookup = new Map<string, Map<string, string>>();
@@ -279,6 +261,10 @@ export default function MatrixPage() {
   // Filter factsheets
   const filteredFactsheets = useMemo(() => {
     return factsheets.filter((fs) => {
+      const matchesSearch =
+        search === "" ||
+        fs.name.toLowerCase().includes(search.toLowerCase()) ||
+        fs.description?.toLowerCase().includes(search.toLowerCase());
       const matchesType = typeFilter === "" || fs.type === typeFilter;
       const matchesStatus = statusFilter === "" || fs.status === statusFilter;
 
@@ -291,16 +277,18 @@ export default function MatrixPage() {
         },
       );
 
-      return matchesType && matchesStatus && matchesProperties;
+      return matchesSearch && matchesType && matchesStatus && matchesProperties;
     });
-  }, [factsheets, typeFilter, statusFilter, propertyFilters, propertyLookup]);
+  }, [
+    factsheets,
+    search,
+    typeFilter,
+    statusFilter,
+    propertyFilters,
+    propertyLookup,
+  ]);
 
   const loading = loadingFactsheets || loadingDefs || loadingProps;
-
-  const typeOptions = [
-    { value: "", label: "All Types" },
-    ...factsheetTypes.map((t) => ({ value: t.id, label: t.name })),
-  ];
 
   // All properties for axis selection
   const axisOptions = propertyDefinitions.map((p) => ({
@@ -309,6 +297,7 @@ export default function MatrixPage() {
   }));
 
   const hasFilters =
+    search !== "" ||
     typeFilter !== "" ||
     statusFilter !== "" ||
     Object.values(propertyFilters).some((v) => v !== "");
@@ -322,6 +311,87 @@ export default function MatrixPage() {
           Plot factsheets on a matrix based on their properties
         </p>
       </div>
+
+      {/* Filters and Additional Settings */}
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        typeFilter={typeFilter}
+        onTypeChange={setTypeFilter}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        propertyFilters={propertyFilters}
+        onPropertyFilterChange={(propId, value) =>
+          setPropertyFilters({ ...propertyFilters, [propId]: value })
+        }
+        propertyDefinitions={propertyDefinitions}
+        propertyOptions={propertyOptions}
+        hasFilters={hasFilters}
+        onClearFilters={clearAllFilters}
+        filteredCount={filteredFactsheets.length}
+        totalCount={factsheets.length}
+        excludePropertyIds={[xAxis, yAxis].filter(Boolean)}
+        additionalSettings={
+          propertyDefinitions.length > 0 ? (
+            <div className="relative" ref={dropdownRef}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Eye className="w-4 h-4" />}
+                onClick={() => setShowPropertyDropdown(!showPropertyDropdown)}
+              >
+                Show Properties
+                {displayProperties.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-accent-500 text-white rounded-full">
+                    {displayProperties.length}
+                  </span>
+                )}
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+
+              {showPropertyDropdown && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 shadow-lg z-50 min-w-[200px]">
+                  <div className="p-2 border-b border-gray-100">
+                    <span className="text-xs font-medium text-gray-500 uppercase">
+                      Display on cards
+                    </span>
+                  </div>
+                  {propertyDefinitions.map((prop) => (
+                    <button
+                      key={prop.id}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                      onClick={() => togglePropertyDisplay(prop.id)}
+                    >
+                      <div
+                        className={`w-4 h-4 border flex items-center justify-center ${
+                          displayProperties.includes(prop.id)
+                            ? "bg-accent-500 border-accent-500"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        {displayProperties.includes(prop.id) && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                      {prop.name}
+                    </button>
+                  ))}
+                  {displayProperties.length > 0 && (
+                    <div className="p-2 border-t border-gray-100">
+                      <button
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                        onClick={() => setDisplayProperties([])}
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* Axis selectors */}
       <Card padding="sm">
@@ -343,124 +413,6 @@ export default function MatrixPage() {
               onChange={(e) => setYAxis(e.target.value)}
               placeholder="Select property..."
             />
-          </div>
-        </div>
-      </Card>
-
-      {/* Filters */}
-      <Card padding="sm">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="w-40">
-            <Select
-              label="Type"
-              options={typeOptions}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            />
-          </div>
-          <div className="w-40">
-            <Select
-              label="Status"
-              options={statusOptions}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            />
-          </div>
-          {propertyDefinitions
-            .filter((prop) => prop.id !== xAxis && prop.id !== yAxis)
-            .map((prop) => {
-              const opts = optionsByProperty.get(prop.id) || [];
-              return (
-                <div key={prop.id} className="w-40">
-                  <Select
-                    label={prop.name}
-                    options={[
-                      { value: "", label: `All ${prop.name}` },
-                      ...opts.map((opt) => ({
-                        value: opt.value,
-                        label: opt.value,
-                      })),
-                    ]}
-                    value={propertyFilters[prop.id] || ""}
-                    onChange={(e) =>
-                      setPropertyFilters({
-                        ...propertyFilters,
-                        [prop.id]: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              );
-            })}
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearAllFilters}>
-              Clear Filters
-            </Button>
-          )}
-          <div className="ml-auto flex items-center gap-4">
-            <span className="text-sm text-gray-500">
-              {filteredFactsheets.length} of {factsheets.length} factsheets
-            </span>
-
-            {/* Property display dropdown */}
-            {propertyDefinitions.length > 0 && (
-              <div className="relative" ref={dropdownRef}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<Eye className="w-4 h-4" />}
-                  onClick={() => setShowPropertyDropdown(!showPropertyDropdown)}
-                >
-                  Show Properties
-                  {displayProperties.length > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-accent-500 text-white rounded-full">
-                      {displayProperties.length}
-                    </span>
-                  )}
-                  <ChevronDown className="w-4 h-4 ml-1" />
-                </Button>
-
-                {showPropertyDropdown && (
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 shadow-lg z-50 min-w-[200px]">
-                    <div className="p-2 border-b border-gray-100">
-                      <span className="text-xs font-medium text-gray-500 uppercase">
-                        Display on cards
-                      </span>
-                    </div>
-                    {propertyDefinitions.map((prop) => (
-                      <button
-                        key={prop.id}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                        onClick={() => togglePropertyDisplay(prop.id)}
-                      >
-                        <div
-                          className={`w-4 h-4 border flex items-center justify-center ${
-                            displayProperties.includes(prop.id)
-                              ? "bg-accent-500 border-accent-500"
-                              : "border-gray-300"
-                          }`}
-                        >
-                          {displayProperties.includes(prop.id) && (
-                            <Check className="w-3 h-3 text-white" />
-                          )}
-                        </div>
-                        {prop.name}
-                      </button>
-                    ))}
-                    {displayProperties.length > 0 && (
-                      <div className="p-2 border-t border-gray-100">
-                        <button
-                          className="text-xs text-gray-500 hover:text-gray-700"
-                          onClick={() => setDisplayProperties([])}
-                        >
-                          Clear all
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </Card>

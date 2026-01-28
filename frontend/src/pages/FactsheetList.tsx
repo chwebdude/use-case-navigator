@@ -1,24 +1,17 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Filter } from "lucide-react";
-import { Card, Button, Select, Badge, MetricBadge } from "../components/ui";
+import { Plus, Filter } from "lucide-react";
+import { Card, Button, Badge, MetricBadge } from "../components/ui";
+import { FilterBar } from "../components/FilterBar";
 import { useRealtime } from "../hooks/useRealtime";
 import { useQueryStates } from "../hooks/useQueryState";
 import type {
-  FactsheetType,
   FactsheetExpanded,
   MetricExpanded,
   FactsheetPropertyExpanded,
   PropertyDefinition,
   PropertyOption,
 } from "../types";
-
-const statusOptions = [
-  { value: "", label: "All Statuses" },
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "archived", label: "Archived" },
-];
 
 export default function FactsheetList() {
   const [state, setState] = useQueryStates({
@@ -41,11 +34,6 @@ export default function FactsheetList() {
     expand: "type",
   });
 
-  const { records: factsheetTypes } = useRealtime<FactsheetType>({
-    collection: "factsheet_types",
-    sort: "order",
-  });
-
   const { records: metrics } = useRealtime<MetricExpanded>({
     collection: "metrics",
     sort: "order",
@@ -66,27 +54,6 @@ export default function FactsheetList() {
     collection: "property_options",
     sort: "order",
   });
-
-  const typeOptions = [
-    { value: "", label: "All Types" },
-    ...factsheetTypes.map((t) => ({ value: t.id, label: t.name })),
-  ];
-
-  // Group options by property for filter dropdowns
-  const optionsByProperty = useMemo(() => {
-    const map = new Map<string, PropertyOption[]>();
-    propertyOptions.forEach((opt) => {
-      if (!map.has(opt.property)) {
-        map.set(opt.property, []);
-      }
-      map.get(opt.property)!.push(opt);
-    });
-    // Sort options within each property by order
-    map.forEach((opts) => {
-      opts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    });
-    return map;
-  }, [propertyOptions]);
 
   // Build property lookup: factsheetId -> { propertyId -> optionValue }
   const propertyLookup = useMemo(() => {
@@ -200,72 +167,24 @@ export default function FactsheetList() {
       </div>
 
       {/* Filters */}
-      <Card padding="sm">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search factsheets..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full h-10 pl-10 pr-4 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div className="w-40">
-            <Select
-              label="Type"
-              options={typeOptions}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            />
-          </div>
-          <div className="w-40">
-            <Select
-              label="Status"
-              options={statusOptions}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            />
-          </div>
-          {propertyDefinitions.map((prop) => {
-            const opts = optionsByProperty.get(prop.id) || [];
-            return (
-              <div key={prop.id} className="w-40">
-                <Select
-                  label={prop.name}
-                  options={[
-                    { value: "", label: `All ${prop.name}` },
-                    ...opts.map((opt) => ({
-                      value: opt.value,
-                      label: opt.value,
-                    })),
-                  ]}
-                  value={propertyFilters[prop.id] || ""}
-                  onChange={(e) =>
-                    setPropertyFilters({
-                      ...propertyFilters,
-                      [prop.id]: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            );
-          })}
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearAllFilters}>
-              Clear Filters
-            </Button>
-          )}
-          <div className="ml-auto flex items-center">
-            <span className="text-sm text-gray-500">
-              {filteredFactsheets.length} of {factsheets.length} factsheets
-            </span>
-          </div>
-        </div>
-      </Card>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        typeFilter={typeFilter}
+        onTypeChange={setTypeFilter}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        propertyFilters={propertyFilters}
+        onPropertyFilterChange={(propId, value) =>
+          setPropertyFilters({ ...propertyFilters, [propId]: value })
+        }
+        propertyDefinitions={propertyDefinitions}
+        propertyOptions={propertyOptions}
+        hasFilters={hasFilters}
+        onClearFilters={clearAllFilters}
+        filteredCount={filteredFactsheets.length}
+        totalCount={factsheets.length}
+      />
 
       {/* Factsheet list */}
       {loading ? (
