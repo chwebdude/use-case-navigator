@@ -1,6 +1,10 @@
 import { Search } from "lucide-react";
 import { Card, Select, Button } from "./ui";
-import type { PropertyDefinition, PropertyOption, FactsheetType } from "../types";
+import type {
+  PropertyDefinition,
+  PropertyOption,
+  FactsheetType,
+} from "../types";
 import { useMemo } from "react";
 
 interface FilterBarProps {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Radar } from "lucide-react";
 import { Card, CardTitle, Button, Badge } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
@@ -31,13 +31,16 @@ const colorPalette = [
   "#a855f7", // purple
 ];
 
+type AxisMode = "properties" | "metrics";
+
 export default function SpiderPage() {
   const [state, setState] = useQueryStates({
     search: "",
     statusFilter: "",
     typeFilter: "",
     propertyFilters: {} as Record<string, string>,
-    selectedMetrics: JSON.stringify(Array.from(new Set<string>())),
+    selectedMetrics: "", // Start empty to detect URL presence
+    axisMode: "metrics" as AxisMode,
   });
 
   const {
@@ -46,19 +49,32 @@ export default function SpiderPage() {
     typeFilter,
     propertyFilters,
     selectedMetrics: selectedMetricsStr,
+    axisMode,
   } = state;
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
   const setTypeFilter = (v: string) => setState("typeFilter", v);
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
+  const setAxisMode = (v: AxisMode) => setState("axisMode", v);
 
-  // Parse selectedMetrics from string (stored as JSON in URL)
-  const selectedMetrics = new Set<string>(
-    typeof selectedMetricsStr === "string" && selectedMetricsStr.length > 0
-      ? JSON.parse(selectedMetricsStr)
-      : [],
-  );
+  // Parse selectedMetrics from string OR array (useQueryStates might auto-parse JSON)
+  const selectedMetrics = useMemo(() => {
+    try {
+      // Handle if already parsed to array by useQueryStates
+      if (Array.isArray(selectedMetricsStr)) {
+        return new Set<string>(selectedMetricsStr);
+      }
+      // Handle string (JSON or empty)
+      const parsed =
+        selectedMetricsStr && selectedMetricsStr.length > 0
+          ? JSON.parse(selectedMetricsStr)
+          : [];
+      return new Set<string>(parsed);
+    } catch {
+      return new Set<string>();
+    }
+  }, [selectedMetricsStr]);
 
   const setSelectedMetrics = (v: Set<string>) => {
     setState("selectedMetrics", JSON.stringify(Array.from(v)));
@@ -69,6 +85,13 @@ export default function SpiderPage() {
   >(null);
   const [selectedFactsheet, setSelectedFactsheet] =
     useState<FactsheetExpanded | null>(null);
+  const prevAxisModeRef = useRef<AxisMode | null>(null); // Start as null to detect initial load
+  const hasInitializedRef = useRef(false);
+  // Track whether the URL originally had a selectedMetrics parameter (even if empty)
+  const urlHadParamRef = useRef(
+    typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).has("selectedMetrics"),
+  );
 
   const { records: factsheets, loading } = useRealtime<FactsheetExpanded>({
     collection: "factsheets",
@@ -101,6 +124,19 @@ export default function SpiderPage() {
     collection: "property_options",
     sort: "order",
   });
+
+  // Clear selected dimensions when user actively changes mode (not on initial URL load)
+  useEffect(() => {
+    // Only clear selections if this is an actual mode change (not initial mount/URL restoration)
+    if (
+      prevAxisModeRef.current !== null &&
+      prevAxisModeRef.current !== axisMode
+    ) {
+      setSelectedMetrics(new Set());
+      hasInitializedRef.current = false; // Reset initialization flag on mode change
+    }
+    prevAxisModeRef.current = axisMode;
+  }, [axisMode, setSelectedMetrics]);
 
   // Build property lookup: factsheetId -> { propertyId -> optionValue }
   const propertyLookup = useMemo(() => {
@@ -187,70 +223,130 @@ export default function SpiderPage() {
 
   // Convert factsheets to spider diagram data
   const spiderData: SpiderDataPoint[] = useMemo(() => {
-    return filteredFactsheets.map((fs, index) => {
-      const typeColor =
-        fs.expand?.type?.color || colorPalette[index % colorPalette.length];
+    if (axisMode === "metrics") {
+      return filteredFactsheets.map((fs, index) => {
+        const typeColor =
+          fs.expand?.type?.color || colorPalette[index % colorPalette.length];
 
-      const values = metrics.map((metric) => {
-        const score = computeMetricScore(fs.id, metric);
+        const values = metrics.map((metric) => {
+          const score = computeMetricScore(fs.id, metric);
+          return {
+            metric: metric.name,
+            value: score ?? 0,
+          };
+        });
+
         return {
-          metric: metric.name,
-          value: score ?? 0,
+          id: fs.id,
+          name: fs.name,
+          color: typeColor,
+          values,
         };
       });
+    } else {
+      // Properties mode
+      return filteredFactsheets.map((fs, index) => {
+        const typeColor =
+          fs.expand?.type?.color || colorPalette[index % colorPalette.length];
 
-      return {
-        id: fs.id,
-        name: fs.name,
-        color: typeColor,
-        values,
-      };
-    });
-  }, [filteredFactsheets, metrics, factsheetPropertyLookup]);
+        const values = propertyDefinitions.map((prop) => {
+          const fsProps = factsheetPropertyLookup.get(fs.id);
+          const fp = fsProps?.get(prop.id);
+          const weight =
+            typeof fp?.expand?.option?.weight === "number"
+              ? fp.expand.option.weight
+              : 0;
+          return {
+            metric: prop.name,
+            value: weight,
+          };
+        });
 
-  // Initialize selected metrics when metrics load
-  useMemo(() => {
-    if (metrics.length > 0 && selectedMetrics.size === 0) {
-      setSelectedMetrics(new Set(metrics.map((m) => m.id)));
+        return {
+          id: fs.id,
+          name: fs.name,
+          color: typeColor,
+          values,
+        };
+      });
     }
-  }, [metrics]);
+  }, [
+    filteredFactsheets,
+    metrics,
+    propertyDefinitions,
+    factsheetPropertyLookup,
+    axisMode,
+  ]);
 
-  // Filter metrics based on selection
-  const filteredMetrics = useMemo(() => {
-    if (selectedMetrics.size === 0) return metrics;
-    return metrics.filter((m) => selectedMetrics.has(m.id));
-  }, [metrics, selectedMetrics]);
+  // Initialize selected dimensions only if URL didn't have the parameter
+  useEffect(() => {
+    // Only initialize once
+    if (hasInitializedRef.current) return;
 
-  const metricNames = useMemo(
-    () => filteredMetrics.map((m) => m.name),
-    [filteredMetrics],
+    // If URL had a selectedMetrics parameter, never auto-initialize
+    // (even if it was empty - respect the user's/URL's intent)
+    if (urlHadParamRef.current) {
+      hasInitializedRef.current = true;
+      return;
+    }
+
+    // Auto-select all if data is available and URL didn't have the param
+    if (axisMode === "metrics" && metrics.length > 0) {
+      setSelectedMetrics(new Set(metrics.map((m) => m.id)));
+      hasInitializedRef.current = true;
+    } else if (axisMode === "properties" && propertyDefinitions.length > 0) {
+      setSelectedMetrics(new Set(propertyDefinitions.map((p) => p.id)));
+      hasInitializedRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [axisMode, metrics.length, propertyDefinitions.length]);
+
+  // Filter metrics/properties based on selection and axis mode
+  const filteredDimensions = useMemo(() => {
+    if (axisMode === "metrics") {
+      if (selectedMetrics.size === 0) return metrics;
+      return metrics.filter((m) => selectedMetrics.has(m.id));
+    } else {
+      // Properties mode - use selectedMetrics to track selected properties too
+      if (selectedMetrics.size === 0) return propertyDefinitions;
+      return propertyDefinitions.filter((p) => selectedMetrics.has(p.id));
+    }
+  }, [metrics, propertyDefinitions, selectedMetrics, axisMode]);
+
+  const dimensionNames = useMemo(
+    () => filteredDimensions.map((d) => d.name),
+    [filteredDimensions],
   );
 
-  // Filter spider data to only include selected metrics
+  // Filter spider data to only include selected dimensions
   const filteredSpiderData: SpiderDataPoint[] = useMemo(() => {
     return spiderData.map((point) => ({
       ...point,
       values: point.values.filter((v) =>
-        filteredMetrics.some((m) => m.name === v.metric),
+        filteredDimensions.some((d) => d.name === v.metric),
       ),
     }));
-  }, [spiderData, filteredMetrics]);
+  }, [spiderData, filteredDimensions]);
 
-  const toggleMetric = (metricId: string) => {
+  const toggleDimension = (id: string) => {
     const next = new Set(selectedMetrics);
-    if (next.has(metricId)) {
-      next.delete(metricId);
+    if (next.has(id)) {
+      next.delete(id);
     } else {
-      next.add(metricId);
+      next.add(id);
     }
     setSelectedMetrics(next);
   };
 
-  const selectAllMetrics = () => {
-    setSelectedMetrics(new Set(metrics.map((m) => m.id)));
+  const selectAllDimensions = () => {
+    if (axisMode === "metrics") {
+      setSelectedMetrics(new Set(metrics.map((m) => m.id)));
+    } else {
+      setSelectedMetrics(new Set(propertyDefinitions.map((p) => p.id)));
+    }
   };
 
-  const clearMetricSelection = () => {
+  const clearDimensionSelection = () => {
     setSelectedMetrics(new Set());
   };
 
@@ -307,7 +403,7 @@ export default function SpiderPage() {
               Spider Diagram
             </h1>
             <p className="text-gray-500 mt-1">
-              Compare factsheet metrics across multiple dimensions
+              Compare factsheet {axisMode} across multiple dimensions
             </p>
           </div>
         </div>
@@ -338,82 +434,130 @@ export default function SpiderPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Spider Diagram */}
         <Card className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <CardTitle>Metrics Comparison</CardTitle>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={selectAllMetrics}
-                disabled={selectedMetrics.size === metrics.length}
-              >
-                Select All
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearMetricSelection}
-                disabled={selectedMetrics.size === 0}
-              >
-                Clear
-              </Button>
-            </div>
-          </div>
-          {/* Metric toggles */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {metrics.map((metric) => {
-              const isSelected = selectedMetrics.has(metric.id);
-              return (
+          <div className="space-y-4">
+            {/* Mode selector */}
+            <div className="flex gap-4 items-start">
+              <div className="flex gap-2">
                 <button
-                  key={metric.id}
-                  onClick={() => toggleMetric(metric.id)}
-                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
-                    isSelected
-                      ? "bg-accent-500 text-white border-accent-500"
-                      : "bg-white text-gray-600 border-gray-300 hover:border-accent-300"
+                  onClick={() => setAxisMode("properties")}
+                  className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                    axisMode === "properties"
+                      ? "bg-accent-500 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                   }`}
                 >
-                  {metric.name}
+                  Properties
                 </button>
-              );
-            })}
-          </div>
-          <div className="flex justify-center">
-            {loading ? (
-              <div className="animate-pulse h-[500px] w-full bg-gray-100 rounded" />
-            ) : metricNames.length < 3 ? (
-              <div className="flex items-center justify-center h-[400px] text-gray-500">
-                <div className="text-center">
-                  <Radar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>Select at least 3 metrics for the spider diagram</p>
-                  <p className="text-sm mt-1">
-                    {metrics.length < 3
-                      ? "Configure more metrics in the Settings page"
-                      : `${selectedMetrics.size} of ${metrics.length} metrics selected`}
-                  </p>
-                </div>
+                <button
+                  onClick={() => setAxisMode("metrics")}
+                  className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                    axisMode === "metrics"
+                      ? "bg-accent-500 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  Metrics
+                </button>
               </div>
-            ) : filteredFactsheets.length === 0 ? (
-              <div className="flex items-center justify-center h-[400px] text-gray-500">
-                <div className="text-center">
-                  <Radar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>No factsheets match the current filters</p>
-                </div>
+              <p className="text-sm text-gray-600 pt-2">
+                {axisMode === "metrics"
+                  ? "Select metrics to compute weighted scores"
+                  : "Select properties with their corresponding weights"}
+              </p>
+            </div>
+
+            {/* Title and action buttons */}
+            <div className="flex items-center justify-between">
+              <CardTitle>
+                {axisMode === "metrics" ? "Metrics" : "Properties"} Comparison
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={selectAllDimensions}
+                  disabled={
+                    selectedMetrics.size ===
+                    (axisMode === "metrics"
+                      ? metrics.length
+                      : propertyDefinitions.length)
+                  }
+                >
+                  Select All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearDimensionSelection}
+                  disabled={selectedMetrics.size === 0}
+                >
+                  Clear
+                </Button>
               </div>
-            ) : (
-              <SpiderDiagram
-                data={filteredSpiderData}
-                metrics={metricNames}
-                maxValue={10}
-                size={500}
-                showLabels={true}
-                showLegend={true}
-                interactive={true}
-                onPointHover={handlePointHover}
-                onPointClick={handlePointClick}
-                highlightedId={highlightedFactsheet}
-              />
-            )}
+            </div>
+
+            {/* Dimension toggles */}
+            <div className="flex flex-wrap gap-2">
+              {(axisMode === "metrics" ? metrics : propertyDefinitions).map(
+                (dimension) => {
+                  const isSelected = selectedMetrics.has(dimension.id);
+                  return (
+                    <button
+                      key={dimension.id}
+                      onClick={() => toggleDimension(dimension.id)}
+                      className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                        isSelected
+                          ? "bg-accent-500 text-white border-accent-500"
+                          : "bg-white text-gray-600 border-gray-300 hover:border-accent-300"
+                      }`}
+                    >
+                      {dimension.name}
+                    </button>
+                  );
+                },
+              )}
+            </div>
+
+            {/* Diagram visualization */}
+            <div className="flex justify-center">
+              {loading ? (
+                <div className="animate-pulse h-[500px] w-full bg-gray-100 rounded" />
+              ) : dimensionNames.length < 3 ? (
+                <div className="flex items-center justify-center h-[400px] text-gray-500">
+                  <div className="text-center">
+                    <Radar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>Select at least 3 {axisMode} for the spider diagram</p>
+                    <p className="text-sm mt-1">
+                      {(axisMode === "metrics"
+                        ? metrics.length
+                        : propertyDefinitions.length) < 3
+                        ? `Configure more ${axisMode} in the Settings page`
+                        : `${selectedMetrics.size} of ${axisMode === "metrics" ? metrics.length : propertyDefinitions.length} ${axisMode} selected`}
+                    </p>
+                  </div>
+                </div>
+              ) : filteredFactsheets.length === 0 ? (
+                <div className="flex items-center justify-center h-[400px] text-gray-500">
+                  <div className="text-center">
+                    <Radar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>No factsheets match the current filters</p>
+                  </div>
+                </div>
+              ) : (
+                <SpiderDiagram
+                  data={filteredSpiderData}
+                  metrics={dimensionNames}
+                  maxValue={10}
+                  size={500}
+                  showLabels={true}
+                  showLegend={true}
+                  interactive={true}
+                  onPointHover={handlePointHover}
+                  onPointClick={handlePointClick}
+                  highlightedId={highlightedFactsheet}
+                />
+              )}
+            </div>
           </div>
         </Card>
 
@@ -453,37 +597,68 @@ export default function SpiderPage() {
                 </div>
               )}
 
-              {/* Metrics */}
+              {/* Values based on mode */}
               <div>
                 <h4 className="text-sm font-medium text-gray-500 mb-2">
-                  Metrics
+                  {axisMode === "metrics" ? "Metrics" : "Properties"}
                 </h4>
                 <div className="space-y-2">
-                  {metrics.map((metric) => {
-                    const score = computeMetricScore(
-                      selectedFactsheet.id,
-                      metric,
-                    );
-                    if (score === null) return null;
+                  {axisMode === "metrics"
+                    ? metrics.map((metric) => {
+                        const score = computeMetricScore(
+                          selectedFactsheet.id,
+                          metric,
+                        );
+                        if (score === null) return null;
 
-                    const percentage = (score / 10) * 100;
-                    return (
-                      <div key={metric.id}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">{metric.name}</span>
-                          <span className="font-medium">
-                            {score.toFixed(1)}
-                          </span>
-                        </div>
-                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-accent-500 rounded-full transition-all duration-300"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                        const percentage = (score / 10) * 100;
+                        return (
+                          <div key={metric.id}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-600">
+                                {metric.name}
+                              </span>
+                              <span className="font-medium">
+                                {score.toFixed(1)}
+                              </span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-accent-500 rounded-full transition-all duration-300"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })
+                    : propertyDefinitions.map((prop) => {
+                        const fsProps = factsheetPropertyLookup.get(
+                          selectedFactsheet.id,
+                        );
+                        const fp = fsProps?.get(prop.id);
+                        const weight =
+                          typeof fp?.expand?.option?.weight === "number"
+                            ? fp.expand.option.weight
+                            : 0;
+
+                        const percentage = (weight / 10) * 100;
+                        return (
+                          <div key={prop.id}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-600">{prop.name}</span>
+                              <span className="font-medium">
+                                {weight.toFixed(1)}
+                              </span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-accent-500 rounded-full transition-all duration-300"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
                 </div>
               </div>
 
@@ -517,8 +692,22 @@ export default function SpiderPage() {
             {filteredFactsheets.length !== 1 ? "s" : ""} shown
           </div>
           <div>
-            <span className="font-medium">{metrics.length}</span> metric
-            {metrics.length !== 1 ? "s" : ""} compared
+            <span className="font-medium">
+              {axisMode === "metrics"
+                ? metrics.length
+                : propertyDefinitions.length}
+            </span>{" "}
+            {axisMode === "metrics" ? "metric" : "propert"}
+            {(axisMode === "metrics"
+              ? metrics.length
+              : propertyDefinitions.length) !== 1
+              ? axisMode === "metrics"
+                ? "s"
+                : "ies"
+              : axisMode === "metrics"
+                ? ""
+                : "y"}{" "}
+            compared
           </div>
         </div>
       </Card>
