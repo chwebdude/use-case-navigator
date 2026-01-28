@@ -9,6 +9,7 @@ import {
   type PropertyOption,
 } from "../types";
 import { useRealtime } from "../hooks/useRealtime";
+import { useQueryStates } from "../hooks/useQueryState";
 import ScatterPlot, {
   type ScatterPoint,
   type AxisTick,
@@ -39,18 +40,29 @@ const colorPalette = [
 ];
 
 export default function ScatterPage() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [propertyFilters, setPropertyFilters] = useState<
-    Record<string, string>
-  >({});
+  const [state, setState] = useQueryStates({
+    search: "",
+    statusFilter: "",
+    typeFilter: "",
+    propertyFilters: {} as Record<string, string>,
+    xAxis: "",
+    yAxis: "",
+  });
+
+  const { search, statusFilter, typeFilter, propertyFilters, xAxis, yAxis } =
+    state;
+  const setSearch = (v: string) => setState("search", v);
+  const setStatusFilter = (v: string) => setState("statusFilter", v);
+  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setPropertyFilters = (v: Record<string, string>) =>
+    setState("propertyFilters", v);
+  const setXAxis = (v: string) => setState("xAxis", v);
+  const setYAxis = (v: string) => setState("yAxis", v);
+
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
     null,
   );
-  const [xAxis, setXAxis] = useState<string>("");
-  const [yAxis, setYAxis] = useState<string>("");
   const { settings } = useAppSettings();
 
   const { records: factsheets } = useRealtime<FactsheetExpanded>({
@@ -280,10 +292,10 @@ export default function ScatterPage() {
                   <Select
                     value={propertyFilters[propDef.id] || ""}
                     onChange={(e) =>
-                      setPropertyFilters((prev) => ({
-                        ...prev,
+                      setPropertyFilters({
+                        ...propertyFilters,
                         [propDef.id]: e.target.value,
-                      }))
+                      })
                     }
                     options={[
                       { value: "", label: `All ${propDef.name}` },

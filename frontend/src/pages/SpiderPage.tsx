@@ -4,6 +4,7 @@ import { Card, CardTitle, Button, Select, Badge } from "../components/ui";
 import { SpiderDiagram } from "../components/visualizations";
 import type { SpiderDataPoint } from "../components/visualizations/SpiderDiagram";
 import { useRealtime } from "../hooks/useRealtime";
+import { useQueryStates } from "../hooks/useQueryState";
 import type {
   FactsheetType,
   FactsheetExpanded,
@@ -37,20 +38,43 @@ const colorPalette = [
 ];
 
 export default function SpiderPage() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [propertyFilters, setPropertyFilters] = useState<
-    Record<string, string>
-  >({});
+  const [state, setState] = useQueryStates({
+    search: "",
+    statusFilter: "",
+    typeFilter: "",
+    propertyFilters: {} as Record<string, string>,
+    selectedMetrics: JSON.stringify(Array.from(new Set<string>())),
+  });
+
+  const {
+    search,
+    statusFilter,
+    typeFilter,
+    propertyFilters,
+    selectedMetrics: selectedMetricsStr,
+  } = state;
+  const setSearch = (v: string) => setState("search", v);
+  const setStatusFilter = (v: string) => setState("statusFilter", v);
+  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setPropertyFilters = (v: Record<string, string>) =>
+    setState("propertyFilters", v);
+
+  // Parse selectedMetrics from string (stored as JSON in URL)
+  const selectedMetrics = new Set<string>(
+    typeof selectedMetricsStr === "string" && selectedMetricsStr.length > 0
+      ? JSON.parse(selectedMetricsStr)
+      : [],
+  );
+
+  const setSelectedMetrics = (v: Set<string>) => {
+    setState("selectedMetrics", JSON.stringify(Array.from(v)));
+  };
+
   const [highlightedFactsheet, setHighlightedFactsheet] = useState<
     string | null
   >(null);
   const [selectedFactsheet, setSelectedFactsheet] =
     useState<FactsheetExpanded | null>(null);
-  const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(
-    new Set(),
-  );
 
   const { records: factsheets, loading } = useRealtime<FactsheetExpanded>({
     collection: "factsheets",
@@ -239,15 +263,13 @@ export default function SpiderPage() {
   }, [spiderData, filteredMetrics]);
 
   const toggleMetric = (metricId: string) => {
-    setSelectedMetrics((prev) => {
-      const next = new Set(prev);
-      if (next.has(metricId)) {
-        next.delete(metricId);
-      } else {
-        next.add(metricId);
-      }
-      return next;
-    });
+    const next = new Set(selectedMetrics);
+    if (next.has(metricId)) {
+      next.delete(metricId);
+    } else {
+      next.add(metricId);
+    }
+    setSelectedMetrics(next);
   };
 
   const selectAllMetrics = () => {
@@ -356,10 +378,10 @@ export default function SpiderPage() {
                 <Select
                   value={propertyFilters[propDef.id] || ""}
                   onChange={(e) =>
-                    setPropertyFilters((prev) => ({
-                      ...prev,
+                    setPropertyFilters({
+                      ...propertyFilters,
                       [propDef.id]: e.target.value,
-                    }))
+                    })
                   }
                   options={[
                     { value: "", label: `All ${propDef.name}` },

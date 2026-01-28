@@ -1,75 +1,117 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { Eye, ChevronDown, Check } from 'lucide-react';
-import { Card, CardTitle, Select, Button } from '../components/ui';
-import { PropertyMatrix, type FactsheetMoveData } from '../components/visualizations';
-import FactsheetDetailModal from '../components/FactsheetDetailModal';
-import FactsheetMoveModal from '../components/FactsheetMoveModal';
-import { useRealtime } from '../hooks/useRealtime';
-import { useChangeLog } from '../hooks/useChangeLog';
-import pb from '../lib/pocketbase';
-import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded, FactsheetType, PropertyOption, FactsheetProperty } from '../types';
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Eye, ChevronDown, Check } from "lucide-react";
+import { Card, CardTitle, Select, Button } from "../components/ui";
+import {
+  PropertyMatrix,
+  type FactsheetMoveData,
+} from "../components/visualizations";
+import FactsheetDetailModal from "../components/FactsheetDetailModal";
+import FactsheetMoveModal from "../components/FactsheetMoveModal";
+import { useRealtime } from "../hooks/useRealtime";
+import { useChangeLog } from "../hooks/useChangeLog";
+import { useQueryStates } from "../hooks/useQueryState";
+import pb from "../lib/pocketbase";
+import type {
+  FactsheetExpanded,
+  PropertyDefinition,
+  FactsheetPropertyExpanded,
+  FactsheetType,
+  PropertyOption,
+  FactsheetProperty,
+} from "../types";
 
 const statusOptions = [
-  { value: '', label: 'All Statuses' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'active', label: 'Active' },
-  { value: 'archived', label: 'Archived' },
+  { value: "", label: "All Statuses" },
+  { value: "draft", label: "Draft" },
+  { value: "active", label: "Active" },
+  { value: "archived", label: "Archived" },
 ];
 
 export default function MatrixPage() {
-  const [xAxis, setXAxis] = useState('');
-  const [yAxis, setYAxis] = useState('');
-  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(null);
+  const [state, setState] = useQueryStates({
+    xAxis: "",
+    yAxis: "",
+    typeFilter: "",
+    statusFilter: "",
+    propertyFilters: {} as Record<string, string>,
+    displayProperties: [] as string[],
+  });
 
-  // Filter state
-  const [typeFilter, setTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [propertyFilters, setPropertyFilters] = useState<Record<string, string>>({});
+  const {
+    xAxis,
+    yAxis,
+    typeFilter,
+    statusFilter,
+    propertyFilters,
+    displayProperties,
+  } = state;
+  const setXAxis = (v: string) => setState("xAxis", v);
+  const setYAxis = (v: string) => setState("yAxis", v);
+  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setStatusFilter = (v: string) => setState("statusFilter", v);
+  const setPropertyFilters = (v: Record<string, string>) =>
+    setState("propertyFilters", v);
+  const setDisplayProperties = (v: string[]) =>
+    setState("displayProperties", v);
+
+  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
+    null,
+  );
 
   // Move modal state
-  const [pendingMove, setPendingMove] = useState<FactsheetMoveData | null>(null);
+  const [pendingMove, setPendingMove] = useState<FactsheetMoveData | null>(
+    null,
+  );
   const [moveLoading, setMoveLoading] = useState(false);
   const { logPropertyChanged } = useChangeLog();
 
-  // Display properties state
-  const [displayProperties, setDisplayProperties] = useState<string[]>([]);
+  // Display properties state for dropdown visibility
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { records: factsheets, loading: loadingFactsheets } = useRealtime<FactsheetExpanded>({
-    collection: 'factsheets',
-    expand: 'type',
-  });
+  const { records: factsheets, loading: loadingFactsheets } =
+    useRealtime<FactsheetExpanded>({
+      collection: "factsheets",
+      expand: "type",
+    });
 
-  const { records: propertyDefinitions, loading: loadingDefs } = useRealtime<PropertyDefinition>({
-    collection: 'property_definitions',
-    sort: 'order',
-  });
+  const { records: propertyDefinitions, loading: loadingDefs } =
+    useRealtime<PropertyDefinition>({
+      collection: "property_definitions",
+      sort: "order",
+    });
 
-  const { records: properties, loading: loadingProps, refresh: refreshProperties } = useRealtime<FactsheetPropertyExpanded>({
-    collection: 'factsheet_properties',
-    expand: 'property,option',
+  const {
+    records: properties,
+    loading: loadingProps,
+    refresh: refreshProperties,
+  } = useRealtime<FactsheetPropertyExpanded>({
+    collection: "factsheet_properties",
+    expand: "property,option",
   });
 
   const { records: factsheetTypes } = useRealtime<FactsheetType>({
-    collection: 'factsheet_types',
-    sort: 'order',
+    collection: "factsheet_types",
+    sort: "order",
   });
 
   const { records: propertyOptions } = useRealtime<PropertyOption>({
-    collection: 'property_options',
-    sort: 'order',
+    collection: "property_options",
+    sort: "order",
   });
 
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowPropertyDropdown(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleFactsheetClick = (factsheetId: string) => {
@@ -77,14 +119,16 @@ export default function MatrixPage() {
   };
 
   const togglePropertyDisplay = (propId: string) => {
-    setDisplayProperties((prev) =>
-      prev.includes(propId) ? prev.filter((id) => id !== propId) : [...prev, propId]
+    setDisplayProperties(
+      displayProperties.includes(propId)
+        ? displayProperties.filter((id) => id !== propId)
+        : [...displayProperties, propId],
     );
   };
 
   const clearAllFilters = () => {
-    setTypeFilter('');
-    setStatusFilter('');
+    setTypeFilter("");
+    setStatusFilter("");
     setPropertyFilters({});
   };
 
@@ -100,14 +144,20 @@ export default function MatrixPage() {
       const factsheetId = pendingMove.factsheet.id;
 
       // Get existing properties for this factsheet
-      const existingProps = await pb.collection('factsheet_properties').getFullList<FactsheetProperty>({
-        filter: `factsheet = "${factsheetId}"`,
-      });
+      const existingProps = await pb
+        .collection("factsheet_properties")
+        .getFullList<FactsheetProperty>({
+          filter: `factsheet = "${factsheetId}"`,
+        });
 
       // Helper to find option ID by property ID and value
       const findOptionId = (propertyId: string, value: string) => {
-        if (value === 'Unknown') return null;
-        return propertyOptions.find((opt) => opt.property === propertyId && opt.value === value)?.id || null;
+        if (value === "Unknown") return null;
+        return (
+          propertyOptions.find(
+            (opt) => opt.property === propertyId && opt.value === value,
+          )?.id || null
+        );
       };
 
       // Helper to get property name
@@ -122,9 +172,11 @@ export default function MatrixPage() {
 
         if (newOptionId) {
           if (existingProp) {
-            await pb.collection('factsheet_properties').update(existingProp.id, { option: newOptionId });
+            await pb
+              .collection("factsheet_properties")
+              .update(existingProp.id, { option: newOptionId });
           } else {
-            await pb.collection('factsheet_properties').create({
+            await pb.collection("factsheet_properties").create({
               factsheet: factsheetId,
               property: xAxis,
               option: newOptionId,
@@ -133,13 +185,18 @@ export default function MatrixPage() {
           await logPropertyChanged(
             factsheetId,
             getPropertyName(xAxis),
-            pendingMove.fromX === 'Unknown' ? null : pendingMove.fromX,
-            pendingMove.toX
+            pendingMove.fromX === "Unknown" ? null : pendingMove.fromX,
+            pendingMove.toX,
           );
-        } else if (existingProp && pendingMove.toX === 'Unknown') {
+        } else if (existingProp && pendingMove.toX === "Unknown") {
           // Moving to Unknown = delete the property
-          await pb.collection('factsheet_properties').delete(existingProp.id);
-          await logPropertyChanged(factsheetId, getPropertyName(xAxis), pendingMove.fromX, null);
+          await pb.collection("factsheet_properties").delete(existingProp.id);
+          await logPropertyChanged(
+            factsheetId,
+            getPropertyName(xAxis),
+            pendingMove.fromX,
+            null,
+          );
         }
       }
 
@@ -150,9 +207,11 @@ export default function MatrixPage() {
 
         if (newOptionId) {
           if (existingProp) {
-            await pb.collection('factsheet_properties').update(existingProp.id, { option: newOptionId });
+            await pb
+              .collection("factsheet_properties")
+              .update(existingProp.id, { option: newOptionId });
           } else {
-            await pb.collection('factsheet_properties').create({
+            await pb.collection("factsheet_properties").create({
               factsheet: factsheetId,
               property: yAxis,
               option: newOptionId,
@@ -161,13 +220,18 @@ export default function MatrixPage() {
           await logPropertyChanged(
             factsheetId,
             getPropertyName(yAxis),
-            pendingMove.fromY === 'Unknown' ? null : pendingMove.fromY,
-            pendingMove.toY
+            pendingMove.fromY === "Unknown" ? null : pendingMove.fromY,
+            pendingMove.toY,
           );
-        } else if (existingProp && pendingMove.toY === 'Unknown') {
+        } else if (existingProp && pendingMove.toY === "Unknown") {
           // Moving to Unknown = delete the property
-          await pb.collection('factsheet_properties').delete(existingProp.id);
-          await logPropertyChanged(factsheetId, getPropertyName(yAxis), pendingMove.fromY, null);
+          await pb.collection("factsheet_properties").delete(existingProp.id);
+          await logPropertyChanged(
+            factsheetId,
+            getPropertyName(yAxis),
+            pendingMove.fromY,
+            null,
+          );
         }
       }
 
@@ -175,7 +239,7 @@ export default function MatrixPage() {
       await refreshProperties();
       setPendingMove(null);
     } catch (err) {
-      console.error('Failed to move factsheet:', err);
+      console.error("Failed to move factsheet:", err);
     } finally {
       setMoveLoading(false);
     }
@@ -204,7 +268,7 @@ export default function MatrixPage() {
       if (!lookup.has(fp.factsheet)) {
         lookup.set(fp.factsheet, new Map());
       }
-      const optionValue = fp.expand?.option?.value || '';
+      const optionValue = fp.expand?.option?.value || "";
       if (optionValue) {
         lookup.get(fp.factsheet)!.set(fp.property, optionValue);
       }
@@ -215,15 +279,17 @@ export default function MatrixPage() {
   // Filter factsheets
   const filteredFactsheets = useMemo(() => {
     return factsheets.filter((fs) => {
-      const matchesType = typeFilter === '' || fs.type === typeFilter;
-      const matchesStatus = statusFilter === '' || fs.status === statusFilter;
+      const matchesType = typeFilter === "" || fs.type === typeFilter;
+      const matchesStatus = statusFilter === "" || fs.status === statusFilter;
 
       // Check property filters
-      const matchesProperties = Object.entries(propertyFilters).every(([propId, value]) => {
-        if (value === '') return true;
-        const fsProps = propertyLookup.get(fs.id);
-        return fsProps?.get(propId) === value;
-      });
+      const matchesProperties = Object.entries(propertyFilters).every(
+        ([propId, value]) => {
+          if (value === "") return true;
+          const fsProps = propertyLookup.get(fs.id);
+          return fsProps?.get(propId) === value;
+        },
+      );
 
       return matchesType && matchesStatus && matchesProperties;
     });
@@ -232,7 +298,7 @@ export default function MatrixPage() {
   const loading = loadingFactsheets || loadingDefs || loadingProps;
 
   const typeOptions = [
-    { value: '', label: 'All Types' },
+    { value: "", label: "All Types" },
     ...factsheetTypes.map((t) => ({ value: t.id, label: t.name })),
   ];
 
@@ -242,7 +308,10 @@ export default function MatrixPage() {
     label: p.name,
   }));
 
-  const hasFilters = typeFilter !== '' || statusFilter !== '' || Object.values(propertyFilters).some((v) => v !== '');
+  const hasFilters =
+    typeFilter !== "" ||
+    statusFilter !== "" ||
+    Object.values(propertyFilters).some((v) => v !== "");
 
   return (
     <div className="space-y-6">
@@ -306,26 +375,25 @@ export default function MatrixPage() {
                   <Select
                     label={prop.name}
                     options={[
-                      { value: '', label: `All ${prop.name}` },
-                      ...opts.map((opt) => ({ value: opt.value, label: opt.value })),
+                      { value: "", label: `All ${prop.name}` },
+                      ...opts.map((opt) => ({
+                        value: opt.value,
+                        label: opt.value,
+                      })),
                     ]}
-                    value={propertyFilters[prop.id] || ''}
+                    value={propertyFilters[prop.id] || ""}
                     onChange={(e) =>
-                      setPropertyFilters((prev) => ({
-                        ...prev,
+                      setPropertyFilters({
+                        ...propertyFilters,
                         [prop.id]: e.target.value,
-                      }))
+                      })
                     }
                   />
                 </div>
               );
             })}
           {hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
-            >
+            <Button variant="ghost" size="sm" onClick={clearAllFilters}>
               Clear Filters
             </Button>
           )}
@@ -355,7 +423,9 @@ export default function MatrixPage() {
                 {showPropertyDropdown && (
                   <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 shadow-lg z-50 min-w-[200px]">
                     <div className="p-2 border-b border-gray-100">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Display on cards</span>
+                      <span className="text-xs font-medium text-gray-500 uppercase">
+                        Display on cards
+                      </span>
                     </div>
                     {propertyDefinitions.map((prop) => (
                       <button
@@ -363,11 +433,13 @@ export default function MatrixPage() {
                         className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                         onClick={() => togglePropertyDisplay(prop.id)}
                       >
-                        <div className={`w-4 h-4 border flex items-center justify-center ${
-                          displayProperties.includes(prop.id)
-                            ? 'bg-accent-500 border-accent-500'
-                            : 'border-gray-300'
-                        }`}>
+                        <div
+                          className={`w-4 h-4 border flex items-center justify-center ${
+                            displayProperties.includes(prop.id)
+                              ? "bg-accent-500 border-accent-500"
+                              : "border-gray-300"
+                          }`}
+                        >
                           {displayProperties.includes(prop.id) && (
                             <Check className="w-3 h-3 text-white" />
                           )}
@@ -435,12 +507,12 @@ export default function MatrixPage() {
       ) : filteredFactsheets.length === 0 ? (
         <Card className="text-center py-16">
           <CardTitle>
-            {hasFilters ? 'No matching factsheets' : 'No factsheets yet'}
+            {hasFilters ? "No matching factsheets" : "No factsheets yet"}
           </CardTitle>
           <p className="text-gray-500 mt-2">
             {hasFilters
-              ? 'Try adjusting your filters to see more factsheets'
-              : 'Create some factsheets to see the matrix'}
+              ? "Try adjusting your filters to see more factsheets"
+              : "Create some factsheets to see the matrix"}
           </p>
           {hasFilters && (
             <Button
@@ -477,8 +549,12 @@ export default function MatrixPage() {
       <FactsheetMoveModal
         isOpen={pendingMove !== null}
         moveData={pendingMove}
-        xAxisPropertyName={propertyDefinitions.find((p) => p.id === xAxis)?.name || xAxis}
-        yAxisPropertyName={propertyDefinitions.find((p) => p.id === yAxis)?.name || yAxis}
+        xAxisPropertyName={
+          propertyDefinitions.find((p) => p.id === xAxis)?.name || xAxis
+        }
+        yAxisPropertyName={
+          propertyDefinitions.find((p) => p.id === yAxis)?.name || yAxis
+        }
         onConfirm={confirmMove}
         onCancel={() => setPendingMove(null)}
         loading={moveLoading}

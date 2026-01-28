@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Search, Filter } from "lucide-react";
 import { Card, Button, Select, Badge, MetricBadge } from "../components/ui";
 import { useRealtime } from "../hooks/useRealtime";
+import { useQueryStates } from "../hooks/useQueryState";
 import type {
   FactsheetType,
   FactsheetExpanded,
@@ -20,12 +21,19 @@ const statusOptions = [
 ];
 
 export default function FactsheetList() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [propertyFilters, setPropertyFilters] = useState<
-    Record<string, string>
-  >({});
+  const [state, setState] = useQueryStates({
+    search: "",
+    statusFilter: "",
+    typeFilter: "",
+    propertyFilters: {} as Record<string, string>,
+  });
+
+  const { search, statusFilter, typeFilter, propertyFilters } = state;
+  const setSearch = (v: string) => setState("search", v);
+  const setStatusFilter = (v: string) => setState("statusFilter", v);
+  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setPropertyFilters = (v: Record<string, string>) =>
+    setState("propertyFilters", v);
 
   const { records: factsheets, loading } = useRealtime<FactsheetExpanded>({
     collection: "factsheets",
@@ -237,10 +245,10 @@ export default function FactsheetList() {
                   ]}
                   value={propertyFilters[prop.id] || ""}
                   onChange={(e) =>
-                    setPropertyFilters((prev) => ({
-                      ...prev,
+                    setPropertyFilters({
+                      ...propertyFilters,
                       [prop.id]: e.target.value,
-                    }))
+                    })
                   }
                 />
               </div>

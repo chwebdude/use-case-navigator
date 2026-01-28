@@ -1,85 +1,135 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { LayoutGrid, Eye, ChevronDown, Check, MessageSquare, Focus, EyeOff } from 'lucide-react';
-import { Card, CardTitle, Select, Button, Modal } from '../components/ui';
-import { Textarea } from '../components/ui/Input';
-import { DependencyGraph, type ConnectionRequest } from '../components/visualizations';
-import FactsheetDetailModal from '../components/FactsheetDetailModal';
-import { useRealtime } from '../hooks/useRealtime';
-import { useChangeLog } from '../hooks/useChangeLog';
-import pb from '../lib/pocketbase';
-import type { FactsheetExpanded, Dependency, FactsheetType, PropertyDefinition, PropertyOption, FactsheetPropertyExpanded } from '../types';
+import { useState, useMemo, useRef, useEffect } from "react";
+import {
+  LayoutGrid,
+  Eye,
+  ChevronDown,
+  Check,
+  MessageSquare,
+  Focus,
+  EyeOff,
+} from "lucide-react";
+import { Card, CardTitle, Select, Button, Modal } from "../components/ui";
+import { Textarea } from "../components/ui/Input";
+import {
+  DependencyGraph,
+  type ConnectionRequest,
+} from "../components/visualizations";
+import FactsheetDetailModal from "../components/FactsheetDetailModal";
+import { useRealtime } from "../hooks/useRealtime";
+import { useChangeLog } from "../hooks/useChangeLog";
+import { useQueryStates } from "../hooks/useQueryState";
+import pb from "../lib/pocketbase";
+import type {
+  FactsheetExpanded,
+  Dependency,
+  FactsheetType,
+  PropertyDefinition,
+  PropertyOption,
+  FactsheetPropertyExpanded,
+} from "../types";
 
 const statusOptions = [
-  { value: '', label: 'All Statuses' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'active', label: 'Active' },
-  { value: 'archived', label: 'Archived' },
+  { value: "", label: "All Statuses" },
+  { value: "draft", label: "Draft" },
+  { value: "active", label: "Active" },
+  { value: "archived", label: "Archived" },
 ];
 
 export default function DependenciesPage() {
-  const [typeFilter, setTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [propertyFilters, setPropertyFilters] = useState<Record<string, string>>({});
+  const [state, setState] = useQueryStates({
+    typeFilter: "",
+    statusFilter: "",
+    propertyFilters: {} as Record<string, string>,
+    displayProperties: [] as string[],
+    showComments: true,
+    focusedFactsheetId: null as string | null,
+    unrelatedDisplayMode: "dim" as "dim" | "hide",
+  });
+
+  const {
+    typeFilter,
+    statusFilter,
+    propertyFilters,
+    displayProperties,
+    showComments,
+    focusedFactsheetId,
+    unrelatedDisplayMode,
+  } = state;
+  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setStatusFilter = (v: string) => setState("statusFilter", v);
+  const setPropertyFilters = (v: Record<string, string>) =>
+    setState("propertyFilters", v);
+  const setDisplayProperties = (v: string[]) =>
+    setState("displayProperties", v);
+  const setShowComments = (v: boolean) => setState("showComments", v);
+  const setFocusedFactsheetId = (v: string | null) =>
+    setState("focusedFactsheetId", v);
+  const setUnrelatedDisplayMode = (v: "dim" | "hide") =>
+    setState("unrelatedDisplayMode", v);
+
   const [layoutKey, setLayoutKey] = useState(0);
-  const [displayProperties, setDisplayProperties] = useState<string[]>([]);
-  const [showComments, setShowComments] = useState(true);
 
   // Connection modal state (for creating new dependencies)
-  const [connectionModal, setConnectionModal] = useState<ConnectionRequest | null>(null);
-  const [connectionDescription, setConnectionDescription] = useState('');
+  const [connectionModal, setConnectionModal] =
+    useState<ConnectionRequest | null>(null);
+  const [connectionDescription, setConnectionDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Edit modal state (for editing existing dependencies)
-  const [editingDependency, setEditingDependency] = useState<Dependency | null>(null);
-  const [editDescription, setEditDescription] = useState('');
+  const [editingDependency, setEditingDependency] = useState<Dependency | null>(
+    null,
+  );
+  const [editDescription, setEditDescription] = useState("");
 
   // Factsheet detail modal state
-  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(null);
-
-  // Focus mode state (right-click on a node to focus)
-  const [focusedFactsheetId, setFocusedFactsheetId] = useState<string | null>(null);
-  const [unrelatedDisplayMode, setUnrelatedDisplayMode] = useState<'dim' | 'hide'>('dim');
+  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
+    null,
+  );
 
   // Auto-align when focus changes in hide mode (since nodes are removed/added)
   useEffect(() => {
-    if (unrelatedDisplayMode === 'hide') {
+    if (unrelatedDisplayMode === "hide") {
       setLayoutKey((k) => k + 1);
     }
   }, [focusedFactsheetId, unrelatedDisplayMode]);
 
-  const { records: factsheets, loading: loadingFactsheets } = useRealtime<FactsheetExpanded>({
-    collection: 'factsheets',
-    expand: 'type',
-  });
+  const { records: factsheets, loading: loadingFactsheets } =
+    useRealtime<FactsheetExpanded>({
+      collection: "factsheets",
+      expand: "type",
+    });
 
-  const { records: dependencies, loading: loadingDeps } = useRealtime<Dependency>({
-    collection: 'dependencies',
-  });
+  const { records: dependencies, loading: loadingDeps } =
+    useRealtime<Dependency>({
+      collection: "dependencies",
+    });
 
   const { records: factsheetTypes } = useRealtime<FactsheetType>({
-    collection: 'factsheet_types',
-    sort: 'order',
+    collection: "factsheet_types",
+    sort: "order",
   });
 
   const { records: propertyDefinitions } = useRealtime<PropertyDefinition>({
-    collection: 'property_definitions',
-    sort: 'order',
+    collection: "property_definitions",
+    sort: "order",
   });
 
   const { records: propertyOptions } = useRealtime<PropertyOption>({
-    collection: 'property_options',
-    sort: 'order',
+    collection: "property_options",
+    sort: "order",
   });
 
-  const { records: factsheetProperties } = useRealtime<FactsheetPropertyExpanded>({
-    collection: 'factsheet_properties',
-    expand: 'property,option',
-  });
+  const { records: factsheetProperties } =
+    useRealtime<FactsheetPropertyExpanded>({
+      collection: "factsheet_properties",
+      expand: "property,option",
+    });
 
-  const { logDependencyAdded, logDependencyRemoved, logDependencyUpdated } = useChangeLog();
+  const { logDependencyAdded, logDependencyRemoved, logDependencyUpdated } =
+    useChangeLog();
 
   const typeOptions = [
-    { value: '', label: 'All Types' },
+    { value: "", label: "All Types" },
     ...factsheetTypes.map((t) => ({ value: t.id, label: t.name })),
   ];
 
@@ -107,7 +157,7 @@ export default function DependenciesPage() {
         lookup.set(fp.factsheet, new Map());
       }
       // Use the expanded option value
-      const optionValue = fp.expand?.option?.value || '';
+      const optionValue = fp.expand?.option?.value || "";
       if (optionValue) {
         lookup.get(fp.factsheet)!.set(fp.property, optionValue);
       }
@@ -118,15 +168,17 @@ export default function DependenciesPage() {
   // Filter factsheets
   const filteredFactsheets = useMemo(() => {
     return factsheets.filter((fs) => {
-      const matchesType = typeFilter === '' || fs.type === typeFilter;
-      const matchesStatus = statusFilter === '' || fs.status === statusFilter;
+      const matchesType = typeFilter === "" || fs.type === typeFilter;
+      const matchesStatus = statusFilter === "" || fs.status === statusFilter;
 
       // Check property filters
-      const matchesProperties = Object.entries(propertyFilters).every(([propId, value]) => {
-        if (value === '') return true;
-        const fsProps = propertyLookup.get(fs.id);
-        return fsProps?.get(propId) === value;
-      });
+      const matchesProperties = Object.entries(propertyFilters).every(
+        ([propId, value]) => {
+          if (value === "") return true;
+          const fsProps = propertyLookup.get(fs.id);
+          return fsProps?.get(propId) === value;
+        },
+      );
 
       return matchesType && matchesStatus && matchesProperties;
     });
@@ -136,7 +188,7 @@ export default function DependenciesPage() {
   const filteredDependencies = useMemo(() => {
     const visibleIds = new Set(filteredFactsheets.map((fs) => fs.id));
     return dependencies.filter(
-      (dep) => visibleIds.has(dep.factsheet) && visibleIds.has(dep.depends_on)
+      (dep) => visibleIds.has(dep.factsheet) && visibleIds.has(dep.depends_on),
     );
   }, [dependencies, filteredFactsheets]);
 
@@ -146,12 +198,14 @@ export default function DependenciesPage() {
 
   const handleNodeRightClick = (factsheetId: string) => {
     // Toggle focus: if already focused on this node, clear focus
-    setFocusedFactsheetId((prev) => (prev === factsheetId ? null : factsheetId));
+    setFocusedFactsheetId(
+      focusedFactsheetId === factsheetId ? null : factsheetId,
+    );
   };
 
   const handleConnect = (connection: ConnectionRequest) => {
     setConnectionModal(connection);
-    setConnectionDescription('');
+    setConnectionDescription("");
   };
 
   const handleCreateDependency = async () => {
@@ -161,7 +215,7 @@ export default function DependenciesPage() {
 
     setSaving(true);
     try {
-      await pb.collection('dependencies').create({
+      await pb.collection("dependencies").create({
         factsheet: connectionModal.sourceId,
         depends_on: connectionModal.targetId,
         description: descriptionTrimmed || null,
@@ -173,13 +227,13 @@ export default function DependenciesPage() {
         connectionModal.sourceName,
         connectionModal.targetId,
         connectionModal.targetName,
-        descriptionTrimmed
+        descriptionTrimmed,
       );
 
       setConnectionModal(null);
-      setConnectionDescription('');
+      setConnectionDescription("");
     } catch (err) {
-      console.error('Failed to create dependency:', err);
+      console.error("Failed to create dependency:", err);
     } finally {
       setSaving(false);
     }
@@ -193,28 +247,32 @@ export default function DependenciesPage() {
     const dep = dependencies.find((d) => d.id === dependencyId);
     if (dep) {
       setEditingDependency(dep);
-      setEditDescription(dep.description || '');
+      setEditDescription(dep.description || "");
     }
   };
 
   const handleUpdateDependency = async () => {
     if (!editingDependency) return;
 
-    const sourceFactsheet = factsheets.find((f) => f.id === editingDependency.factsheet);
-    const targetFactsheet = factsheets.find((f) => f.id === editingDependency.depends_on);
+    const sourceFactsheet = factsheets.find(
+      (f) => f.id === editingDependency.factsheet,
+    );
+    const targetFactsheet = factsheets.find(
+      (f) => f.id === editingDependency.depends_on,
+    );
     const oldDescription = editingDependency.description || null;
     const newDescription = editDescription.trim() || null;
 
     // Only update if description actually changed
     if (oldDescription === newDescription) {
       setEditingDependency(null);
-      setEditDescription('');
+      setEditDescription("");
       return;
     }
 
     setSaving(true);
     try {
-      await pb.collection('dependencies').update(editingDependency.id, {
+      await pb.collection("dependencies").update(editingDependency.id, {
         description: newDescription,
       });
 
@@ -226,14 +284,14 @@ export default function DependenciesPage() {
           editingDependency.depends_on,
           targetFactsheet.name,
           oldDescription,
-          newDescription
+          newDescription,
         );
       }
 
       setEditingDependency(null);
-      setEditDescription('');
+      setEditDescription("");
     } catch (err) {
-      console.error('Failed to update dependency:', err);
+      console.error("Failed to update dependency:", err);
     } finally {
       setSaving(false);
     }
@@ -241,14 +299,18 @@ export default function DependenciesPage() {
 
   const handleDeleteDependency = async () => {
     if (!editingDependency) return;
-    if (!confirm('Are you sure you want to delete this dependency?')) return;
+    if (!confirm("Are you sure you want to delete this dependency?")) return;
 
-    const sourceFactsheet = factsheets.find((f) => f.id === editingDependency.factsheet);
-    const targetFactsheet = factsheets.find((f) => f.id === editingDependency.depends_on);
+    const sourceFactsheet = factsheets.find(
+      (f) => f.id === editingDependency.factsheet,
+    );
+    const targetFactsheet = factsheets.find(
+      (f) => f.id === editingDependency.depends_on,
+    );
 
     setSaving(true);
     try {
-      await pb.collection('dependencies').delete(editingDependency.id);
+      await pb.collection("dependencies").delete(editingDependency.id);
 
       // Log the change for both factsheets
       if (sourceFactsheet && targetFactsheet) {
@@ -256,22 +318,22 @@ export default function DependenciesPage() {
           editingDependency.factsheet,
           sourceFactsheet.name,
           editingDependency.depends_on,
-          targetFactsheet.name
+          targetFactsheet.name,
         );
       }
 
       setEditingDependency(null);
-      setEditDescription('');
+      setEditDescription("");
     } catch (err) {
-      console.error('Failed to delete dependency:', err);
+      console.error("Failed to delete dependency:", err);
     } finally {
       setSaving(false);
     }
   };
 
   const clearAllFilters = () => {
-    setTypeFilter('');
-    setStatusFilter('');
+    setTypeFilter("");
+    setStatusFilter("");
     setPropertyFilters({});
   };
 
@@ -282,7 +344,7 @@ export default function DependenciesPage() {
       if (!map.has(fp.factsheet)) {
         map.set(fp.factsheet, new Map());
       }
-      const optionValue = fp.expand?.option?.value || '';
+      const optionValue = fp.expand?.option?.value || "";
       if (optionValue) {
         map.get(fp.factsheet)!.set(fp.property, optionValue);
       }
@@ -297,22 +359,30 @@ export default function DependenciesPage() {
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowPropertyDropdown(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const togglePropertyDisplay = (propId: string) => {
-    setDisplayProperties((prev) =>
-      prev.includes(propId) ? prev.filter((id) => id !== propId) : [...prev, propId]
+    setDisplayProperties(
+      displayProperties.includes(propId)
+        ? displayProperties.filter((id) => id !== propId)
+        : [...displayProperties, propId],
     );
   };
 
   const loading = loadingFactsheets || loadingDeps;
-  const hasFilters = typeFilter !== '' || statusFilter !== '' || Object.values(propertyFilters).some((v) => v !== '');
+  const hasFilters =
+    typeFilter !== "" ||
+    statusFilter !== "" ||
+    Object.values(propertyFilters).some((v) => v !== "");
 
   return (
     <div className="space-y-6">
@@ -321,7 +391,8 @@ export default function DependenciesPage() {
         <div>
           <h1 className="text-2xl font-bold text-primary-900">Dependencies</h1>
           <p className="text-gray-500 mt-1">
-            Visualize the relationships between factsheets. Drag from one node to another to create a dependency.
+            Visualize the relationships between factsheets. Drag from one node
+            to another to create a dependency.
           </p>
         </div>
       </div>
@@ -352,26 +423,25 @@ export default function DependenciesPage() {
                 <Select
                   label={prop.name}
                   options={[
-                    { value: '', label: `All ${prop.name}` },
-                    ...opts.map((opt) => ({ value: opt.value, label: opt.value })),
+                    { value: "", label: `All ${prop.name}` },
+                    ...opts.map((opt) => ({
+                      value: opt.value,
+                      label: opt.value,
+                    })),
                   ]}
-                  value={propertyFilters[prop.id] || ''}
+                  value={propertyFilters[prop.id] || ""}
                   onChange={(e) =>
-                    setPropertyFilters((prev) => ({
-                      ...prev,
+                    setPropertyFilters({
+                      ...propertyFilters,
                       [prop.id]: e.target.value,
-                    }))
+                    })
                   }
                 />
               </div>
             );
           })}
           {hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
-            >
+            <Button variant="ghost" size="sm" onClick={clearAllFilters}>
               Clear Filters
             </Button>
           )}
@@ -401,7 +471,9 @@ export default function DependenciesPage() {
                 {showPropertyDropdown && (
                   <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 shadow-lg z-50 min-w-[200px]">
                     <div className="p-2 border-b border-gray-100">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Display on nodes</span>
+                      <span className="text-xs font-medium text-gray-500 uppercase">
+                        Display on nodes
+                      </span>
                     </div>
                     {propertyDefinitions.map((prop) => (
                       <button
@@ -409,11 +481,13 @@ export default function DependenciesPage() {
                         className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                         onClick={() => togglePropertyDisplay(prop.id)}
                       >
-                        <div className={`w-4 h-4 border flex items-center justify-center ${
-                          displayProperties.includes(prop.id)
-                            ? 'bg-accent-500 border-accent-500'
-                            : 'border-gray-300'
-                        }`}>
+                        <div
+                          className={`w-4 h-4 border flex items-center justify-center ${
+                            displayProperties.includes(prop.id)
+                              ? "bg-accent-500 border-accent-500"
+                              : "border-gray-300"
+                          }`}
+                        >
                           {displayProperties.includes(prop.id) && (
                             <Check className="w-3 h-3 text-white" />
                           )}
@@ -439,11 +513,11 @@ export default function DependenciesPage() {
             <button
               type="button"
               onClick={() => setShowComments(!showComments)}
-              title={showComments ? 'Hide edge comments' : 'Show edge comments'}
+              title={showComments ? "Hide edge comments" : "Show edge comments"}
               className={`h-8 px-3 text-sm font-medium flex items-center gap-1.5 transition-colors rounded border ${
                 showComments
-                  ? 'bg-accent-500 text-white border-accent-500'
-                  : 'bg-white text-primary-700 border-gray-200 hover:bg-gray-50'
+                  ? "bg-accent-500 text-white border-accent-500"
+                  : "bg-white text-primary-700 border-gray-200 hover:bg-gray-50"
               }`}
             >
               <MessageSquare className="w-4 h-4" />
@@ -454,12 +528,12 @@ export default function DependenciesPage() {
             <div className="flex items-center border border-gray-200 rounded overflow-hidden">
               <button
                 type="button"
-                onClick={() => setUnrelatedDisplayMode('dim')}
+                onClick={() => setUnrelatedDisplayMode("dim")}
                 title="Dim unrelated factsheets when focused"
                 className={`h-8 px-3 text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                  unrelatedDisplayMode === 'dim'
-                    ? 'bg-accent-500 text-white'
-                    : 'bg-white text-primary-700 hover:bg-gray-50'
+                  unrelatedDisplayMode === "dim"
+                    ? "bg-accent-500 text-white"
+                    : "bg-white text-primary-700 hover:bg-gray-50"
                 }`}
               >
                 <Eye className="w-4 h-4" />
@@ -467,12 +541,12 @@ export default function DependenciesPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setUnrelatedDisplayMode('hide')}
+                onClick={() => setUnrelatedDisplayMode("hide")}
                 title="Hide unrelated factsheets when focused"
                 className={`h-8 px-3 text-sm font-medium flex items-center gap-1.5 transition-colors border-l border-gray-200 ${
-                  unrelatedDisplayMode === 'hide'
-                    ? 'bg-accent-500 text-white'
-                    : 'bg-white text-primary-700 hover:bg-gray-50'
+                  unrelatedDisplayMode === "hide"
+                    ? "bg-accent-500 text-white"
+                    : "bg-white text-primary-700 hover:bg-gray-50"
                 }`}
               >
                 <EyeOff className="w-4 h-4" />
@@ -549,12 +623,12 @@ export default function DependenciesPage() {
       ) : filteredFactsheets.length === 0 ? (
         <Card className="text-center py-16">
           <CardTitle>
-            {hasFilters ? 'No matching factsheets' : 'No factsheets yet'}
+            {hasFilters ? "No matching factsheets" : "No factsheets yet"}
           </CardTitle>
           <p className="text-gray-500 mt-2">
             {hasFilters
-              ? 'Try adjusting your filters to see more factsheets'
-              : 'Create some factsheets to see the dependency graph'}
+              ? "Try adjusting your filters to see more factsheets"
+              : "Create some factsheets to see the dependency graph"}
           </p>
           {hasFilters && (
             <Button
@@ -621,7 +695,7 @@ export default function DependenciesPage() {
 
             <div className="flex gap-3 pt-2">
               <Button onClick={handleCreateDependency} disabled={saving}>
-                {saving ? 'Creating...' : 'Create Dependency'}
+                {saving ? "Creating..." : "Create Dependency"}
               </Button>
               <Button
                 variant="secondary"
@@ -647,13 +721,17 @@ export default function DependenciesPage() {
               <div className="bg-gray-50 p-3 space-y-2">
                 <div>
                   <span className="font-medium text-primary-900">
-                    {factsheets.find((f) => f.id === editingDependency.factsheet)?.name || 'Unknown'}
+                    {factsheets.find(
+                      (f) => f.id === editingDependency.factsheet,
+                    )?.name || "Unknown"}
                   </span>
                 </div>
                 <div className="text-center text-gray-400">depends on</div>
                 <div>
                   <span className="font-medium text-primary-900">
-                    {factsheets.find((f) => f.id === editingDependency.depends_on)?.name || 'Unknown'}
+                    {factsheets.find(
+                      (f) => f.id === editingDependency.depends_on,
+                    )?.name || "Unknown"}
                   </span>
                 </div>
               </div>
@@ -669,7 +747,7 @@ export default function DependenciesPage() {
 
             <div className="flex gap-3 pt-2">
               <Button onClick={handleUpdateDependency} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? "Saving..." : "Save Changes"}
               </Button>
               <Button
                 variant="secondary"
