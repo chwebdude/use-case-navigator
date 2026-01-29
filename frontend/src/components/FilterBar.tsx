@@ -222,26 +222,26 @@ export function FilterBar({
           <div className="space-y-2">
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2">
               {visiblePropertyFilters.map((prop) => {
-              const opts = optionsByProperty.get(prop.id) || [];
-              return (
-                <div key={prop.id}>
-                  <Select
-                    label={prop.name}
-                    className="h-8 text-sm"
-                    options={[
-                      { value: "", label: `All ${prop.name}` },
-                      ...opts.map((opt) => ({
-                        value: opt.value,
-                        label: opt.value,
-                      })),
-                    ]}
-                    value={propertyFilters[prop.id] || ""}
-                    onChange={(e) =>
-                      onPropertyFilterChange(prop.id, e.target.value)
-                    }
-                  />
-                </div>
-              );
+                const opts = optionsByProperty.get(prop.id) || [];
+                return (
+                  <div key={prop.id}>
+                    <Select
+                      label={prop.name}
+                      className="h-8 text-sm"
+                      options={[
+                        { value: "", label: `All ${prop.name}` },
+                        ...opts.map((opt) => ({
+                          value: opt.value,
+                          label: opt.value,
+                        })),
+                      ]}
+                      value={propertyFilters[prop.id] || ""}
+                      onChange={(e) =>
+                        onPropertyFilterChange(prop.id, e.target.value)
+                      }
+                    />
+                  </div>
+                );
               })}
             </div>
             {shouldCollapsePropertyFilters && (
@@ -249,11 +249,11 @@ export function FilterBar({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() =>
-                    setShowAllPropertyFilters((prev) => !prev)
-                  }
+                  onClick={() => setShowAllPropertyFilters((prev) => !prev)}
                 >
-                  {showAllPropertyFilters ? "Show fewer filters" : "Show all filters"}
+                  {showAllPropertyFilters
+                    ? "Show fewer filters"
+                    : "Show all filters"}
                 </Button>
               </div>
             )}
