@@ -6,6 +6,7 @@ import {
   Grid3X3,
   Radar,
   Settings,
+  ScatterChart,
 } from "lucide-react";
 
 interface NavItem {
@@ -42,7 +43,7 @@ const mainNavItems: NavItem[] = [
   },
   {
     to: "/scatter",
-    icon: <Grid3X3 className="w-5 h-5" />,
+    icon: <ScatterChart className="w-5 h-5" />,
     label: "Scatter Plot",
   },
 ];
