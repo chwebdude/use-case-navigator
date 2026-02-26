@@ -246,13 +246,13 @@ export default function FactsheetList() {
           )}
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {filteredFactsheets.map((factsheet) => {
             const typeColor = factsheet.expand?.type?.color || "#6b7280";
             const typeName = factsheet.expand?.type?.name || "Unknown";
 
             return (
-              <Link key={factsheet.id} to={`/factsheets/${factsheet.id}`}>
+              <Link key={factsheet.id} to={`/factsheets/${factsheet.id}`} className="block">
                 <Card hover>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
