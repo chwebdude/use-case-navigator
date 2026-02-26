@@ -252,7 +252,11 @@ export default function FactsheetList() {
             const typeName = factsheet.expand?.type?.name || "Unknown";
 
             return (
-              <Link key={factsheet.id} to={`/factsheets/${factsheet.id}`} className="block">
+              <Link
+                key={factsheet.id}
+                to={`/factsheets/${factsheet.id}`}
+                className="block"
+              >
                 <Card hover>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
