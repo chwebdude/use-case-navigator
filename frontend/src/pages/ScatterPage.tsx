@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
 import { Grid3X3 } from "lucide-react";
 import { Card, CardTitle, Badge, Select } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
@@ -12,6 +12,8 @@ import {
 } from "../types";
 import { useRealtime } from "../hooks/useRealtime";
 import { useQueryStates } from "../hooks/useQueryState";
+import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
+import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import ScatterPlot, {
   type ScatterPoint,
   type AxisTick,
@@ -37,6 +39,12 @@ const colorPalette = [
 type AxisMode = "properties" | "metrics";
 
 export default function ScatterPage() {
+  const {
+    settings,
+    loading: settingsLoading,
+    setSettings: setAppSettings,
+  } = useAppSettings();
+
   const [state, setState] = useQueryStates({
     search: "",
     statusFilter: "",
@@ -65,12 +73,16 @@ export default function ScatterPage() {
   const setYAxis = (v: string) => setState("yAxis", v);
   const setAxisMode = (v: AxisMode) => setState("axisMode", v);
 
+  useApplyPageDefaults(
+    settings.defaultScatterFilters,
+    setState,
+    settingsLoading,
+  );
+
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
     null,
   );
-  const prevAxisModeRef = useRef<AxisMode>(axisMode);
-  const { settings } = useAppSettings();
 
   const { records: factsheets } = useRealtime<FactsheetExpanded>({
     collection: "factsheets",
@@ -101,14 +113,16 @@ export default function ScatterPage() {
     expand: "properties",
   });
 
-  // Clear axes only when user actively changes mode (not on initial URL restoration)
-  useEffect(() => {
-    if (prevAxisModeRef.current !== axisMode) {
+  // Clear axes only when user explicitly clicks a mode button —
+  // NOT in a useEffect on axisMode, because useApplyPageDefaults also
+  // changes axisMode (from defaults) and must not clear xAxis/yAxis.
+  const handleAxisModeChange = (mode: AxisMode) => {
+    if (mode !== axisMode) {
       setXAxis("");
       setYAxis("");
-      prevAxisModeRef.current = axisMode;
     }
-  }, [axisMode, setXAxis, setYAxis]);
+    setAxisMode(mode);
+  };
 
   const optionsByProperty = useMemo(() => {
     const map = new Map<string, PropertyOption[]>();
@@ -304,6 +318,13 @@ export default function ScatterPage() {
             </p>
           </div>
         </div>
+        <SaveDefaultsButton
+          type="scatter"
+          filters={state}
+          onSave={(filters) =>
+            setAppSettings({ defaultScatterFilters: filters })
+          }
+        />
       </div>
 
       <FilterBar
@@ -332,7 +353,7 @@ export default function ScatterPage() {
           <div className="flex gap-4 items-center">
             <div className="flex gap-2">
               <button
-                onClick={() => setAxisMode("properties")}
+                onClick={() => handleAxisModeChange("properties")}
                 className={`px-4 py-2 rounded-md font-medium transition-colors ${
                   axisMode === "properties"
                     ? "bg-accent-500 text-white"
@@ -342,7 +363,7 @@ export default function ScatterPage() {
                 Properties
               </button>
               <button
-                onClick={() => setAxisMode("metrics")}
+                onClick={() => handleAxisModeChange("metrics")}
                 className={`px-4 py-2 rounded-md font-medium transition-colors ${
                   axisMode === "metrics"
                     ? "bg-accent-500 text-white"

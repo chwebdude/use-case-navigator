@@ -6,6 +6,9 @@ import { SpiderDiagram } from "../components/visualizations";
 import type { SpiderDataPoint } from "../components/visualizations/SpiderDiagram";
 import { useRealtime } from "../hooks/useRealtime";
 import { useQueryStates } from "../hooks/useQueryState";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
+import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import type {
   FactsheetExpanded,
   FactsheetType,
@@ -34,6 +37,12 @@ const colorPalette = [
 type AxisMode = "properties" | "metrics";
 
 export default function SpiderPage() {
+  const {
+    settings,
+    loading: settingsLoading,
+    setSettings: setAppSettings,
+  } = useAppSettings();
+
   const [state, setState] = useQueryStates({
     search: "",
     statusFilter: "",
@@ -57,6 +66,12 @@ export default function SpiderPage() {
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
   const setAxisMode = (v: AxisMode) => setState("axisMode", v);
+
+  useApplyPageDefaults(
+    settings.defaultSpiderFilters,
+    setState,
+    settingsLoading,
+  );
 
   // Parse selectedMetrics from string OR array (useQueryStates might auto-parse JSON)
   const selectedMetrics = useMemo(() => {
@@ -85,7 +100,6 @@ export default function SpiderPage() {
   >(null);
   const [selectedFactsheet, setSelectedFactsheet] =
     useState<FactsheetExpanded | null>(null);
-  const prevAxisModeRef = useRef<AxisMode | null>(null); // Start as null to detect initial load
   const hasInitializedRef = useRef(false);
   // Track whether the URL originally had a selectedMetrics parameter (even if empty)
   const urlHadParamRef = useRef(
@@ -125,18 +139,16 @@ export default function SpiderPage() {
     sort: "order",
   });
 
-  // Clear selected dimensions when user actively changes mode (not on initial URL load)
-  useEffect(() => {
-    // Only clear selections if this is an actual mode change (not initial mount/URL restoration)
-    if (
-      prevAxisModeRef.current !== null &&
-      prevAxisModeRef.current !== axisMode
-    ) {
+  // Clear selected dimensions when user explicitly changes mode via button click.
+  // This is NOT done in a useEffect on axisMode, because useApplyPageDefaults also
+  // changes axisMode (from defaults), and that must not clear selectedMetrics.
+  const handleAxisModeChange = (mode: AxisMode) => {
+    if (mode !== axisMode) {
       setSelectedMetrics(new Set());
-      hasInitializedRef.current = false; // Reset initialization flag on mode change
+      hasInitializedRef.current = false;
     }
-    prevAxisModeRef.current = axisMode;
-  }, [axisMode, setSelectedMetrics]);
+    setAxisMode(mode);
+  };
 
   // Build property lookup: factsheetId -> { propertyId -> optionValue }
   const propertyLookup = useMemo(() => {
@@ -283,9 +295,19 @@ export default function SpiderPage() {
     // Only initialize once
     if (hasInitializedRef.current) return;
 
+    // Wait for settings to finish loading
+    if (settingsLoading) return;
+
     // If URL had a selectedMetrics parameter, never auto-initialize
     // (even if it was empty - respect the user's/URL's intent)
     if (urlHadParamRef.current) {
+      hasInitializedRef.current = true;
+      return;
+    }
+
+    // If saved defaults include selectedMetrics, useApplyPageDefaults handles it —
+    // skip auto-select so we don't overwrite defaults in the same effect flush
+    if (settings.defaultSpiderFilters?.selectedMetrics) {
       hasInitializedRef.current = true;
       return;
     }
@@ -299,7 +321,13 @@ export default function SpiderPage() {
       hasInitializedRef.current = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [axisMode, metrics.length, propertyDefinitions.length]);
+  }, [
+    axisMode,
+    metrics.length,
+    propertyDefinitions.length,
+    settingsLoading,
+    settings.defaultSpiderFilters?.selectedMetrics,
+  ]);
 
   // Filter metrics/properties based on selection and axis mode
   const filteredDimensions = useMemo(() => {
@@ -407,6 +435,13 @@ export default function SpiderPage() {
             </p>
           </div>
         </div>
+        <SaveDefaultsButton
+          type="spider"
+          filters={state}
+          onSave={(filters) =>
+            setAppSettings({ defaultSpiderFilters: filters })
+          }
+        />
       </div>
 
       {/* Filters */}
@@ -439,7 +474,7 @@ export default function SpiderPage() {
             <div className="flex gap-4 items-start">
               <div className="flex gap-2">
                 <button
-                  onClick={() => setAxisMode("properties")}
+                  onClick={() => handleAxisModeChange("properties")}
                   className={`px-4 py-2 rounded-md font-medium transition-colors ${
                     axisMode === "properties"
                       ? "bg-accent-500 text-white"
@@ -449,7 +484,7 @@ export default function SpiderPage() {
                   Properties
                 </button>
                 <button
-                  onClick={() => setAxisMode("metrics")}
+                  onClick={() => handleAxisModeChange("metrics")}
                   className={`px-4 py-2 rounded-md font-medium transition-colors ${
                     axisMode === "metrics"
                       ? "bg-accent-500 text-white"

@@ -11,6 +11,9 @@ import FactsheetMoveModal from "../components/FactsheetMoveModal";
 import { useRealtime } from "../hooks/useRealtime";
 import { useChangeLog } from "../hooks/useChangeLog";
 import { useQueryStates } from "../hooks/useQueryState";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
+import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import pb from "../lib/pocketbase";
 import type {
   FactsheetExpanded,
@@ -22,6 +25,12 @@ import type {
 } from "../types";
 
 export default function MatrixPage() {
+  const {
+    settings,
+    loading: settingsLoading,
+    setSettings: setAppSettings,
+  } = useAppSettings();
+
   const [state, setState] = useQueryStates({
     search: "",
     xAxis: "",
@@ -50,6 +59,12 @@ export default function MatrixPage() {
     setState("propertyFilters", v);
   const setDisplayProperties = (v: string[]) =>
     setState("displayProperties", v);
+
+  useApplyPageDefaults(
+    settings.defaultMatrixFilters,
+    setState,
+    settingsLoading,
+  );
 
   const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
     null,
@@ -305,11 +320,20 @@ export default function MatrixPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-primary-900">Matrix View</h1>
-        <p className="text-gray-500 mt-1">
-          Plot factsheets on a matrix based on their properties
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-primary-900">Matrix View</h1>
+          <p className="text-gray-500 mt-1">
+            Plot factsheets on a matrix based on their properties
+          </p>
+        </div>
+        <SaveDefaultsButton
+          type="matrix"
+          filters={state}
+          onSave={(filters) =>
+            setAppSettings({ defaultMatrixFilters: filters })
+          }
+        />
       </div>
 
       {/* Filters and Additional Settings */}

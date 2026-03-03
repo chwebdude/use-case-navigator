@@ -19,6 +19,9 @@ import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import { useRealtime } from "../hooks/useRealtime";
 import { useChangeLog } from "../hooks/useChangeLog";
 import { useQueryStates } from "../hooks/useQueryState";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
+import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import pb from "../lib/pocketbase";
 import type {
   FactsheetExpanded,
@@ -30,6 +33,12 @@ import type {
 } from "../types";
 
 export default function DependenciesPage() {
+  const {
+    settings,
+    loading: settingsLoading,
+    setSettings: setAppSettings,
+  } = useAppSettings();
+
   const [state, setState] = useQueryStates({
     search: "",
     typeFilter: "",
@@ -63,6 +72,12 @@ export default function DependenciesPage() {
     setState("focusedFactsheetId", v);
   const setUnrelatedDisplayMode = (v: "dim" | "hide") =>
     setState("unrelatedDisplayMode", v);
+
+  useApplyPageDefaults(
+    settings.defaultDependenciesFilters,
+    setState,
+    settingsLoading,
+  );
 
   const [layoutKey, setLayoutKey] = useState(0);
 
@@ -384,6 +399,13 @@ export default function DependenciesPage() {
             to another to create a dependency.
           </p>
         </div>
+        <SaveDefaultsButton
+          type="dependencies"
+          filters={state}
+          onSave={(filters) =>
+            setAppSettings({ defaultDependenciesFilters: filters })
+          }
+        />
       </div>
 
       {/* Filters and Additional Settings */}

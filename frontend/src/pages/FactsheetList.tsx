@@ -3,8 +3,11 @@ import { Link } from "react-router-dom";
 import { Plus, Filter } from "lucide-react";
 import { Card, Button, Badge, MetricBadge } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
+import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import { useRealtime } from "../hooks/useRealtime";
 import { useQueryStates } from "../hooks/useQueryState";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
 import type {
   FactsheetExpanded,
   FactsheetType,
@@ -15,12 +18,24 @@ import type {
 } from "../types";
 
 export default function FactsheetList() {
+  const {
+    settings,
+    loading: settingsLoading,
+    setSettings: setAppSettings,
+  } = useAppSettings();
+
   const [state, setState] = useQueryStates({
     search: "",
     statusFilter: "",
     typeFilter: "",
     propertyFilters: {} as Record<string, string>,
   });
+
+  useApplyPageDefaults(
+    settings.defaultFactsheetFilters,
+    setState,
+    settingsLoading,
+  );
 
   const { search, statusFilter, typeFilter, propertyFilters } = state;
   const setSearch = (v: string) => setState("search", v);
@@ -167,9 +182,18 @@ export default function FactsheetList() {
           <h1 className="text-2xl font-bold text-primary-900">Factsheets</h1>
           <p className="text-gray-500 mt-1">Manage and track your factsheets</p>
         </div>
-        <Link to="/factsheets/new">
-          <Button icon={<Plus className="w-4 h-4" />}>New Factsheet</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <SaveDefaultsButton
+            type="factsheet"
+            filters={state}
+            onSave={(filters) =>
+              setAppSettings({ defaultFactsheetFilters: filters })
+            }
+          />
+          <Link to="/factsheets/new">
+            <Button icon={<Plus className="w-4 h-4" />}>New Factsheet</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

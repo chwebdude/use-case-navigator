@@ -19,16 +19,68 @@ export const AVAILABLE_ICONS = [
 
 export type IconId = (typeof AVAILABLE_ICONS)[number]["id"];
 
+// Filter types for each page
+export interface FactsheetFilters {
+  search?: string;
+  statusFilter?: string;
+  typeFilter?: string;
+}
+
+export interface DependenciesFilters {
+  search?: string;
+  typeFilter?: string;
+  statusFilter?: string;
+  displayProperties?: string[];
+  showComments?: boolean;
+  unrelatedDisplayMode?: "dim" | "hide";
+}
+
+export interface MatrixFilters {
+  search?: string;
+  xAxis?: string;
+  yAxis?: string;
+  typeFilter?: string;
+  statusFilter?: string;
+  displayProperties?: string[];
+}
+
+export interface SpiderFilters {
+  search?: string;
+  statusFilter?: string;
+  typeFilter?: string;
+  selectedMetrics?: string;
+  axisMode?: "properties" | "metrics";
+}
+
+export interface ScatterFilters {
+  search?: string;
+  statusFilter?: string;
+  typeFilter?: string;
+  xAxis?: string;
+  yAxis?: string;
+  axisMode?: "properties" | "metrics";
+}
+
 interface AppSettings {
   title: string;
   icon: IconId;
   maxMetricWeight: number;
+  defaultFactsheetFilters?: FactsheetFilters;
+  defaultDependenciesFilters?: DependenciesFilters;
+  defaultMatrixFilters?: MatrixFilters;
+  defaultSpiderFilters?: SpiderFilters;
+  defaultScatterFilters?: ScatterFilters;
 }
 
 interface AppSettingsRecord extends RecordModel {
   title: string;
   icon: IconId;
-  maxMetricWeight?: number;
+  max_metric_weight?: number;
+  default_factsheet_filters?: string | FactsheetFilters;
+  default_dependencies_filters?: string | DependenciesFilters;
+  default_matrix_filters?: string | MatrixFilters;
+  default_spider_filters?: string | SpiderFilters;
+  default_scatter_filters?: string | ScatterFilters;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -46,7 +98,16 @@ export function useAppSettings() {
         title: record.title,
         icon: record.icon,
         maxMetricWeight:
-          record.maxMetricWeight ?? DEFAULT_SETTINGS.maxMetricWeight,
+          record.max_metric_weight ?? DEFAULT_SETTINGS.maxMetricWeight,
+        defaultFactsheetFilters: parseJsonField(
+          record.default_factsheet_filters,
+        ),
+        defaultDependenciesFilters: parseJsonField(
+          record.default_dependencies_filters,
+        ),
+        defaultMatrixFilters: parseJsonField(record.default_matrix_filters),
+        defaultSpiderFilters: parseJsonField(record.default_spider_filters),
+        defaultScatterFilters: parseJsonField(record.default_scatter_filters),
       }
     : DEFAULT_SETTINGS;
 
@@ -106,8 +167,24 @@ export function useAppSettings() {
     async (newSettings: Partial<AppSettings>) => {
       if (!record) return;
 
+      // Map camelCase AppSettings keys to PocketBase snake_case field names
+      const fieldMap: Record<string, string> = {
+        maxMetricWeight: "max_metric_weight",
+        defaultFactsheetFilters: "default_factsheet_filters",
+        defaultDependenciesFilters: "default_dependencies_filters",
+        defaultMatrixFilters: "default_matrix_filters",
+        defaultSpiderFilters: "default_spider_filters",
+        defaultScatterFilters: "default_scatter_filters",
+      };
+
+      const pbPayload: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(newSettings)) {
+        const pbKey = fieldMap[key] ?? key;
+        pbPayload[pbKey] = value;
+      }
+
       try {
-        await pb.collection("app_settings").update(record.id, newSettings);
+        await pb.collection("app_settings").update(record.id, pbPayload);
       } catch (err) {
         console.error("Failed to update app settings:", err);
       }
@@ -117,13 +194,8 @@ export function useAppSettings() {
 
   const resetSettings = useCallback(async () => {
     if (!record) return;
-
-    try {
-      await pb.collection("app_settings").update(record.id, DEFAULT_SETTINGS);
-    } catch (err) {
-      console.error("Failed to reset app settings:", err);
-    }
-  }, [record]);
+    await setSettings(DEFAULT_SETTINGS);
+  }, [record, setSettings]);
 
   return {
     settings,
@@ -179,4 +251,17 @@ function updateFavicon(iconId: IconId) {
   }
   link.type = "image/svg+xml";
   link.href = url;
+}
+
+// Helper to parse JSON fields from PocketBase
+function parseJsonField<T>(value: unknown): T | undefined {
+  if (!value) return undefined;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return undefined;
+    }
+  }
+  return value as T;
 }

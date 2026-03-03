@@ -1107,6 +1107,222 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* Default Page Filters */}
+      <Card>
+        <CardTitle>Default Page Filters</CardTitle>
+        <p className="text-sm text-gray-500 mt-1 mb-6">
+          Set default filters for each page. Users will see these filters when
+          they navigate to a page without query parameters. Configure filters on
+          each page and come back here to save them as defaults.
+        </p>
+
+        <div className="space-y-6">
+          {/* Factsheet Filters */}
+          <div className="border-b pb-6 last:border-b-0 last:pb-0">
+            <h4 className="font-semibold text-primary-900 mb-2">
+              Factsheet List Default
+            </h4>
+            <div className="text-sm text-gray-600 space-y-1 mb-4">
+              {appSettings.defaultFactsheetFilters &&
+              Object.keys(appSettings.defaultFactsheetFilters).length > 0 ? (
+                <>
+                  {appSettings.defaultFactsheetFilters.search && (
+                    <p>
+                      Search: "{appSettings.defaultFactsheetFilters.search}"
+                    </p>
+                  )}
+                  {appSettings.defaultFactsheetFilters.typeFilter && (
+                    <p>
+                      Type Filter: "
+                      {appSettings.defaultFactsheetFilters.typeFilter}"
+                    </p>
+                  )}
+                  {appSettings.defaultFactsheetFilters.statusFilter && (
+                    <p>
+                      Status Filter: "
+                      {appSettings.defaultFactsheetFilters.statusFilter}"
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-400 italic">No defaults set</p>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAppSettings({ defaultFactsheetFilters: {} });
+              }}
+            >
+              Clear Defaults
+            </Button>
+          </div>
+
+          {/* Dependencies Filters */}
+          <div className="border-b pb-6 last:border-b-0 last:pb-0">
+            <h4 className="font-semibold text-primary-900 mb-2">
+              Dependencies Default
+            </h4>
+            <div className="text-sm text-gray-600 space-y-1 mb-4">
+              {appSettings.defaultDependenciesFilters &&
+              Object.keys(appSettings.defaultDependenciesFilters).length > 0 ? (
+                <>
+                  {appSettings.defaultDependenciesFilters.search && (
+                    <p>
+                      Search: "{appSettings.defaultDependenciesFilters.search}"
+                    </p>
+                  )}
+                  {appSettings.defaultDependenciesFilters.typeFilter && (
+                    <p>
+                      Type Filter: "
+                      {appSettings.defaultDependenciesFilters.typeFilter}"
+                    </p>
+                  )}
+                  {appSettings.defaultDependenciesFilters
+                    .unrelatedDisplayMode && (
+                    <p>
+                      Unrelated Mode: "
+                      {
+                        appSettings.defaultDependenciesFilters
+                          .unrelatedDisplayMode
+                      }
+                      "
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-400 italic">No defaults set</p>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAppSettings({ defaultDependenciesFilters: {} });
+              }}
+            >
+              Clear Defaults
+            </Button>
+          </div>
+
+          {/* Matrix Filters */}
+          <div className="border-b pb-6 last:border-b-0 last:pb-0">
+            <h4 className="font-semibold text-primary-900 mb-2">
+              Matrix View Default
+            </h4>
+            <div className="text-sm text-gray-600 space-y-1 mb-4">
+              {appSettings.defaultMatrixFilters &&
+              Object.keys(appSettings.defaultMatrixFilters).length > 0 ? (
+                <>
+                  {appSettings.defaultMatrixFilters.search && (
+                    <p>Search: "{appSettings.defaultMatrixFilters.search}"</p>
+                  )}
+                  {appSettings.defaultMatrixFilters.xAxis && (
+                    <p>X-Axis: "{appSettings.defaultMatrixFilters.xAxis}"</p>
+                  )}
+                  {appSettings.defaultMatrixFilters.yAxis && (
+                    <p>Y-Axis: "{appSettings.defaultMatrixFilters.yAxis}"</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-400 italic">No defaults set</p>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAppSettings({ defaultMatrixFilters: {} });
+              }}
+            >
+              Clear Defaults
+            </Button>
+          </div>
+
+          {/* Spider Filters */}
+          <div className="border-b pb-6 last:border-b-0 last:pb-0">
+            <h4 className="font-semibold text-primary-900 mb-2">
+              Spider Diagram Default
+            </h4>
+            <div className="text-sm text-gray-600 space-y-1 mb-4">
+              {appSettings.defaultSpiderFilters &&
+              Object.keys(appSettings.defaultSpiderFilters).length > 0 ? (
+                <>
+                  {appSettings.defaultSpiderFilters.search && (
+                    <p>Search: "{appSettings.defaultSpiderFilters.search}"</p>
+                  )}
+                  {appSettings.defaultSpiderFilters.axisMode && (
+                    <p>
+                      Axis Mode: "{appSettings.defaultSpiderFilters.axisMode}"
+                    </p>
+                  )}
+                  {appSettings.defaultSpiderFilters.selectedMetrics &&
+                    (() => {
+                      try {
+                        const ids = JSON.parse(
+                          appSettings.defaultSpiderFilters.selectedMetrics!,
+                        );
+                        if (Array.isArray(ids) && ids.length > 0) {
+                          return <p>Dimensions: {ids.length} selected</p>;
+                        }
+                      } catch {
+                        /* ignore */
+                      }
+                      return null;
+                    })()}
+                </>
+              ) : (
+                <p className="text-gray-400 italic">No defaults set</p>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAppSettings({ defaultSpiderFilters: {} });
+              }}
+            >
+              Clear Defaults
+            </Button>
+          </div>
+
+          {/* Scatter Plot Filters */}
+          <div>
+            <h4 className="font-semibold text-primary-900 mb-2">
+              Scatter Plot Default
+            </h4>
+            <div className="text-sm text-gray-600 space-y-1 mb-4">
+              {appSettings.defaultScatterFilters &&
+              Object.keys(appSettings.defaultScatterFilters).length > 0 ? (
+                <>
+                  {appSettings.defaultScatterFilters.search && (
+                    <p>Search: "{appSettings.defaultScatterFilters.search}"</p>
+                  )}
+                  {appSettings.defaultScatterFilters.xAxis && (
+                    <p>X-Axis: "{appSettings.defaultScatterFilters.xAxis}"</p>
+                  )}
+                  {appSettings.defaultScatterFilters.yAxis && (
+                    <p>Y-Axis: "{appSettings.defaultScatterFilters.yAxis}"</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-400 italic">No defaults set</p>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAppSettings({ defaultScatterFilters: {} });
+              }}
+            >
+              Clear Defaults
+            </Button>
+          </div>
+        </div>
+      </Card>
+
       {/* Factsheet Types */}
       <Card>
         <CardTitle>Factsheet Types</CardTitle>
