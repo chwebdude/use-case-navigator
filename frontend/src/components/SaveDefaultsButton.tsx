@@ -7,6 +7,7 @@ import type {
   MatrixFilters,
   SpiderFilters,
   ScatterFilters,
+  ImpactFilters,
 } from "../hooks/useAppSettings";
 
 type FilterType =
@@ -14,7 +15,8 @@ type FilterType =
   | "dependencies"
   | "matrix"
   | "spider"
-  | "scatter";
+  | "scatter"
+  | "impact";
 
 interface SaveDefaultsButtonProps {
   type: FilterType;
@@ -25,7 +27,8 @@ interface SaveDefaultsButtonProps {
       | DependenciesFilters
       | MatrixFilters
       | SpiderFilters
-      | ScatterFilters,
+      | ScatterFilters
+      | ImpactFilters,
   ) => void;
   disabled?: boolean;
 }
@@ -72,6 +75,8 @@ export function SaveDefaultsButton({
         return "Save as Spider Diagram Default";
       case "scatter":
         return "Save as Scatter Plot Default";
+      case "impact":
+        return "Save as Impact Analysis Default";
     }
   };
 

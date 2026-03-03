@@ -61,6 +61,18 @@ export interface ScatterFilters {
   axisMode?: "properties" | "metrics";
 }
 
+export interface ImpactFilters {
+  search?: string;
+  statusFilter?: string;
+  typeFilter?: string;
+  propertyFilters?: Record<string, string>;
+  metricFilter?: string;
+  sortField?: "name" | "dependentCount" | "averageImpact" | "totalImpact";
+  sortOrder?: "asc" | "desc";
+  calculationMode?: "direct" | "all-levels" | "custom";
+  customDepth?: number;
+}
+
 interface AppSettings {
   title: string;
   icon: IconId;
@@ -70,6 +82,7 @@ interface AppSettings {
   defaultMatrixFilters?: MatrixFilters;
   defaultSpiderFilters?: SpiderFilters;
   defaultScatterFilters?: ScatterFilters;
+  defaultImpactFilters?: ImpactFilters;
 }
 
 interface AppSettingsRecord extends RecordModel {
@@ -81,6 +94,7 @@ interface AppSettingsRecord extends RecordModel {
   default_matrix_filters?: string | MatrixFilters;
   default_spider_filters?: string | SpiderFilters;
   default_scatter_filters?: string | ScatterFilters;
+  default_impact_filters?: string | ImpactFilters;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -108,6 +122,7 @@ export function useAppSettings() {
         defaultMatrixFilters: parseJsonField(record.default_matrix_filters),
         defaultSpiderFilters: parseJsonField(record.default_spider_filters),
         defaultScatterFilters: parseJsonField(record.default_scatter_filters),
+        defaultImpactFilters: parseJsonField(record.default_impact_filters),
       }
     : DEFAULT_SETTINGS;
 
@@ -175,6 +190,7 @@ export function useAppSettings() {
         defaultMatrixFilters: "default_matrix_filters",
         defaultSpiderFilters: "default_spider_filters",
         defaultScatterFilters: "default_scatter_filters",
+        defaultImpactFilters: "default_impact_filters",
       };
 
       const pbPayload: Record<string, unknown> = {};

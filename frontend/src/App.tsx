@@ -14,6 +14,7 @@ import {
   SettingsPage,
   SpiderPage,
   ScatterPage,
+  ImpactAnalysisPage,
 } from "./pages";
 
 function App() {
@@ -41,6 +42,7 @@ function App() {
           <Route path="matrix" element={<MatrixPage />} />
           <Route path="spider" element={<SpiderPage />} />
           <Route path="scatter" element={<ScatterPage />} />
+          <Route path="impact" element={<ImpactAnalysisPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

@@ -1288,7 +1288,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Scatter Plot Filters */}
-          <div>
+          <div className="border-b pb-6 last:border-b-0 last:pb-0">
             <h4 className="font-semibold text-primary-900 mb-2">
               Scatter Plot Default
             </h4>
@@ -1315,6 +1315,59 @@ export default function SettingsPage() {
               size="sm"
               onClick={() => {
                 setAppSettings({ defaultScatterFilters: {} });
+              }}
+            >
+              Clear Defaults
+            </Button>
+          </div>
+
+          {/* Impact Analysis Filters */}
+          <div>
+            <h4 className="font-semibold text-primary-900 mb-2">
+              Impact Analysis Default
+            </h4>
+            <div className="text-sm text-gray-600 space-y-1 mb-4">
+              {appSettings.defaultImpactFilters &&
+              Object.keys(appSettings.defaultImpactFilters).length > 0 ? (
+                <>
+                  {appSettings.defaultImpactFilters.search && (
+                    <p>Search: "{appSettings.defaultImpactFilters.search}"</p>
+                  )}
+                  {appSettings.defaultImpactFilters.metricFilter && (
+                    <p>
+                      Metric: "{appSettings.defaultImpactFilters.metricFilter}"
+                    </p>
+                  )}
+                  {appSettings.defaultImpactFilters.calculationMode && (
+                    <p>
+                      Calculation Mode: "
+                      {appSettings.defaultImpactFilters.calculationMode}"
+                      {appSettings.defaultImpactFilters.calculationMode ===
+                        "custom" &&
+                        appSettings.defaultImpactFilters.customDepth &&
+                        ` (${appSettings.defaultImpactFilters.customDepth} levels)`}
+                    </p>
+                  )}
+                  {appSettings.defaultImpactFilters.sortField && (
+                    <p>
+                      Sort By: "{appSettings.defaultImpactFilters.sortField}"
+                    </p>
+                  )}
+                  {appSettings.defaultImpactFilters.sortOrder && (
+                    <p>
+                      Sort Order: "{appSettings.defaultImpactFilters.sortOrder}"
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-400 italic">No defaults set</p>
+              )}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAppSettings({ defaultImpactFilters: {} });
               }}
             >
               Clear Defaults

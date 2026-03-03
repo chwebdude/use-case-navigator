@@ -7,6 +7,7 @@ import {
   Radar,
   Settings,
   ScatterChart,
+  TrendingUp,
 } from "lucide-react";
 
 interface NavItem {
@@ -45,6 +46,11 @@ const mainNavItems: NavItem[] = [
     to: "/scatter",
     icon: <ScatterChart className="w-5 h-5" />,
     label: "Scatter Plot",
+  },
+  {
+    to: "/impact",
+    icon: <TrendingUp className="w-5 h-5" />,
+    label: "Impact Analysis",
   },
 ];
 
