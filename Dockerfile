@@ -25,7 +25,7 @@ RUN apk add --no-cache \
     unzip
 
 # PocketBase version
-ARG POCKETBASE_VERSION=0.23.4
+ARG POCKETBASE_VERSION=0.36.5
 
 # Download and install PocketBase
 RUN curl -L "https://github.com/pocketbase/pocketbase/releases/download/v${POCKETBASE_VERSION}/pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip" -o /tmp/pocketbase.zip \
