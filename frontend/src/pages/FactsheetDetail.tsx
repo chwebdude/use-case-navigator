@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -12,7 +12,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Card, CardTitle, Button, Badge, MetricBadge } from "../components/ui";
-import { SpiderDiagram } from "../components/visualizations";
+import { SpiderDiagram, DependencyGraph } from "../components/visualizations";
 import type { SpiderDataPoint } from "../components/visualizations/SpiderDiagram";
 import { useRecord, useRealtime } from "../hooks/useRealtime";
 import { useChangeLog } from "../hooks/useChangeLog";
@@ -24,12 +24,18 @@ import type {
   DependencyExpanded,
   ChangeLogExpanded,
   MetricExpanded,
+  Dependency,
+  FactsheetExpanded,
 } from "../types";
 
 export default function FactsheetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [allDependencies, setAllDependencies] = useState<Dependency[]>([]);
+  const [relatedFactsheets, setRelatedFactsheets] = useState<
+    FactsheetExpanded[]
+  >([]);
 
   const { record: factsheet, loading } = useRecord<Factsheet>("factsheets", id);
   const { record: factsheetType } = useRecord<FactsheetType>(
@@ -42,6 +48,88 @@ export default function FactsheetDetail() {
     filter: `factsheet = "${id}"`,
     expand: "depends_on",
   });
+
+  // Fetch all dependencies and related factsheets for the full dependency chain
+  useEffect(() => {
+    if (!id) {
+      setAllDependencies([]);
+      setRelatedFactsheets([]);
+      return;
+    }
+
+    // Fetch all dependencies to traverse the full chain
+    pb.collection("dependencies")
+      .getFullList<Dependency>()
+      .then((deps) => {
+        // Build adjacency lists for traversal
+        const downstream = new Map<string, string[]>(); // factsheet -> what it depends on
+        const upstream = new Map<string, string[]>(); // factsheet -> what depends on it
+
+        deps.forEach((dep) => {
+          if (!downstream.has(dep.factsheet)) {
+            downstream.set(dep.factsheet, []);
+          }
+          downstream.get(dep.factsheet)!.push(dep.depends_on);
+
+          if (!upstream.has(dep.depends_on)) {
+            upstream.set(dep.depends_on, []);
+          }
+          upstream.get(dep.depends_on)!.push(dep.factsheet);
+        });
+
+        // Find all related factsheet IDs (full chain)
+        const related = new Set<string>();
+        related.add(id);
+
+        // Traverse downstream (what the focused factsheet depends on, recursively)
+        const traverseDownstream = (factsheetId: string) => {
+          const children = downstream.get(factsheetId) || [];
+          for (const childId of children) {
+            if (!related.has(childId)) {
+              related.add(childId);
+              traverseDownstream(childId);
+            }
+          }
+        };
+
+        // Traverse upstream (what depends on the focused factsheet, recursively)
+        const traverseUpstream = (factsheetId: string) => {
+          const parents = upstream.get(factsheetId) || [];
+          for (const parentId of parents) {
+            if (!related.has(parentId)) {
+              related.add(parentId);
+              traverseUpstream(parentId);
+            }
+          }
+        };
+
+        traverseDownstream(id);
+        traverseUpstream(id);
+
+        // Filter dependencies to only include those between related factsheets
+        const relevantDeps = deps.filter(
+          (dep) => related.has(dep.factsheet) && related.has(dep.depends_on),
+        );
+        setAllDependencies(relevantDeps);
+
+        // Fetch related factsheets
+        if (related.size > 0) {
+          const filter = Array.from(related)
+            .map((factsheetId) => `id = "${factsheetId}"`)
+            .join(" || ");
+          pb.collection("factsheets")
+            .getFullList<FactsheetExpanded>({ filter, expand: "type" })
+            .then(setRelatedFactsheets)
+            .catch(() => setRelatedFactsheets([]));
+        } else {
+          setRelatedFactsheets([]);
+        }
+      })
+      .catch(() => {
+        setAllDependencies([]);
+        setRelatedFactsheets([]);
+      });
+  }, [id]);
 
   const { records: properties } = useRealtime<FactsheetPropertyExpanded>({
     collection: "factsheet_properties",
@@ -377,6 +465,41 @@ export default function FactsheetDetail() {
           </div>
         )}
       </Card>
+
+      {/* Dependencies Graph */}
+      {relatedFactsheets.length > 1 && (
+        <Card>
+          <CardTitle>Dependencies Graph</CardTitle>
+          <div className="mt-4">
+            <div className="h-[500px] border border-gray-200 rounded-lg overflow-hidden">
+              <DependencyGraph
+                factsheets={relatedFactsheets}
+                dependencies={allDependencies}
+                showComments={false}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-3">
+              {(() => {
+                const directOutgoing = allDependencies.filter(
+                  (d) => d.factsheet === id,
+                ).length;
+                const directIncoming = allDependencies.filter(
+                  (d) => d.depends_on === id,
+                ).length;
+                return (
+                  <>
+                    {directOutgoing > 0 &&
+                      `Depends on ${directOutgoing} factsheet${directOutgoing > 1 ? "s" : ""}`}
+                    {directOutgoing > 0 && directIncoming > 0 && " · "}
+                    {directIncoming > 0 &&
+                      `${directIncoming} factsheet${directIncoming > 1 ? "s" : ""} depend${directIncoming === 1 ? "s" : ""} on this`}
+                  </>
+                );
+              })()}
+            </p>
+          </div>
+        </Card>
+      )}
 
       {/* Properties */}
       <Card>
