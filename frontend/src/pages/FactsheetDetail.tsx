@@ -416,15 +416,49 @@ export default function FactsheetDetail() {
       <Card>
         <div className="flex items-center justify-between mb-4">
           <CardTitle>Dependencies</CardTitle>
-          <Link to={`/factsheets/${id}/dependencies/new`}>
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={<Plus className="w-4 h-4" />}
-            >
-              Add Dependency
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            {dependencies.length > 0 && (
+              <>
+                <Link
+                  to={`/factsheets/${id}/dependencies/print`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<Printer className="w-4 h-4" />}
+                    title="Print direct dependencies only"
+                  >
+                    Print
+                  </Button>
+                </Link>
+                <Link
+                  to={`/factsheets/${id}/dependencies/print-chain`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<Printer className="w-4 h-4" />}
+                    title="Print full dependency chain"
+                  >
+                    Print All
+                  </Button>
+                </Link>
+              </>
+            )}
+            <Link to={`/factsheets/${id}/dependencies/new`}>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<Plus className="w-4 h-4" />}
+              >
+                Add Dependency
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {dependencies.length === 0 ? (

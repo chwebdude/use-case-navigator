@@ -7,6 +7,8 @@ import {
   FactsheetList,
   FactsheetDetail,
   FactsheetPrint,
+  FactsheetDependenciesPrint,
+  FactsheetDependenciesChainPrint,
   FactsheetForm,
   DependencyForm,
   PropertiesEditor,
@@ -26,6 +28,14 @@ function App() {
       <UsernamePrompt isOpen={!isLoggedIn} onSubmit={setUsername} />
       <Routes>
         <Route path="factsheets/:id/print" element={<FactsheetPrint />} />
+        <Route
+          path="factsheets/:id/dependencies/print"
+          element={<FactsheetDependenciesPrint />}
+        />
+        <Route
+          path="factsheets/:id/dependencies/print-chain"
+          element={<FactsheetDependenciesChainPrint />}
+        />
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="factsheets" element={<FactsheetList />} />

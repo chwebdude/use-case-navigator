@@ -2,6 +2,8 @@ export { default as Dashboard } from "./Dashboard";
 export { default as FactsheetList } from "./FactsheetList";
 export { default as FactsheetDetail } from "./FactsheetDetail";
 export { default as FactsheetPrint } from "./FactsheetPrint";
+export { default as FactsheetDependenciesPrint } from "./FactsheetDependenciesPrint";
+export { default as FactsheetDependenciesChainPrint } from "./FactsheetDependenciesChainPrint";
 export { default as FactsheetForm } from "./FactsheetForm";
 export { default as DependencyForm } from "./DependencyForm";
 export { default as PropertiesEditor } from "./PropertiesEditor";

@@ -62,16 +62,16 @@ export default function FactsheetPrint() {
           className="factsheet-print-color-bar h-3 w-full"
           style={{ backgroundColor: typeColor }}
         />
-        <div className="flex-1 p-5 flex flex-col justify-center gap-3 text-center">
+        <div className="flex-1 p-5 flex flex-col justify-center gap-3 text-left">
           {factsheetType && (
             <p className="text-sm font-medium text-gray-600 uppercase tracking-wide break-words">
               {factsheetType.name}
             </p>
           )}
-          <h1 className="text-5xl font-bold leading-tight text-primary-900 break-words w-full">
+          <h2 className="text-3xl font-bold leading-tight text-primary-900 break-words">
             {factsheet.name}
-          </h1>
-          <p className="factsheet-print-description text-sm text-gray-700 whitespace-pre-wrap break-words w-full">
+          </h2>
+          <p className="factsheet-print-description text-sm text-gray-700 whitespace-pre-wrap break-words">
             {factsheet.description || "No description provided"}
           </p>
         </div>
