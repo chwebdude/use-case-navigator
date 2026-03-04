@@ -7,6 +7,7 @@ import {
   Plus,
   GitBranch,
   History,
+  Printer,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -240,6 +241,11 @@ export default function FactsheetDetail() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link to={`/factsheets/${id}/print`} target="_blank" rel="noreferrer">
+            <Button variant="secondary" icon={<Printer className="w-4 h-4" />}>
+              Print View
+            </Button>
+          </Link>
           <Link to={`/factsheets/${id}/edit`}>
             <Button variant="secondary" icon={<Edit className="w-4 h-4" />}>
               Edit

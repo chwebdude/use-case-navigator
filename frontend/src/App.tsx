@@ -6,6 +6,7 @@ import {
   Dashboard,
   FactsheetList,
   FactsheetDetail,
+  FactsheetPrint,
   FactsheetForm,
   DependencyForm,
   PropertiesEditor,
@@ -24,6 +25,7 @@ function App() {
     <BrowserRouter>
       <UsernamePrompt isOpen={!isLoggedIn} onSubmit={setUsername} />
       <Routes>
+        <Route path="factsheets/:id/print" element={<FactsheetPrint />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="factsheets" element={<FactsheetList />} />

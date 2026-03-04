@@ -38,7 +38,9 @@
   --color-error: #ef4444;
 
   /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans:
+    "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
 
   /* Spacing based on 8px grid */
   --spacing-0: 0;
@@ -62,7 +64,8 @@
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-lg:
+    0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 /* Base styles */
@@ -81,4 +84,52 @@ body {
 /* Focus styles */
 *:focus-visible {
   @apply outline-2 outline-offset-2 outline-accent-500;
+}
+
+.factsheet-print-card {
+  width: 200mm;
+  height: 80mm;
+  overflow: hidden;
+  page-break-inside: avoid;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-gray-500);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.factsheet-print-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.factsheet-print-color-bar {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm 5mm 5mm 5mm;
+  }
+
+  body {
+    @apply bg-white;
+  }
+
+  .print-controls {
+    display: none !important;
+  }
+
+  .print-page-root {
+    min-height: auto;
+    padding: 0;
+    margin: 0;
+    background: white;
+    align-items: flex-start;
+    gap: 0;
+  }
 }
