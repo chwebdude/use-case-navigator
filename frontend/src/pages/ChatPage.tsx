@@ -3,6 +3,7 @@ import { Send, Bot, User, AlertCircle, Loader2, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "../components/ui";
 import { Card, CardTitle } from "../components/ui";
+import ChatChart, { parseChartBlocks } from "../components/ChatChart";
 import { useAppSettings } from "../hooks/useAppSettings";
 import pb from "../lib/pocketbase";
 import type {
@@ -46,13 +47,23 @@ async function loadDataContext(): Promise<string> {
     typeCounts[typeName] = (typeCounts[typeName] || 0) + 1;
   }
 
-  lines.push("## Summary (exact counts — use these for any counting questions)");
+  lines.push(
+    "## Summary (exact counts — use these for any counting questions)",
+  );
   lines.push(`- Total factsheets: ${factsheets.length}`);
   lines.push(`- Total factsheet types: ${types.length}`);
   lines.push(`- Total dependencies: ${dependencies.length}`);
   lines.push(`- Total property definitions: ${properties.length}`);
-  lines.push(`- Factsheets by status: ${Object.entries(statusCounts).map(([s, c]) => `${s}: ${c}`).join(", ")}`);
-  lines.push(`- Factsheets by type: ${Object.entries(typeCounts).map(([t, c]) => `${t}: ${c}`).join(", ")}`);
+  lines.push(
+    `- Factsheets by status: ${Object.entries(statusCounts)
+      .map(([s, c]) => `${s}: ${c}`)
+      .join(", ")}`,
+  );
+  lines.push(
+    `- Factsheets by type: ${Object.entries(typeCounts)
+      .map(([t, c]) => `${t}: ${c}`)
+      .join(", ")}`,
+  );
 
   lines.push("\n## Factsheet Types");
   for (const t of types) {
@@ -73,7 +84,9 @@ async function loadDataContext(): Promise<string> {
   for (const d of dependencies) {
     const from = fsMap[d.factsheet] || d.factsheet;
     const to = fsMap[d.depends_on] || d.depends_on;
-    lines.push(`- "${from}" depends on "${to}"${d.description ? ` (${d.description})` : ""}`);
+    lines.push(
+      `- "${from}" depends on "${to}"${d.description ? ` (${d.description})` : ""}`,
+    );
   }
 
   lines.push("\n## Property Definitions & Options");
@@ -112,6 +125,18 @@ ${dataContext}
 
 IMPORTANT: The "Summary" section at the top contains pre-computed exact counts. Always use those numbers for counting questions (e.g. "how many factsheets", "how many dependencies"). Do NOT try to count items yourself from the lists below — use the summary numbers.
 
+When your answer involves numerical data that would benefit from visualization (distributions, comparisons, counts by category), include a chart by adding a fenced code block with the language "chart" containing a JSON object. The JSON must have:
+- "type": one of "bar", "horizontal-bar", or "pie"
+- "title": a short chart title
+- "data": an array of {"label": string, "value": number} objects
+
+Example:
+\`\`\`chart
+{"type": "bar", "title": "Factsheets by Type", "data": [{"label": "Use Case", "value": 10}, {"label": "Platform", "value": 5}]}
+\`\`\`
+
+Always include the chart AFTER a brief text explanation. Use "pie" for proportions/shares, "bar" for comparisons with few categories, and "horizontal-bar" when there are many categories or long labels.
+
 Answer questions based on this data. Be concise and specific. If asked about dependencies, trace the dependency chains. If asked about statistics, use the summary counts or compute from the data. Format your answers with markdown when appropriate.`;
 
   const body = {
@@ -144,6 +169,103 @@ Answer questions based on this data. Be concise and specific. If asked about dep
 
   const data = await response.json();
   return data.choices?.[0]?.message?.content || "No response from model.";
+}
+
+const markdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 className="text-lg font-bold mt-3 mb-1">{children}</h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 className="text-base font-bold mt-3 mb-1">{children}</h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="text-sm font-bold mt-2 mb-1">{children}</h3>
+  ),
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="my-1.5 leading-relaxed">{children}</p>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="list-disc pl-5 my-1.5 space-y-0.5">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="list-decimal pl-5 my-1.5 space-y-0.5">{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="leading-relaxed">{children}</li>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold">{children}</strong>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="border-l-3 border-gray-300 pl-3 my-2 text-gray-600 italic">
+      {children}
+    </blockquote>
+  ),
+  hr: () => <hr className="my-3 border-gray-300" />,
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a
+      href={href}
+      className="text-accent-500 underline"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {children}
+    </a>
+  ),
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre className="bg-gray-800 text-gray-100 rounded p-3 overflow-x-auto my-2 text-xs">
+      {children}
+    </pre>
+  ),
+  code: ({
+    children,
+    className,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+  }) => {
+    const isBlock = className?.startsWith("language-");
+    return isBlock ? (
+      <code>{children}</code>
+    ) : (
+      <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs">
+        {children}
+      </code>
+    );
+  },
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <div className="overflow-x-auto my-2">
+      <table className="border-collapse border border-gray-300 text-xs w-full">
+        {children}
+      </table>
+    </div>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th className="border border-gray-300 px-2 py-1 bg-gray-200 text-left font-semibold">
+      {children}
+    </th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td className="border border-gray-300 px-2 py-1">{children}</td>
+  ),
+};
+
+function AssistantMessage({ content }: { content: string }) {
+  const parts = parseChartBlocks(content);
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.type === "chart" ? (
+          <ChatChart key={i} chart={part.chart} />
+        ) : (
+          <ReactMarkdown key={i} components={markdownComponents}>
+            {part.content}
+          </ReactMarkdown>
+        ),
+      )}
+    </>
+  );
 }
 
 export default function ChatPage() {
@@ -312,79 +434,7 @@ export default function ChatPage() {
               }`}
             >
               {msg.role === "assistant" ? (
-                <ReactMarkdown
-                  components={{
-                    h1: ({ children }) => (
-                      <h1 className="text-lg font-bold mt-3 mb-1">{children}</h1>
-                    ),
-                    h2: ({ children }) => (
-                      <h2 className="text-base font-bold mt-3 mb-1">{children}</h2>
-                    ),
-                    h3: ({ children }) => (
-                      <h3 className="text-sm font-bold mt-2 mb-1">{children}</h3>
-                    ),
-                    p: ({ children }) => (
-                      <p className="my-1.5 leading-relaxed">{children}</p>
-                    ),
-                    ul: ({ children }) => (
-                      <ul className="list-disc pl-5 my-1.5 space-y-0.5">{children}</ul>
-                    ),
-                    ol: ({ children }) => (
-                      <ol className="list-decimal pl-5 my-1.5 space-y-0.5">{children}</ol>
-                    ),
-                    li: ({ children }) => (
-                      <li className="leading-relaxed">{children}</li>
-                    ),
-                    strong: ({ children }) => (
-                      <strong className="font-semibold">{children}</strong>
-                    ),
-                    blockquote: ({ children }) => (
-                      <blockquote className="border-l-3 border-gray-300 pl-3 my-2 text-gray-600 italic">
-                        {children}
-                      </blockquote>
-                    ),
-                    hr: () => <hr className="my-3 border-gray-300" />,
-                    a: ({ href, children }) => (
-                      <a href={href} className="text-accent-500 underline" target="_blank" rel="noopener noreferrer">
-                        {children}
-                      </a>
-                    ),
-                    pre: ({ children }) => (
-                      <pre className="bg-gray-800 text-gray-100 rounded p-3 overflow-x-auto my-2 text-xs">
-                        {children}
-                      </pre>
-                    ),
-                    code: ({ children, className }) => {
-                      const isBlock = className?.startsWith("language-");
-                      return isBlock ? (
-                        <code>{children}</code>
-                      ) : (
-                        <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs">
-                          {children}
-                        </code>
-                      );
-                    },
-                    table: ({ children }) => (
-                      <div className="overflow-x-auto my-2">
-                        <table className="border-collapse border border-gray-300 text-xs w-full">
-                          {children}
-                        </table>
-                      </div>
-                    ),
-                    th: ({ children }) => (
-                      <th className="border border-gray-300 px-2 py-1 bg-gray-200 text-left font-semibold">
-                        {children}
-                      </th>
-                    ),
-                    td: ({ children }) => (
-                      <td className="border border-gray-300 px-2 py-1">
-                        {children}
-                      </td>
-                    ),
-                  }}
-                >
-                  {msg.content}
-                </ReactMarkdown>
+                <AssistantMessage content={msg.content} />
               ) : (
                 msg.content
               )}
