@@ -515,7 +515,15 @@ export default function FactsheetForm() {
             </div>
           )}
 
-          {(["responsibility", "what_it_does", "benefits", "problems_addressed", "potential_ui"] as const).some((f) => !isFieldHidden(f)) && (
+          {(
+            [
+              "responsibility",
+              "what_it_does",
+              "benefits",
+              "problems_addressed",
+              "potential_ui",
+            ] as const
+          ).some((f) => !isFieldHidden(f)) && (
             <div className="border-t border-gray-200 pt-6">
               <h3 className="text-sm font-medium text-gray-700 mb-4">
                 Additional Details
@@ -528,7 +536,10 @@ export default function FactsheetForm() {
                     placeholder="Who is responsible for this?"
                     value={formData.responsibility}
                     onChange={(e) =>
-                      setFormData({ ...formData, responsibility: e.target.value })
+                      setFormData({
+                        ...formData,
+                        responsibility: e.target.value,
+                      })
                     }
                   />
                 )}
