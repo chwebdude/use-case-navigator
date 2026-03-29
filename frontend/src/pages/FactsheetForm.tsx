@@ -1,11 +1,14 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import { Textarea } from "../components/ui/Input";
+import AiDraftPanel from "../components/AiDraftPanel";
 import { useRecord, useRealtime } from "../hooks/useRealtime";
 import { useChangeLog } from "../hooks/useChangeLog";
 import { useAppSettings } from "../hooks/useAppSettings";
+import { useAiDraft } from "../hooks/useAiDraft";
+import type { AiDraft } from "../hooks/useAiDraft";
 import pb from "../lib/pocketbase";
 import { getStatusMeta, getStatusSelectOptions } from "../lib/statusConfig";
 import type {
@@ -86,6 +89,52 @@ export default function FactsheetForm() {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const {
+    draft: aiDraft,
+    loading: aiLoading,
+    error: aiError,
+    isConfigured: aiConfigured,
+    generateDraft,
+    clearDraft,
+  } = useAiDraft({
+    factsheetTypes,
+    propertyDefinitions,
+    propertyOptions,
+    llmEndpoint: appSettings.llmEndpoint,
+    llmApiKey: appSettings.llmApiKey,
+    llmModel: appSettings.llmModel,
+  });
+
+  const triggerAiDraft = useCallback(() => {
+    if (aiConfigured && formData.name.trim()) {
+      generateDraft(formData.name, formData.description, formData.type);
+    }
+  }, [aiConfigured, formData.name, formData.description, formData.type, generateDraft]);
+
+  const applyDraft = useCallback(
+    (draft: AiDraft) => {
+      setFormData((prev) => ({
+        ...prev,
+        name: draft.name || prev.name,
+        description: draft.description || prev.description,
+        responsibility: draft.responsibility || prev.responsibility,
+        benefits: draft.benefits || prev.benefits,
+        what_it_does: draft.what_it_does || prev.what_it_does,
+        problems_addressed: draft.problems_addressed || prev.problems_addressed,
+        potential_ui: draft.potential_ui || prev.potential_ui,
+      }));
+      setPropertyValues((prev) => {
+        const updated = { ...prev };
+        for (const [propId, optId] of Object.entries(draft.properties)) {
+          if (optId) updated[propId] = optId;
+        }
+        return updated;
+      });
+      clearDraft();
+    },
+    [clearDraft],
+  );
 
   useEffect(() => {
     if (existingFactsheet) {
@@ -431,8 +480,10 @@ export default function FactsheetForm() {
     );
   }
 
+  const showAiPanel = aiConfigured;
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className={showAiPanel ? "max-w-5xl mx-auto space-y-6" : "max-w-2xl mx-auto space-y-6"}>
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -448,6 +499,7 @@ export default function FactsheetForm() {
         </h1>
       </div>
 
+      <div className={showAiPanel ? "grid grid-cols-[1fr_380px] gap-6 items-start" : ""}>
       {/* Form */}
       <Card>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -469,6 +521,7 @@ export default function FactsheetForm() {
             placeholder="Enter factsheet name"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            onBlur={triggerAiDraft}
             required
           />
 
@@ -480,6 +533,7 @@ export default function FactsheetForm() {
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
               }
+              onBlur={triggerAiDraft}
               rows={4}
             />
           )}
@@ -616,6 +670,19 @@ export default function FactsheetForm() {
           </div>
         </form>
       </Card>
+
+      {showAiPanel && (
+        <AiDraftPanel
+          draft={aiDraft}
+          loading={aiLoading}
+          error={aiError}
+          propertyDefinitions={propertyDefinitions}
+          propertyOptions={propertyOptions}
+          hiddenFields={selectedType?.hidden_fields ?? []}
+          onApply={applyDraft}
+        />
+      )}
+      </div>
     </div>
   );
 }
