@@ -39,14 +39,19 @@ import type {
   PropertyDefinition,
   PropertyOption,
   MetricExpanded,
+  HiddenField,
 } from "../types";
 
 // Sortable Type Item component
 interface SortableTypeItemProps {
   type: FactsheetType;
   editingType: string | null;
-  editTypeData: { name: string; color: string };
-  setEditTypeData: (data: { name: string; color: string }) => void;
+  editTypeData: { name: string; color: string; hidden_fields: HiddenField[] };
+  setEditTypeData: (data: {
+    name: string;
+    color: string;
+    hidden_fields: HiddenField[];
+  }) => void;
   handleEditType: (type: FactsheetType) => void;
   handleSaveType: () => void;
   handleCancelEditType: () => void;
@@ -90,47 +95,86 @@ function SortableTypeItem({
         <GripVertical className="w-4 h-4 text-gray-400" />
       </div>
       {editingType === type.id ? (
-        <>
-          <div className="flex gap-2">
-            {defaultColors.map((color) => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => setEditTypeData({ ...editTypeData, color })}
-                className={`w-6 h-6 border-2 ${
-                  editTypeData.color === color
-                    ? "border-primary-900"
-                    : "border-transparent"
-                }`}
-                style={{ backgroundColor: color }}
-              />
-            ))}
+        <div className="flex-1 space-y-3">
+          <div className="flex gap-2 items-end">
+            <div className="flex gap-2">
+              {defaultColors.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setEditTypeData({ ...editTypeData, color })}
+                  className={`w-6 h-6 border-2 ${
+                    editTypeData.color === color
+                      ? "border-primary-900"
+                      : "border-transparent"
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            <input
+              type="text"
+              value={editTypeData.name}
+              onChange={(e) =>
+                setEditTypeData({ ...editTypeData, name: e.target.value })
+              }
+              className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSaveType}
+              className="text-green-600 hover:text-green-700"
+            >
+              <Check className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancelEditType}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </Button>
           </div>
-          <input
-            type="text"
-            value={editTypeData.name}
-            onChange={(e) =>
-              setEditTypeData({ ...editTypeData, name: e.target.value })
-            }
-            className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSaveType}
-            className="text-green-600 hover:text-green-700"
-          >
-            <Check className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCancelEditType}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </>
+
+          <div className="bg-white p-3 border border-gray-200">
+            <p className="text-xs font-medium text-gray-600 mb-2">
+              Hide Fields for This Type
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { id: "description", label: "Description" },
+                  { id: "responsibility", label: "Responsibility" },
+                  { id: "what_it_does", label: "What it does" },
+                  { id: "benefits", label: "Benefits" },
+                  { id: "problems_addressed", label: "Problems Addressed" },
+                  { id: "potential_ui", label: "Potential User Interface" },
+                ] as { id: HiddenField; label: string }[]
+              ).map(({ id, label }) => (
+                <label key={id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={editTypeData.hidden_fields?.includes(id) ?? false}
+                    onChange={(e) => {
+                      const current = editTypeData.hidden_fields ?? [];
+                      const updated = e.target.checked
+                        ? [...current, id]
+                        : current.filter((f) => f !== id);
+                      setEditTypeData({
+                        ...editTypeData,
+                        hidden_fields: updated,
+                      });
+                    }}
+                    className="w-4 h-4"
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : (
         <>
           <div
@@ -552,7 +596,11 @@ export default function SettingsPage() {
   const [newType, setNewType] = useState({ name: "", color: defaultColors[0] });
   const [savingType, setSavingType] = useState(false);
   const [editingType, setEditingType] = useState<string | null>(null);
-  const [editTypeData, setEditTypeData] = useState({ name: "", color: "" });
+  const [editTypeData, setEditTypeData] = useState({
+    name: "",
+    color: "",
+    hidden_fields: [] as HiddenField[],
+  });
 
   // Handle type reorder
   const handleTypeReorder = async (event: DragEndEvent) => {
@@ -601,7 +649,11 @@ export default function SettingsPage() {
 
   const handleEditType = (type: FactsheetType) => {
     setEditingType(type.id);
-    setEditTypeData({ name: type.name, color: type.color });
+    setEditTypeData({
+      name: type.name,
+      color: type.color,
+      hidden_fields: type.hidden_fields ?? [],
+    });
   };
 
   const handleSaveType = async () => {
@@ -611,6 +663,10 @@ export default function SettingsPage() {
       await pb.collection("factsheet_types").update(editingType, {
         name: editTypeData.name,
         color: editTypeData.color,
+        hidden_fields:
+          editTypeData.hidden_fields.length > 0
+            ? editTypeData.hidden_fields
+            : null,
       });
       setEditingType(null);
       refreshTypes();

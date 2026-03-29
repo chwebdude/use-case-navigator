@@ -1,10 +1,19 @@
 import type { RecordModel } from "pocketbase";
 
+export type HiddenField =
+  | "description"
+  | "responsibility"
+  | "what_it_does"
+  | "benefits"
+  | "problems_addressed"
+  | "potential_ui";
+
 export interface FactsheetType extends RecordModel {
   name: string;
   color: string;
   icon?: string;
   order?: number;
+  hidden_fields?: HiddenField[];
 }
 
 export interface Factsheet extends RecordModel {

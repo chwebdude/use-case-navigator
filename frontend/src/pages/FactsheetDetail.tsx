@@ -43,6 +43,11 @@ export default function FactsheetDetail() {
     factsheet?.type,
   );
 
+  // Helper function to check if a field should be hidden
+  const isFieldHidden = (fieldName: string): boolean => {
+    return (factsheetType?.hidden_fields ?? []).includes(fieldName as any);
+  };
+
   const { records: dependencies } = useRealtime<DependencyExpanded>({
     collection: "dependencies",
     filter: `factsheet = "${id}"`,
@@ -350,17 +355,19 @@ export default function FactsheetDetail() {
       </div>
 
       {/* Description */}
-      <Card>
-        <CardTitle>Description</CardTitle>
-        <p className="text-gray-600 mt-2 whitespace-pre-wrap">
-          {factsheet.description || "No description provided"}
-        </p>
-      </Card>
+      {!isFieldHidden("description") && (
+        <Card>
+          <CardTitle>Description</CardTitle>
+          <p className="text-gray-600 mt-2 whitespace-pre-wrap">
+            {factsheet.description || "No description provided"}
+          </p>
+        </Card>
+      )}
 
       {/* Details Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Responsibility */}
-        {factsheet.responsibility && (
+        {!isFieldHidden("responsibility") && factsheet.responsibility && (
           <Card>
             <CardTitle>Responsibility</CardTitle>
             <p className="text-gray-600 mt-2">{factsheet.responsibility}</p>
@@ -368,7 +375,7 @@ export default function FactsheetDetail() {
         )}
 
         {/* What it does */}
-        {factsheet.what_it_does && (
+        {!isFieldHidden("what_it_does") && factsheet.what_it_does && (
           <Card>
             <CardTitle>What it does</CardTitle>
             <div
@@ -379,7 +386,7 @@ export default function FactsheetDetail() {
         )}
 
         {/* Benefits */}
-        {factsheet.benefits && (
+        {!isFieldHidden("benefits") && factsheet.benefits && (
           <Card>
             <CardTitle>Benefits</CardTitle>
             <div
@@ -390,18 +397,21 @@ export default function FactsheetDetail() {
         )}
 
         {/* Problems Addressed */}
-        {factsheet.problems_addressed && (
-          <Card>
-            <CardTitle>Problems Addressed</CardTitle>
-            <div
-              className="text-gray-600 mt-2 prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: factsheet.problems_addressed }}
-            />
-          </Card>
-        )}
+        {!isFieldHidden("problems_addressed") &&
+          factsheet.problems_addressed && (
+            <Card>
+              <CardTitle>Problems Addressed</CardTitle>
+              <div
+                className="text-gray-600 mt-2 prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{
+                  __html: factsheet.problems_addressed,
+                }}
+              />
+            </Card>
+          )}
 
         {/* Potential UI */}
-        {factsheet.potential_ui && (
+        {!isFieldHidden("potential_ui") && factsheet.potential_ui && (
           <Card className="md:col-span-2">
             <CardTitle>Potential User Interface</CardTitle>
             <div

@@ -107,6 +107,52 @@ export function Button({
 - Client initialization and type-safe record operations
 - Real-time subscriptions via `useRealtime` hook
 
+### PocketBase Migrations
+
+**Location**: `pocketbase/pb_migrations/`
+
+**Naming**: Use Unix timestamp + descriptive name, e.g., `1703000008_add_hidden_fields_to_factsheet_types.js`
+
+**Correct Syntax** (uses `app` parameter):
+
+```javascript
+/// <reference path="../pb_data/types.d.ts" />
+migrate(
+  (app) => {
+    // Forward migration - making changes
+    const collection = app.findCollectionByNameOrId("collection_name");
+
+    // Add field
+    collection.fields.add(
+      new Field({
+        name: "field_name",
+        type: "text", // or "json", "editor", "number", etc.
+        required: false,
+      }),
+    );
+
+    app.save(collection);
+  },
+  (app) => {
+    // Rollback - reverse the changes
+    const collection = app.findCollectionByNameOrId("collection_name");
+
+    collection.fields.removeByName("field_name");
+
+    app.save(collection);
+  },
+);
+```
+
+**Common Operations**:
+
+- Add field: `collection.fields.add(new Field({ name, type, required }))`
+- Remove field: `collection.fields.removeByName("field_name")`
+- Update field: Get field by index and modify properties
+- Always provide rollback logic in the second function
+
+**Important**: Always use `app` parameter (not `db`), and call `app.save()` to persist changes.
+
 ### Zustand Store
 
 - Use for global app state (user settings, modals, filters)
@@ -251,7 +297,7 @@ export function FactsheetList({ onSelect }: FactsheetListProps) {
 ### Adding a New Collection Type
 
 1. Define TypeScript interface in `src/types/index.ts`
-2. Create migration in `pocketbase/pb_migrations/`
+2. Create migration in `pocketbase/pb_migrations/` using the correct syntax (see PocketBase Migrations section)
 3. Create management component in appropriate folder
 4. Update hook if real-time data needed
 
@@ -267,7 +313,6 @@ export function FactsheetList({ onSelect }: FactsheetListProps) {
 
 ## Important Notes
 
-- This is a "vibe coding" project - experimental and evolving
 - Always maintain TypeScript strict mode
 - Real-time updates require proper unsubscription
 - PocketBase requires migrations for schema changes

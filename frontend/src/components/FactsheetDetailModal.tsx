@@ -42,6 +42,11 @@ export default function FactsheetDetailModal({
     factsheet?.type,
   );
 
+  // Helper function to check if a field should be hidden
+  const isFieldHidden = (fieldName: string): boolean => {
+    return (factsheetType?.hidden_fields ?? []).includes(fieldName as any);
+  };
+
   // Fetch all dependencies and related factsheets for the full dependency chain
   const [allDependencies, setAllDependencies] = useState<Dependency[]>([]);
   const [relatedFactsheets, setRelatedFactsheets] = useState<
@@ -263,7 +268,7 @@ export default function FactsheetDetailModal({
           </div>
 
           {/* Description */}
-          {factsheet.description && (
+          {!isFieldHidden("description") && factsheet.description && (
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-1">
                 Description
@@ -333,7 +338,7 @@ export default function FactsheetDetailModal({
 
           {/* Additional Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {factsheet.responsibility && (
+            {!isFieldHidden("responsibility") && factsheet.responsibility && (
               <div>
                 <h4 className="text-sm font-medium text-gray-500 mb-1">
                   Responsibility
@@ -342,7 +347,7 @@ export default function FactsheetDetailModal({
               </div>
             )}
 
-            {factsheet.what_it_does && (
+            {!isFieldHidden("what_it_does") && factsheet.what_it_does && (
               <div>
                 <h4 className="text-sm font-medium text-gray-500 mb-1">
                   What it does
@@ -354,7 +359,7 @@ export default function FactsheetDetailModal({
               </div>
             )}
 
-            {factsheet.benefits && (
+            {!isFieldHidden("benefits") && factsheet.benefits && (
               <div>
                 <h4 className="text-sm font-medium text-gray-500 mb-1">
                   Benefits
@@ -366,22 +371,23 @@ export default function FactsheetDetailModal({
               </div>
             )}
 
-            {factsheet.problems_addressed && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-500 mb-1">
-                  Problems Addressed
-                </h4>
-                <div
-                  className="text-gray-700 prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{
-                    __html: factsheet.problems_addressed,
-                  }}
-                />
-              </div>
-            )}
+            {!isFieldHidden("problems_addressed") &&
+              factsheet.problems_addressed && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">
+                    Problems Addressed
+                  </h4>
+                  <div
+                    className="text-gray-700 prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{
+                      __html: factsheet.problems_addressed,
+                    }}
+                  />
+                </div>
+              )}
           </div>
 
-          {factsheet.potential_ui && (
+          {!isFieldHidden("potential_ui") && factsheet.potential_ui && (
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-1">
                 Potential User Interface
