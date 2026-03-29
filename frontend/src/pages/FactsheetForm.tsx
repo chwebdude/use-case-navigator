@@ -137,6 +137,11 @@ export default function FactsheetForm() {
   }, [factsheetTypes, isEdit, formData.type]);
 
   const selectedType = factsheetTypes.find((type) => type.id === formData.type);
+
+  const isFieldHidden = (fieldName: string): boolean => {
+    return (selectedType?.hidden_fields ?? []).includes(fieldName as any);
+  };
+
   const statusOptions = useMemo(
     () => getStatusSelectOptions(appSettings.statuses, selectedType),
     [appSettings.statuses, selectedType],
@@ -467,15 +472,17 @@ export default function FactsheetForm() {
             required
           />
 
-          <Textarea
-            label="Description"
-            placeholder="Describe the factsheet..."
-            value={formData.description}
-            onChange={(e) =>
-              setFormData({ ...formData, description: e.target.value })
-            }
-            rows={4}
-          />
+          {!isFieldHidden("description") && (
+            <Textarea
+              label="Description"
+              placeholder="Describe the factsheet..."
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              rows={4}
+            />
+          )}
 
           <Select
             label="Status"
@@ -508,65 +515,77 @@ export default function FactsheetForm() {
             </div>
           )}
 
-          <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-sm font-medium text-gray-700 mb-4">
-              Additional Details
-            </h3>
+          {(["responsibility", "what_it_does", "benefits", "problems_addressed", "potential_ui"] as const).some((f) => !isFieldHidden(f)) && (
+            <div className="border-t border-gray-200 pt-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-4">
+                Additional Details
+              </h3>
 
-            <div className="space-y-6">
-              <Input
-                label="Responsibility"
-                placeholder="Who is responsible for this?"
-                value={formData.responsibility}
-                onChange={(e) =>
-                  setFormData({ ...formData, responsibility: e.target.value })
-                }
-              />
+              <div className="space-y-6">
+                {!isFieldHidden("responsibility") && (
+                  <Input
+                    label="Responsibility"
+                    placeholder="Who is responsible for this?"
+                    value={formData.responsibility}
+                    onChange={(e) =>
+                      setFormData({ ...formData, responsibility: e.target.value })
+                    }
+                  />
+                )}
 
-              <Textarea
-                label="Benefits"
-                placeholder="What are the benefits?"
-                value={formData.benefits}
-                onChange={(e) =>
-                  setFormData({ ...formData, benefits: e.target.value })
-                }
-                rows={3}
-              />
+                {!isFieldHidden("benefits") && (
+                  <Textarea
+                    label="Benefits"
+                    placeholder="What are the benefits?"
+                    value={formData.benefits}
+                    onChange={(e) =>
+                      setFormData({ ...formData, benefits: e.target.value })
+                    }
+                    rows={3}
+                  />
+                )}
 
-              <Textarea
-                label="What it does"
-                placeholder="Describe what this does..."
-                value={formData.what_it_does}
-                onChange={(e) =>
-                  setFormData({ ...formData, what_it_does: e.target.value })
-                }
-                rows={3}
-              />
+                {!isFieldHidden("what_it_does") && (
+                  <Textarea
+                    label="What it does"
+                    placeholder="Describe what this does..."
+                    value={formData.what_it_does}
+                    onChange={(e) =>
+                      setFormData({ ...formData, what_it_does: e.target.value })
+                    }
+                    rows={3}
+                  />
+                )}
 
-              <Textarea
-                label="Problems addressed"
-                placeholder="What problems does this address?"
-                value={formData.problems_addressed}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    problems_addressed: e.target.value,
-                  })
-                }
-                rows={3}
-              />
+                {!isFieldHidden("problems_addressed") && (
+                  <Textarea
+                    label="Problems addressed"
+                    placeholder="What problems does this address?"
+                    value={formData.problems_addressed}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        problems_addressed: e.target.value,
+                      })
+                    }
+                    rows={3}
+                  />
+                )}
 
-              <Textarea
-                label="Potential User Interface"
-                placeholder="Describe the potential user interface..."
-                value={formData.potential_ui}
-                onChange={(e) =>
-                  setFormData({ ...formData, potential_ui: e.target.value })
-                }
-                rows={3}
-              />
+                {!isFieldHidden("potential_ui") && (
+                  <Textarea
+                    label="Potential User Interface"
+                    placeholder="Describe the potential user interface..."
+                    value={formData.potential_ui}
+                    onChange={(e) =>
+                      setFormData({ ...formData, potential_ui: e.target.value })
+                    }
+                    rows={3}
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex gap-4 pt-4">
             <Button
