@@ -86,6 +86,9 @@ interface AppSettings {
   defaultSpiderFilters?: SpiderFilters;
   defaultScatterFilters?: ScatterFilters;
   defaultImpactFilters?: ImpactFilters;
+  llmEndpoint?: string;
+  llmApiKey?: string;
+  llmModel?: string;
 }
 
 interface AppSettingsRecord extends RecordModel {
@@ -99,6 +102,9 @@ interface AppSettingsRecord extends RecordModel {
   default_spider_filters?: string | SpiderFilters;
   default_scatter_filters?: string | ScatterFilters;
   default_impact_filters?: string | ImpactFilters;
+  llm_endpoint?: string;
+  llm_api_key?: string;
+  llm_model?: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -129,6 +135,9 @@ export function useAppSettings() {
         defaultSpiderFilters: parseJsonField(record.default_spider_filters),
         defaultScatterFilters: parseJsonField(record.default_scatter_filters),
         defaultImpactFilters: parseJsonField(record.default_impact_filters),
+        llmEndpoint: record.llm_endpoint || undefined,
+        llmApiKey: record.llm_api_key || undefined,
+        llmModel: record.llm_model || undefined,
       }
     : DEFAULT_SETTINGS;
 
@@ -198,6 +207,9 @@ export function useAppSettings() {
         defaultSpiderFilters: "default_spider_filters",
         defaultScatterFilters: "default_scatter_filters",
         defaultImpactFilters: "default_impact_filters",
+        llmEndpoint: "llm_endpoint",
+        llmApiKey: "llm_api_key",
+        llmModel: "llm_model",
       };
 
       const pbPayload: Record<string, unknown> = {};
