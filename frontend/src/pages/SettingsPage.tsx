@@ -2038,6 +2038,39 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* LLM Configuration */}
+      <Card>
+        <CardTitle>LLM Configuration</CardTitle>
+        <p className="text-sm text-gray-500 mt-1 mb-6">
+          Configure the LLM backend for the &quot;Talk to Data&quot; chat
+          feature. Compatible with LiteLLM and any OpenAI-compatible endpoint.
+        </p>
+        <div className="space-y-4">
+          <Input
+            label="Endpoint URL"
+            placeholder="https://your-litellm-host"
+            value={appSettings.llmEndpoint || ""}
+            onChange={(e) => setAppSettings({ llmEndpoint: e.target.value })}
+            hint="Base URL of your LiteLLM proxy. The path /v1/chat/completions is appended automatically."
+          />
+          <Input
+            label="API Key"
+            type="password"
+            placeholder="sk-..."
+            value={appSettings.llmApiKey || ""}
+            onChange={(e) => setAppSettings({ llmApiKey: e.target.value })}
+            hint="The API key for authenticating with the LLM endpoint."
+          />
+          <Input
+            label="Model"
+            placeholder="gpt-4o-mini"
+            value={appSettings.llmModel || ""}
+            onChange={(e) => setAppSettings({ llmModel: e.target.value })}
+            hint="The model identifier to use (depends on your LiteLLM configuration)."
+          />
+        </div>
+      </Card>
+
       {/* PocketBase Admin */}
       <Card>
         <CardTitle>PocketBase Admin</CardTitle>

@@ -18,6 +18,7 @@ import {
   SpiderPage,
   ScatterPage,
   ImpactAnalysisPage,
+  ChatPage,
 } from "./pages";
 
 function App() {
@@ -55,6 +56,7 @@ function App() {
           <Route path="spider" element={<SpiderPage />} />
           <Route path="scatter" element={<ScatterPage />} />
           <Route path="impact" element={<ImpactAnalysisPage />} />
+          <Route path="chat" element={<ChatPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

@@ -8,6 +8,7 @@ import {
   Settings,
   ScatterChart,
   TrendingUp,
+  MessageSquare,
 } from "lucide-react";
 
 interface NavItem {
@@ -51,6 +52,11 @@ const mainNavItems: NavItem[] = [
     to: "/impact",
     icon: <TrendingUp className="w-5 h-5" />,
     label: "Impact Analysis",
+  },
+  {
+    to: "/chat",
+    icon: <MessageSquare className="w-5 h-5" />,
+    label: "Chat",
   },
 ];
 
