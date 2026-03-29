@@ -48,7 +48,10 @@ export function getStatusesForType(
   globalStatuses: StatusDefinition[] | undefined,
   factsheetType?: FactsheetType,
 ): StatusDefinition[] {
-  if (factsheetType?.status_overrides && factsheetType.status_overrides.length) {
+  if (
+    factsheetType?.status_overrides &&
+    factsheetType.status_overrides.length
+  ) {
     return normalizeStatuses(factsheetType.status_overrides);
   }
   return normalizeStatuses(globalStatuses);
@@ -63,7 +66,9 @@ export function getStatusMeta(
   const exact = statuses.find((s) => s.id === statusId);
   if (exact) return exact;
 
-  const globalExact = normalizeStatuses(globalStatuses).find((s) => s.id === statusId);
+  const globalExact = normalizeStatuses(globalStatuses).find(
+    (s) => s.id === statusId,
+  );
   if (globalExact) return globalExact;
 
   return {
@@ -85,7 +90,13 @@ export function getStatusSelectOptions(
 
 export function getStatusTextColor(hexColor: string): string {
   const hex = hexColor.replace("#", "");
-  const fullHex = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+  const fullHex =
+    hex.length === 3
+      ? hex
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : hex;
   const r = parseInt(fullHex.slice(0, 2), 16);
   const g = parseInt(fullHex.slice(2, 4), 16);
   const b = parseInt(fullHex.slice(4, 6), 16);

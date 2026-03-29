@@ -1,7 +1,12 @@
-import { useMemo, useState } from 'react';
-import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded, PropertyOption } from '../../types';
-import { useAppSettings } from '../../hooks/useAppSettings';
-import { getStatusMeta, getStatusTextColor } from '../../lib/statusConfig';
+import { useMemo, useState } from "react";
+import type {
+  FactsheetExpanded,
+  PropertyDefinition,
+  FactsheetPropertyExpanded,
+  PropertyOption,
+} from "../../types";
+import { useAppSettings } from "../../hooks/useAppSettings";
+import { getStatusMeta, getStatusTextColor } from "../../lib/statusConfig";
 
 export interface FactsheetMoveData {
   factsheet: FactsheetExpanded;
@@ -40,8 +45,14 @@ export default function PropertyMatrix({
     settings: { statuses: globalStatuses },
   } = useAppSettings();
 
-  const [draggedFactsheet, setDraggedFactsheet] = useState<{ fs: FactsheetExpanded; fromX: string; fromY: string } | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ x: string; y: string } | null>(null);
+  const [draggedFactsheet, setDraggedFactsheet] = useState<{
+    fs: FactsheetExpanded;
+    fromX: string;
+    fromY: string;
+  } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ x: string; y: string } | null>(
+    null,
+  );
 
   const yDef = propertyDefinitions.find((p) => p.id === yAxisProperty);
 
@@ -70,7 +81,7 @@ export default function PropertyMatrix({
       if (!propLookup.has(prop.factsheet)) {
         propLookup.set(prop.factsheet, new Map());
       }
-      const optionValue = prop.expand?.option?.value || '';
+      const optionValue = prop.expand?.option?.value || "";
       if (optionValue) {
         propLookup.get(prop.factsheet)!.set(prop.property, optionValue);
       }
@@ -85,29 +96,33 @@ export default function PropertyMatrix({
     });
 
     // Also add "Unknown" row/column for factsheets without values
-    const hasUnknownX = factsheets.some((fs) => !propLookup.get(fs.id)?.get(xAxisProperty));
-    const hasUnknownY = factsheets.some((fs) => !propLookup.get(fs.id)?.get(yAxisProperty));
+    const hasUnknownX = factsheets.some(
+      (fs) => !propLookup.get(fs.id)?.get(xAxisProperty),
+    );
+    const hasUnknownY = factsheets.some(
+      (fs) => !propLookup.get(fs.id)?.get(yAxisProperty),
+    );
 
     if (hasUnknownY) {
-      matrixData.set('Unknown', new Map());
+      matrixData.set("Unknown", new Map());
       xAxisOptions.forEach((xVal) => {
-        matrixData.get('Unknown')!.set(xVal, []);
+        matrixData.get("Unknown")!.set(xVal, []);
       });
       if (hasUnknownX) {
-        matrixData.get('Unknown')!.set('Unknown', []);
+        matrixData.get("Unknown")!.set("Unknown", []);
       }
     }
     if (hasUnknownX) {
       yAxisOptions.forEach((yVal) => {
-        matrixData.get(yVal)!.set('Unknown', []);
+        matrixData.get(yVal)!.set("Unknown", []);
       });
     }
 
     // Place factsheets in matrix
     factsheets.forEach((fs) => {
       const fsProps = propLookup.get(fs.id);
-      const xVal = fsProps?.get(xAxisProperty) || 'Unknown';
-      const yVal = fsProps?.get(yAxisProperty) || 'Unknown';
+      const xVal = fsProps?.get(xAxisProperty) || "Unknown";
+      const yVal = fsProps?.get(yAxisProperty) || "Unknown";
 
       if (matrixData.has(yVal) && matrixData.get(yVal)!.has(xVal)) {
         matrixData.get(yVal)!.get(xVal)!.push(fs);
@@ -115,7 +130,14 @@ export default function PropertyMatrix({
     });
 
     return matrixData;
-  }, [factsheets, properties, xAxisProperty, yAxisProperty, xAxisOptions, yAxisOptions]);
+  }, [
+    factsheets,
+    properties,
+    xAxisProperty,
+    yAxisProperty,
+    xAxisOptions,
+    yAxisOptions,
+  ]);
 
   // Get all X values (options + Unknown if needed)
   const xValues = useMemo(() => {
@@ -123,13 +145,13 @@ export default function PropertyMatrix({
       const propLookup = new Map<string, string>();
       properties.forEach((prop) => {
         if (prop.factsheet === fs.id) {
-          const optionValue = prop.expand?.option?.value || '';
+          const optionValue = prop.expand?.option?.value || "";
           if (optionValue) propLookup.set(prop.property, optionValue);
         }
       });
       return !propLookup.get(xAxisProperty);
     });
-    return hasUnknown ? [...xAxisOptions, 'Unknown'] : xAxisOptions;
+    return hasUnknown ? [...xAxisOptions, "Unknown"] : xAxisOptions;
   }, [xAxisOptions, factsheets, properties, xAxisProperty]);
 
   // Get all Y values (options + Unknown if needed)
@@ -138,13 +160,13 @@ export default function PropertyMatrix({
       const propLookup = new Map<string, string>();
       properties.forEach((prop) => {
         if (prop.factsheet === fs.id) {
-          const optionValue = prop.expand?.option?.value || '';
+          const optionValue = prop.expand?.option?.value || "";
           if (optionValue) propLookup.set(prop.property, optionValue);
         }
       });
       return !propLookup.get(yAxisProperty);
     });
-    return hasUnknown ? [...yAxisOptions, 'Unknown'] : yAxisOptions;
+    return hasUnknown ? [...yAxisOptions, "Unknown"] : yAxisOptions;
   }, [yAxisOptions, factsheets, properties, yAxisProperty]);
 
   // Get property name by id
@@ -155,7 +177,9 @@ export default function PropertyMatrix({
   if (!xAxisProperty || !yAxisProperty) {
     return (
       <div className="w-full h-[400px] bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center">
-        <p className="text-gray-500">Select both X and Y axis properties to view the matrix</p>
+        <p className="text-gray-500">
+          Select both X and Y axis properties to view the matrix
+        </p>
       </div>
     );
   }
@@ -177,9 +201,9 @@ export default function PropertyMatrix({
             <div
               key={xVal}
               className={`flex-1 min-w-[200px] h-12 px-4 rounded-lg border flex items-center justify-center ${
-                xVal === 'Unknown'
-                  ? 'bg-gray-100 text-gray-500 border-gray-200'
-                  : 'bg-gray-200 text-gray-700 border-gray-300'
+                xVal === "Unknown"
+                  ? "bg-gray-100 text-gray-500 border-gray-200"
+                  : "bg-gray-200 text-gray-700 border-gray-300"
               }`}
             >
               <span className="font-semibold text-sm">{xVal}</span>
@@ -195,9 +219,9 @@ export default function PropertyMatrix({
             {/* Y-Axis row label */}
             <div
               className={`w-36 shrink-0 mr-0 min-h-[100px] px-3 py-3 rounded-lg border flex items-center justify-center ${
-                yVal === 'Unknown'
-                  ? 'bg-gray-100 text-gray-500 border-gray-200'
-                  : 'bg-gray-200 text-gray-700 border-gray-300'
+                yVal === "Unknown"
+                  ? "bg-gray-100 text-gray-500 border-gray-200"
+                  : "bg-gray-200 text-gray-700 border-gray-300"
               }`}
             >
               <span className="font-semibold text-sm text-center">{yVal}</span>
@@ -207,20 +231,28 @@ export default function PropertyMatrix({
             <div className="flex-1 flex gap-3 min-w-0">
               {xValues.map((xVal) => {
                 const cellFactsheets = matrix.get(yVal)?.get(xVal) || [];
-                const isDropTarget = dropTarget?.x === xVal && dropTarget?.y === yVal;
-                const isDifferentCell = draggedFactsheet && (draggedFactsheet.fromX !== xVal || draggedFactsheet.fromY !== yVal);
+                const isDropTarget =
+                  dropTarget?.x === xVal && dropTarget?.y === yVal;
+                const isDifferentCell =
+                  draggedFactsheet &&
+                  (draggedFactsheet.fromX !== xVal ||
+                    draggedFactsheet.fromY !== yVal);
 
                 return (
                   <div
                     key={`${yVal}-${xVal}`}
                     className={`flex-1 min-w-[200px] min-h-[100px] rounded-lg p-2 border-2 transition-colors ${
                       isDropTarget && isDifferentCell
-                        ? 'bg-accent-50 border-accent-400'
-                        : 'bg-gray-50 border-gray-200'
+                        ? "bg-accent-50 border-accent-400"
+                        : "bg-gray-50 border-gray-200"
                     }`}
                     onDragOver={(e) => {
                       e.preventDefault();
-                      if (draggedFactsheet && (draggedFactsheet.fromX !== xVal || draggedFactsheet.fromY !== yVal)) {
+                      if (
+                        draggedFactsheet &&
+                        (draggedFactsheet.fromX !== xVal ||
+                          draggedFactsheet.fromY !== yVal)
+                      ) {
                         setDropTarget({ x: xVal, y: yVal });
                       }
                     }}
@@ -228,7 +260,12 @@ export default function PropertyMatrix({
                     onDrop={(e) => {
                       e.preventDefault();
                       setDropTarget(null);
-                      if (draggedFactsheet && onFactsheetMove && (draggedFactsheet.fromX !== xVal || draggedFactsheet.fromY !== yVal)) {
+                      if (
+                        draggedFactsheet &&
+                        onFactsheetMove &&
+                        (draggedFactsheet.fromX !== xVal ||
+                          draggedFactsheet.fromY !== yVal)
+                      ) {
                         onFactsheetMove({
                           factsheet: draggedFactsheet.fs,
                           fromX: draggedFactsheet.fromX,
@@ -242,26 +279,34 @@ export default function PropertyMatrix({
                   >
                     <div className="space-y-2">
                       {cellFactsheets.map((fs) => {
-                        const typeColor = fs.expand?.type?.color || '#6b7280';
+                        const typeColor = fs.expand?.type?.color || "#6b7280";
                         const statusMeta = getStatusMeta(
                           fs.status_id || fs.status,
                           globalStatuses,
                           fs.expand?.type,
                         );
-                        const fsPropertyValues = factsheetPropertyValues?.get(fs.id);
+                        const fsPropertyValues = factsheetPropertyValues?.get(
+                          fs.id,
+                        );
                         const isDragging = draggedFactsheet?.fs.id === fs.id;
 
                         return (
                           <div
                             key={fs.id}
                             draggable
-                            onDragStart={() => setDraggedFactsheet({ fs, fromX: xVal, fromY: yVal })}
+                            onDragStart={() =>
+                              setDraggedFactsheet({
+                                fs,
+                                fromX: xVal,
+                                fromY: yVal,
+                              })
+                            }
                             onDragEnd={() => {
                               setDraggedFactsheet(null);
                               setDropTarget(null);
                             }}
                             className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all cursor-grab overflow-hidden ${
-                              isDragging ? 'opacity-50 scale-95' : ''
+                              isDragging ? "opacity-50 scale-95" : ""
                             }`}
                             onClick={() => onFactsheetClick?.(fs.id)}
                           >
@@ -291,20 +336,29 @@ export default function PropertyMatrix({
                               </div>
 
                               {/* Property values */}
-                              {displayProperties.length > 0 && fsPropertyValues && (
-                                <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
-                                  {displayProperties.map((propId) => {
-                                    const value = fsPropertyValues.get(propId);
-                                    if (!value) return null;
-                                    return (
-                                      <div key={propId} className="flex justify-between gap-2 text-xs">
-                                        <span className="text-gray-500">{getPropertyName(propId)}</span>
-                                        <span className="text-primary-900 font-medium">{value}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                              {displayProperties.length > 0 &&
+                                fsPropertyValues && (
+                                  <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                                    {displayProperties.map((propId) => {
+                                      const value =
+                                        fsPropertyValues.get(propId);
+                                      if (!value) return null;
+                                      return (
+                                        <div
+                                          key={propId}
+                                          className="flex justify-between gap-2 text-xs"
+                                        >
+                                          <span className="text-gray-500">
+                                            {getPropertyName(propId)}
+                                          </span>
+                                          <span className="text-primary-900 font-medium">
+                                            {value}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                             </div>
                           </div>
                         );

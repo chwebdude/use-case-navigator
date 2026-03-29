@@ -613,6 +613,7 @@ export default function SpiderPage() {
                   </span>
                 )}
                 <Badge
+                  className="rounded-full"
                   style={{
                     backgroundColor: selectedFactsheetStatusMeta?.color,
                     color: getStatusTextColor(

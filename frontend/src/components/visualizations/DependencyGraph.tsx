@@ -15,6 +15,8 @@ import {
 import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
 import type { FactsheetExpanded, Dependency, PropertyDefinition } from '../../types';
+import { useAppSettings } from '../../hooks/useAppSettings';
+import { getStatusMeta, getStatusTextColor } from '../../lib/statusConfig';
 
 export interface ConnectionRequest {
   sourceId: string;
@@ -46,7 +48,8 @@ interface PropertyDisplay {
 interface FactsheetNodeProps {
   data: {
     label: string;
-    status: string;
+    statusLabel: string;
+    statusColor: string;
     typeColor: string;
     typeName: string;
     factsheetId: string;
@@ -117,12 +120,6 @@ function getLayoutedElements(nodes: Node[], edges: Edge[]) {
 
 // Custom node for factsheets
 function FactsheetNode({ data }: FactsheetNodeProps) {
-  const statusColors: Record<string, string> = {
-    active: 'border-green-500',
-    draft: 'border-gray-300',
-    archived: 'border-amber-500',
-  };
-
   const hasProperties = data.properties && data.properties.length > 0;
   const isDimmed = data.dimmed === true;
 
@@ -130,7 +127,7 @@ function FactsheetNode({ data }: FactsheetNodeProps) {
     <div
       className={`px-4 py-3 border-2 shadow-sm min-w-[180px] transition-opacity ${
         isDimmed ? 'bg-gray-100 opacity-30' : 'bg-white'
-      } ${statusColors[data.status] || statusColors.draft}`}
+      } border-gray-200`}
     >
       <Handle type="target" position={Position.Top} className="!bg-accent-500 !w-3 !h-3" />
       <div className="flex items-center gap-2 mb-1">
@@ -146,7 +143,17 @@ function FactsheetNode({ data }: FactsheetNodeProps) {
         </span>
       </div>
       <div className={`font-medium text-sm ${isDimmed ? 'text-gray-400' : 'text-primary-900'}`}>{data.label}</div>
-      <div className="text-xs text-gray-500 mt-1 capitalize">{data.status}</div>
+      <div className="mt-1">
+        <span
+          className="inline-flex px-2 py-0.5 text-xs rounded-full"
+          style={{
+            backgroundColor: isDimmed ? '#d1d5db' : data.statusColor,
+            color: isDimmed ? '#6b7280' : getStatusTextColor(data.statusColor),
+          }}
+        >
+          {data.statusLabel}
+        </span>
+      </div>
       {hasProperties && (
         <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
           {data.properties!.map((prop, idx) => (
@@ -180,6 +187,10 @@ export default function DependencyGraph({
   focusedFactsheetId,
   unrelatedDisplayMode = 'dim',
 }: DependencyGraphProps) {
+  const {
+    settings: { statuses: globalStatuses },
+  } = useAppSettings();
+
   // Calculate related factsheet IDs when a factsheet is focused
   // Includes the full dependency chain (upstream and downstream)
   const relatedFactsheetIds = useMemo(() => {
@@ -253,6 +264,11 @@ export default function DependencyGraph({
 
       const typeColor = fs.expand?.type?.color || '#6b7280';
       const typeName = fs.expand?.type?.name || 'Unknown';
+      const statusMeta = getStatusMeta(
+        fs.status_id || fs.status,
+        globalStatuses,
+        fs.expand?.type,
+      );
 
       // Get properties to display for this factsheet
       const properties: PropertyDisplay[] = [];
@@ -278,7 +294,8 @@ export default function DependencyGraph({
         position: { x: 0, y: 0 }, // Will be set by dagre
         data: {
           label: fs.name,
-          status: fs.status,
+          statusLabel: statusMeta.label,
+          statusColor: statusMeta.color,
           typeColor,
           typeName,
           factsheetId: fs.id,
@@ -329,7 +346,7 @@ export default function DependencyGraph({
 
     // Apply dagre layout
     return getLayoutedElements(nodes, edges);
-  }, [factsheets, dependencies, displayProperties, factsheetPropertyValues, propertyNameMap, showComments, relatedFactsheetIds, unrelatedDisplayMode]);
+  }, [factsheets, dependencies, displayProperties, factsheetPropertyValues, propertyNameMap, showComments, relatedFactsheetIds, unrelatedDisplayMode, globalStatuses]);
 
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);

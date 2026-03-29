@@ -648,6 +648,7 @@ export default function ImpactAnalysisPage() {
                         </td>
                         <td className="p-3">
                           <Badge
+                            className="rounded-full"
                             style={{
                               backgroundColor: statusMeta.color,
                               color: getStatusTextColor(statusMeta.color),

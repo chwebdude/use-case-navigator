@@ -7,10 +7,7 @@ import { useRecord, useRealtime } from "../hooks/useRealtime";
 import { useChangeLog } from "../hooks/useChangeLog";
 import { useAppSettings } from "../hooks/useAppSettings";
 import pb from "../lib/pocketbase";
-import {
-  getStatusMeta,
-  getStatusSelectOptions,
-} from "../lib/statusConfig";
+import { getStatusMeta, getStatusSelectOptions } from "../lib/statusConfig";
 import type {
   Factsheet,
   FactsheetType,
@@ -147,7 +144,10 @@ export default function FactsheetForm() {
 
   useEffect(() => {
     if (statusOptions.length === 0) return;
-    if (!formData.status || !statusOptions.some((opt) => opt.value === formData.status)) {
+    if (
+      !formData.status ||
+      !statusOptions.some((opt) => opt.value === formData.status)
+    ) {
       setFormData((prev) => ({ ...prev, status: statusOptions[0].value }));
     }
   }, [statusOptions, formData.status]);
@@ -310,7 +310,9 @@ export default function FactsheetForm() {
           await logFactsheetUpdated(factsheetId, formData.name, fieldChanges);
         }
       } else {
-        const created = await pb.collection("factsheets").create(factsheetPayload);
+        const created = await pb
+          .collection("factsheets")
+          .create(factsheetPayload);
         factsheetId = created.id;
 
         // Log the creation

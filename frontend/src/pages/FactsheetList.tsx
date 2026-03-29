@@ -295,6 +295,7 @@ export default function FactsheetList() {
                         </span>
                         <Badge
                           size="sm"
+                          className="rounded-full"
                           style={{
                             backgroundColor: statusMeta.color,
                             color: getStatusTextColor(statusMeta.color),

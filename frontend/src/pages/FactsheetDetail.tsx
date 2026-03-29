@@ -324,6 +324,7 @@ export default function FactsheetDetail() {
                 </span>
               )}
               <Badge
+                className="rounded-full"
                 style={{
                   backgroundColor: statusMeta.color,
                   color: getStatusTextColor(statusMeta.color),

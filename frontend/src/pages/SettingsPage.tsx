@@ -68,10 +68,7 @@ function StatusConfigEditor({
     setDraftIds(statuses.map((status) => status.id));
   }, [statuses]);
 
-  const handleChange = (
-    index: number,
-    patch: Partial<StatusDefinition>,
-  ) => {
+  const handleChange = (index: number, patch: Partial<StatusDefinition>) => {
     const next = statuses.map((status, idx) =>
       idx === index ? { ...status, ...patch } : status,
     );
@@ -898,7 +895,8 @@ export default function SettingsPage() {
       color: type.color,
       hidden_fields: type.hidden_fields ?? [],
       has_status_override:
-        Array.isArray(type.status_overrides) && type.status_overrides.length > 0,
+        Array.isArray(type.status_overrides) &&
+        type.status_overrides.length > 0,
       status_overrides: normalizeStatuses(
         type.status_overrides ?? appSettings.statuses,
       ),

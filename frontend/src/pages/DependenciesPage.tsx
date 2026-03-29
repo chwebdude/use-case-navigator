@@ -23,6 +23,7 @@ import { useAppSettings } from "../hooks/useAppSettings";
 import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
 import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import pb from "../lib/pocketbase";
+import { getStatusesForType, getStatusTextColor } from "../lib/statusConfig";
 import type {
   FactsheetExpanded,
   Dependency,
@@ -383,6 +384,22 @@ export default function DependenciesPage() {
   };
 
   const loading = loadingFactsheets || loadingDeps;
+
+  const statusLegendItems = useMemo(() => {
+    const seen = new Set<string>();
+    const all = [
+      ...getStatusesForType(settings.statuses),
+      ...factsheetTypes.flatMap((type) =>
+        getStatusesForType(settings.statuses, type),
+      ),
+    ].filter((status) => {
+      if (seen.has(status.id)) return false;
+      seen.add(status.id);
+      return true;
+    });
+    return all;
+  }, [settings.statuses, factsheetTypes]);
+
   const hasFilters =
     search !== "" ||
     typeFilter !== "" ||
@@ -564,18 +581,19 @@ export default function DependenciesPage() {
           <div className="flex items-center gap-2 mr-4">
             <span className="font-medium text-primary-900">Status:</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-green-500 bg-white"></div>
-            <span>Active</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-gray-300 bg-white"></div>
-            <span>Draft</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-amber-500 bg-white"></div>
-            <span>Archived</span>
-          </div>
+          {statusLegendItems.map((status) => (
+            <div key={status.id} className="flex items-center gap-2">
+              <span
+                className="inline-flex px-2 py-0.5 text-xs rounded-full"
+                style={{
+                  backgroundColor: status.color,
+                  color: getStatusTextColor(status.color),
+                }}
+              >
+                {status.label}
+              </span>
+            </div>
+          ))}
           {factsheetTypes.length > 0 && (
             <>
               <div className="border-l border-gray-300 pl-4 ml-2 flex items-center gap-2">
