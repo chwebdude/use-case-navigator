@@ -81,6 +81,7 @@ export default function DependenciesPage() {
   );
 
   const [layoutKey, setLayoutKey] = useState(0);
+  const isFirstRender = useRef(true);
 
   // Connection modal state (for creating new dependencies)
   const [connectionModal, setConnectionModal] =
@@ -195,6 +196,24 @@ export default function DependenciesPage() {
       (dep) => visibleIds.has(dep.factsheet) && visibleIds.has(dep.depends_on),
     );
   }, [dependencies, filteredFactsheets]);
+
+  // Auto-align whenever the set of filtered factsheets changes due to filtering
+  const filteredFactsheetIds = useMemo(
+    () =>
+      filteredFactsheets
+        .map((fs) => fs.id)
+        .sort()
+        .join(","),
+    [filteredFactsheets],
+  );
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setLayoutKey((k) => k + 1);
+  }, [filteredFactsheetIds]);
 
   const handleNodeClick = (factsheetId: string) => {
     setSelectedFactsheetId(factsheetId);
