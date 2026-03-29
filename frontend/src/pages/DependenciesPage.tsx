@@ -575,44 +575,6 @@ export default function DependenciesPage() {
         }
       />
 
-      {/* Legend */}
-      <Card padding="sm">
-        <div className="flex flex-wrap gap-6 text-sm">
-          <div className="flex items-center gap-2 mr-4">
-            <span className="font-medium text-primary-900">Status:</span>
-          </div>
-          {statusLegendItems.map((status) => (
-            <div key={status.id} className="flex items-center gap-2">
-              <span
-                className="inline-flex px-2 py-0.5 text-xs rounded-full"
-                style={{
-                  backgroundColor: status.color,
-                  color: getStatusTextColor(status.color),
-                }}
-              >
-                {status.label}
-              </span>
-            </div>
-          ))}
-          {factsheetTypes.length > 0 && (
-            <>
-              <div className="border-l border-gray-300 pl-4 ml-2 flex items-center gap-2">
-                <span className="font-medium text-primary-900">Types:</span>
-              </div>
-              {factsheetTypes.map((type) => (
-                <div key={type.id} className="flex items-center gap-2">
-                  <div
-                    className="w-4 h-4"
-                    style={{ backgroundColor: type.color }}
-                  />
-                  <span>{type.name}</span>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-      </Card>
-
       {/* Graph */}
       {loading ? (
         <Card className="h-[600px] flex items-center justify-center">
