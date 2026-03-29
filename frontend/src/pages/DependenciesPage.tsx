@@ -23,7 +23,6 @@ import { useAppSettings } from "../hooks/useAppSettings";
 import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
 import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import pb from "../lib/pocketbase";
-import { getStatusesForType, getStatusTextColor } from "../lib/statusConfig";
 import type {
   FactsheetExpanded,
   Dependency,
@@ -403,21 +402,6 @@ export default function DependenciesPage() {
   };
 
   const loading = loadingFactsheets || loadingDeps;
-
-  const statusLegendItems = useMemo(() => {
-    const seen = new Set<string>();
-    const all = [
-      ...getStatusesForType(settings.statuses),
-      ...factsheetTypes.flatMap((type) =>
-        getStatusesForType(settings.statuses, type),
-      ),
-    ].filter((status) => {
-      if (seen.has(status.id)) return false;
-      seen.add(status.id);
-      return true;
-    });
-    return all;
-  }, [settings.statuses, factsheetTypes]);
 
   const hasFilters =
     search !== "" ||
