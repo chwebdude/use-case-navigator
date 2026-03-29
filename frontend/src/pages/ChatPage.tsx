@@ -145,7 +145,7 @@ Answer questions based on this data. Be concise and specific. If asked about dep
       { role: "system", content: systemPrompt },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
     ],
-    temperature: 0,
+    temperature: 0.7,
   };
 
   const baseUrl = endpoint.replace(/\/+$/, "");

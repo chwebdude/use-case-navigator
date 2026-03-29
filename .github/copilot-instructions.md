@@ -311,6 +311,50 @@ export function FactsheetList({ onSelect }: FactsheetListProps) {
 
 ---
 
+## AI / Chat Feature ("Talk to Data")
+
+The app includes a chat page (`/chat`) where users can ask natural language questions about their factsheets, dependencies, and properties. It connects to a configurable LLM backend.
+
+### Architecture
+
+- **Page**: `src/pages/ChatPage.tsx` — full chat UI with message history, input, suggestions
+- **Chart component**: `src/components/ChatChart.tsx` — D3-based chart rendering (bar, horizontal-bar, pie) embedded in chat responses
+- **LLM settings**: stored in `app_settings` PocketBase collection (`llm_endpoint`, `llm_api_key`, `llm_model`), managed via `useAppSettings` hook
+- **Settings UI**: LLM Configuration section in `SettingsPage.tsx`
+
+### How It Works
+
+1. On page load, all factsheets, types, dependencies, property definitions, options, and factsheet-property links are fetched from PocketBase
+2. A **data context** string is built with a pre-computed summary (exact counts) followed by full listings
+3. The data context is injected into a system prompt sent to the LLM along with user messages
+4. The LLM endpoint must be **OpenAI-compatible** (`/v1/chat/completions`) — the base URL has this path appended automatically
+5. Works with **LiteLLM**, OpenAI, Azure OpenAI, or any compatible proxy
+
+### Chart Visualization
+
+- The system prompt instructs the LLM to include chart data in fenced ` ```chart ` code blocks containing JSON
+- Chart JSON format: `{"type": "bar"|"horizontal-bar"|"pie", "title": "...", "data": [{"label": "...", "value": number}]}`
+- `parseChartBlocks()` in `ChatChart.tsx` splits assistant messages into text and chart parts
+- Text parts render as markdown (via `react-markdown`), chart parts render as D3 SVG visualizations
+- Charts are rendered inline within the chat message bubble
+
+### Configuration
+
+Users configure in **Settings → LLM Configuration**:
+
+- **Endpoint URL**: Base URL of the LLM proxy (e.g., `https://litellm.example.com`)
+- **API Key**: Bearer token for authentication
+- **Model**: Model identifier (e.g., `gpt-4o-mini`)
+
+### Key Design Decisions
+
+- Temperature is set to `0` for deterministic, consistent answers
+- Pre-computed summary counts are included in the system prompt to prevent the LLM from miscounting items
+- Data is loaded once per session (page load), not per message
+- If LLM settings are not configured, the chat page shows a friendly prompt linking to Settings
+
+---
+
 ## Important Notes
 
 - Always maintain TypeScript strict mode
