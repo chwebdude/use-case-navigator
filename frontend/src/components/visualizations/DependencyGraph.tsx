@@ -396,16 +396,18 @@ export default function DependencyGraph({
 
   // Sync state with computed values when props change
   useEffect(() => {
-    // Create stable state string including dimmed status, properties, and labels for comparison
+    // Create stable state string including dimmed status, properties, labels, and status for comparison
     const nodeState = computedNodes
       .map((n) => {
         const data = n.data as {
           dimmed?: boolean;
           properties?: PropertyDisplay[];
+          statusLabel?: string;
+          statusColor?: string;
         };
         const propsStr =
           data.properties?.map((p) => `${p.name}:${p.value}`).join("|") || "";
-        return `${n.id}:${data.dimmed}:${propsStr}`;
+        return `${n.id}:${data.dimmed}:${propsStr}:${data.statusLabel}:${data.statusColor}`;
       })
       .sort()
       .join(",");
