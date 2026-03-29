@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Plus,
   Trash2,
@@ -34,29 +34,237 @@ import {
   type IconId,
 } from "../hooks/useAppSettings";
 import pb from "../lib/pocketbase";
+import { normalizeStatuses } from "../lib/statusConfig";
 import type {
   FactsheetType,
   PropertyDefinition,
   PropertyOption,
   MetricExpanded,
   HiddenField,
+  StatusDefinition,
 } from "../types";
+
+interface StatusConfigEditorProps {
+  statuses: StatusDefinition[];
+  onChange: (next: StatusDefinition[]) => void;
+  addLabel: string;
+}
+
+function StatusConfigEditor({
+  statuses,
+  onChange,
+  addLabel,
+}: StatusConfigEditorProps) {
+  const [newStatus, setNewStatus] = useState<StatusDefinition>({
+    id: "",
+    label: "",
+    color: "#6b7280",
+  });
+  const [draftIds, setDraftIds] = useState<string[]>(
+    statuses.map((status) => status.id),
+  );
+
+  useEffect(() => {
+    setDraftIds(statuses.map((status) => status.id));
+  }, [statuses]);
+
+  const handleChange = (
+    index: number,
+    patch: Partial<StatusDefinition>,
+  ) => {
+    const next = statuses.map((status, idx) =>
+      idx === index ? { ...status, ...patch } : status,
+    );
+    onChange(normalizeStatuses(next));
+  };
+
+  const handleDelete = (index: number) => {
+    if (statuses.length <= 1) {
+      alert("At least one status is required.");
+      return;
+    }
+    onChange(statuses.filter((_, idx) => idx !== index));
+  };
+
+  const handleDraftIdChange = (index: number, value: string) => {
+    setDraftIds((prev) => prev.map((id, idx) => (idx === index ? value : id)));
+  };
+
+  const commitIdOnBlur = (index: number) => {
+    const nextId = (draftIds[index] ?? "").trim();
+    const currentId = statuses[index]?.id ?? "";
+
+    if (!nextId) {
+      alert("Status ID is required.");
+      setDraftIds((prev) =>
+        prev.map((id, idx) => (idx === index ? currentId : id)),
+      );
+      return;
+    }
+
+    const hasDuplicate = statuses.some(
+      (status, idx) => idx !== index && status.id === nextId,
+    );
+
+    if (hasDuplicate) {
+      alert(`Status ID "${nextId}" already exists.`);
+      setDraftIds((prev) =>
+        prev.map((id, idx) => (idx === index ? currentId : id)),
+      );
+      return;
+    }
+
+    if (nextId !== currentId) {
+      handleChange(index, { id: nextId });
+    }
+  };
+
+  const handleAdd = () => {
+    const trimmedId = newStatus.id.trim();
+    const trimmedLabel = newStatus.label.trim();
+    if (!trimmedId || !trimmedLabel) {
+      return;
+    }
+    if (statuses.some((status) => status.id === trimmedId)) {
+      alert(`Status ID "${trimmedId}" already exists.`);
+      return;
+    }
+    onChange(
+      normalizeStatuses([
+        ...statuses,
+        {
+          id: trimmedId,
+          label: trimmedLabel,
+          color: newStatus.color,
+        },
+      ]),
+    );
+    setNewStatus({ id: "", label: "", color: "#6b7280" });
+  };
+
+  return (
+    <div className="space-y-3">
+      {statuses.map((status, index) => (
+        <div key={index} className="grid grid-cols-12 gap-2 items-end">
+          <div className="col-span-4">
+            <label className="block text-xs text-gray-600 mb-1">ID</label>
+            <input
+              type="text"
+              value={draftIds[index] ?? status.id}
+              onChange={(e) => handleDraftIdChange(index, e.target.value)}
+              onBlur={() => commitIdOnBlur(index)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="w-full px-2 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+          <div className="col-span-5">
+            <label className="block text-xs text-gray-600 mb-1">Label</label>
+            <input
+              type="text"
+              value={status.label}
+              onChange={(e) => handleChange(index, { label: e.target.value })}
+              className="w-full px-2 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs text-gray-600 mb-1">Color</label>
+            <input
+              type="color"
+              value={status.color}
+              onChange={(e) => handleChange(index, { color: e.target.value })}
+              className="w-full h-9 border border-gray-300"
+            />
+          </div>
+          <div className="col-span-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDelete(index)}
+              className="text-gray-400 hover:text-red-500"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      ))}
+
+      <div className="pt-2 border-t border-gray-200">
+        <div className="grid grid-cols-12 gap-2 items-end">
+          <div className="col-span-4">
+            <label className="block text-xs text-gray-600 mb-1">New ID</label>
+            <input
+              type="text"
+              value={newStatus.id}
+              onChange={(e) =>
+                setNewStatus((prev) => ({ ...prev, id: e.target.value }))
+              }
+              className="w-full px-2 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+          <div className="col-span-5">
+            <label className="block text-xs text-gray-600 mb-1">
+              New Label
+            </label>
+            <input
+              type="text"
+              value={newStatus.label}
+              onChange={(e) =>
+                setNewStatus((prev) => ({ ...prev, label: e.target.value }))
+              }
+              className="w-full px-2 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs text-gray-600 mb-1">Color</label>
+            <input
+              type="color"
+              value={newStatus.color}
+              onChange={(e) =>
+                setNewStatus((prev) => ({ ...prev, color: e.target.value }))
+              }
+              className="w-full h-9 border border-gray-300"
+            />
+          </div>
+          <div className="col-span-1">
+            <Button variant="ghost" size="sm" onClick={handleAdd}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">{addLabel}</p>
+      </div>
+    </div>
+  );
+}
 
 // Sortable Type Item component
 interface SortableTypeItemProps {
   type: FactsheetType;
   editingType: string | null;
-  editTypeData: { name: string; color: string; hidden_fields: HiddenField[] };
+  editTypeData: {
+    name: string;
+    color: string;
+    hidden_fields: HiddenField[];
+    has_status_override: boolean;
+    status_overrides: StatusDefinition[];
+  };
   setEditTypeData: (data: {
     name: string;
     color: string;
     hidden_fields: HiddenField[];
+    has_status_override: boolean;
+    status_overrides: StatusDefinition[];
   }) => void;
   handleEditType: (type: FactsheetType) => void;
   handleSaveType: () => void;
   handleCancelEditType: () => void;
   handleDeleteType: (id: string) => void;
   defaultColors: string[];
+  globalStatuses: StatusDefinition[];
 }
 
 function SortableTypeItem({
@@ -69,6 +277,7 @@ function SortableTypeItem({
   handleCancelEditType,
   handleDeleteType,
   defaultColors,
+  globalStatuses,
 }: SortableTypeItemProps) {
   const {
     attributes,
@@ -173,6 +382,39 @@ function SortableTypeItem({
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="bg-white p-3 border border-gray-200 space-y-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={editTypeData.has_status_override}
+                onChange={(e) =>
+                  setEditTypeData({
+                    ...editTypeData,
+                    has_status_override: e.target.checked,
+                    status_overrides: e.target.checked
+                      ? normalizeStatuses(editTypeData.status_overrides)
+                      : normalizeStatuses(globalStatuses),
+                  })
+                }
+                className="w-4 h-4"
+              />
+              <span>Override global statuses for this type</span>
+            </label>
+
+            {editTypeData.has_status_override && (
+              <StatusConfigEditor
+                statuses={editTypeData.status_overrides}
+                onChange={(status_overrides) =>
+                  setEditTypeData({
+                    ...editTypeData,
+                    status_overrides,
+                  })
+                }
+                addLabel="These statuses are only used by this factsheet type."
+              />
+            )}
           </div>
         </div>
       ) : (
@@ -600,6 +842,8 @@ export default function SettingsPage() {
     name: "",
     color: "",
     hidden_fields: [] as HiddenField[],
+    has_status_override: false,
+    status_overrides: normalizeStatuses(appSettings.statuses),
   });
 
   // Handle type reorder
@@ -653,6 +897,11 @@ export default function SettingsPage() {
       name: type.name,
       color: type.color,
       hidden_fields: type.hidden_fields ?? [],
+      has_status_override:
+        Array.isArray(type.status_overrides) && type.status_overrides.length > 0,
+      status_overrides: normalizeStatuses(
+        type.status_overrides ?? appSettings.statuses,
+      ),
     });
   };
 
@@ -667,6 +916,9 @@ export default function SettingsPage() {
           editTypeData.hidden_fields.length > 0
             ? editTypeData.hidden_fields
             : null,
+        status_overrides: editTypeData.has_status_override
+          ? normalizeStatuses(editTypeData.status_overrides)
+          : null,
       });
       setEditingType(null);
       refreshTypes();
@@ -1163,6 +1415,21 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* Status Configuration */}
+      <Card>
+        <CardTitle>Global Status Configuration</CardTitle>
+        <p className="text-sm text-gray-500 mt-1 mb-6">
+          Configure status IDs, labels, and colors. Factsheet records store the
+          status ID, while labels and colors can be updated at any time.
+        </p>
+
+        <StatusConfigEditor
+          statuses={normalizeStatuses(appSettings.statuses)}
+          onChange={(statuses) => setAppSettings({ statuses })}
+          addLabel="Global statuses are used by default unless a factsheet type overrides them."
+        />
+      </Card>
+
       {/* Default Page Filters */}
       <Card>
         <CardTitle>Default Page Filters</CardTitle>
@@ -1463,6 +1730,7 @@ export default function SettingsPage() {
                   handleCancelEditType={handleCancelEditType}
                   handleDeleteType={handleDeleteType}
                   defaultColors={defaultColors}
+                  globalStatuses={normalizeStatuses(appSettings.statuses)}
                 />
               ))}
             </SortableContext>

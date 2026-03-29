@@ -3,6 +3,8 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardTitle, Button, MetricBadge } from "../components/ui";
 import { useRealtime } from "../hooks/useRealtime";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
 import type {
   FactsheetType,
   Dependency,
@@ -39,6 +41,10 @@ function StatCard({ title, value, icon, color, href }: StatCardProps) {
 }
 
 export default function Dashboard() {
+  const {
+    settings: { statuses: globalStatuses },
+  } = useAppSettings();
+
   const { records: factsheets, loading: loadingFactsheets } =
     useRealtime<FactsheetExpanded>({
       collection: "factsheets",
@@ -66,7 +72,9 @@ export default function Dashboard() {
     expand: "option",
   });
 
-  const activeFactsheets = factsheets.filter((fs) => fs.status === "active");
+  const activeFactsheets = factsheets.filter(
+    (fs) => (fs.status_id || fs.status) === "active",
+  );
 
   const propertyLookup = useMemo(() => {
     const map = new Map<string, Map<string, FactsheetPropertyExpanded>>();
@@ -205,6 +213,11 @@ export default function Dashboard() {
             {factsheets.slice(0, 5).map((factsheet) => {
               const typeColor = factsheet.expand?.type?.color || "#6b7280";
               const typeName = factsheet.expand?.type?.name || "Unknown";
+              const statusMeta = getStatusMeta(
+                factsheet.status_id || factsheet.status,
+                globalStatuses,
+                factsheet.expand?.type,
+              );
 
               return (
                 <Link key={factsheet.id} to={`/factsheets/${factsheet.id}`}>
@@ -246,15 +259,13 @@ export default function Dashboard() {
                         {typeName}
                       </span>
                       <span
-                        className={`px-2.5 py-1 text-xs font-medium ${
-                          factsheet.status === "active"
-                            ? "bg-green-100 text-green-700"
-                            : factsheet.status === "draft"
-                              ? "bg-gray-100 text-gray-700"
-                              : "bg-amber-100 text-amber-700"
-                        }`}
+                        className="px-2.5 py-1 text-xs font-medium"
+                        style={{
+                          backgroundColor: statusMeta.color,
+                          color: getStatusTextColor(statusMeta.color),
+                        }}
                       >
-                        {factsheet.status}
+                        {statusMeta.label}
                       </span>
                     </div>
                   </Card>

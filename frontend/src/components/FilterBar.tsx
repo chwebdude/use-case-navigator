@@ -6,6 +6,8 @@ import type {
   FactsheetType,
 } from "../types";
 import { useEffect, useMemo, useState } from "react";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { getStatusesForType } from "../lib/statusConfig";
 
 interface FilterBarProps {
   search: string;
@@ -55,6 +57,10 @@ export function FilterBar({
   additionalSettings,
   showPropertyCount = true,
 }: FilterBarProps) {
+  const {
+    settings: { statuses: globalStatuses },
+  } = useAppSettings();
+
   // Group options by property for filter dropdowns
   const optionsByProperty = useMemo(() => {
     const map = new Map<string, PropertyOption[]>();
@@ -71,12 +77,35 @@ export function FilterBar({
     return map;
   }, [propertyOptions]);
 
-  const statusOptions = [
-    { value: "", label: "All Statuses" },
-    { value: "draft", label: "Draft" },
-    { value: "active", label: "Active" },
-    { value: "archived", label: "Archived" },
-  ];
+  const statusOptions = useMemo(() => {
+    const selectedType = factsheetTypes.find((type) => type.id === typeFilter);
+    if (selectedType) {
+      return [
+        { value: "", label: "All Statuses" },
+        ...getStatusesForType(globalStatuses, selectedType).map((status) => ({
+          value: status.id,
+          label: status.label,
+        })),
+      ];
+    }
+
+    const seen = new Set<string>();
+    const combined = [
+      ...getStatusesForType(globalStatuses),
+      ...factsheetTypes.flatMap((type) =>
+        getStatusesForType(globalStatuses, type),
+      ),
+    ].filter((status) => {
+      if (seen.has(status.id)) return false;
+      seen.add(status.id);
+      return true;
+    });
+
+    return [
+      { value: "", label: "All Statuses" },
+      ...combined.map((status) => ({ value: status.id, label: status.label })),
+    ];
+  }, [factsheetTypes, globalStatuses, typeFilter]);
 
   const [propertyGridColumns, setPropertyGridColumns] = useState(2);
   const [showAllPropertyFilters, setShowAllPropertyFilters] = useState(false);

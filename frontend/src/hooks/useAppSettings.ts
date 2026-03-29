@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import type { RecordModel, RecordSubscription } from "pocketbase";
 import pb from "../lib/pocketbase";
+import type { StatusDefinition } from "../types";
+import { DEFAULT_STATUSES, normalizeStatuses } from "../lib/statusConfig";
 
 export const AVAILABLE_ICONS = [
   { id: "Cpu", label: "CPU" },
@@ -77,6 +79,7 @@ interface AppSettings {
   title: string;
   icon: IconId;
   maxMetricWeight: number;
+  statuses: StatusDefinition[];
   defaultFactsheetFilters?: FactsheetFilters;
   defaultDependenciesFilters?: DependenciesFilters;
   defaultMatrixFilters?: MatrixFilters;
@@ -89,6 +92,7 @@ interface AppSettingsRecord extends RecordModel {
   title: string;
   icon: IconId;
   max_metric_weight?: number;
+  statuses?: string | StatusDefinition[];
   default_factsheet_filters?: string | FactsheetFilters;
   default_dependencies_filters?: string | DependenciesFilters;
   default_matrix_filters?: string | MatrixFilters;
@@ -101,6 +105,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   title: "Use Case Navigator",
   icon: "Cpu",
   maxMetricWeight: 10,
+  statuses: DEFAULT_STATUSES,
 };
 
 export function useAppSettings() {
@@ -113,6 +118,7 @@ export function useAppSettings() {
         icon: record.icon,
         maxMetricWeight:
           record.max_metric_weight ?? DEFAULT_SETTINGS.maxMetricWeight,
+        statuses: normalizeStatuses(record.statuses),
         defaultFactsheetFilters: parseJsonField(
           record.default_factsheet_filters,
         ),
@@ -185,6 +191,7 @@ export function useAppSettings() {
       // Map camelCase AppSettings keys to PocketBase snake_case field names
       const fieldMap: Record<string, string> = {
         maxMetricWeight: "max_metric_weight",
+        statuses: "statuses",
         defaultFactsheetFilters: "default_factsheet_filters",
         defaultDependenciesFilters: "default_dependencies_filters",
         defaultMatrixFilters: "default_matrix_filters",

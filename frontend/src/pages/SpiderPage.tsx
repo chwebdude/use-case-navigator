@@ -9,6 +9,7 @@ import { useQueryStates } from "../hooks/useQueryState";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
 import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
+import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
 import type {
   FactsheetExpanded,
   FactsheetType,
@@ -211,7 +212,8 @@ export default function SpiderPage() {
         search === "" ||
         fs.name.toLowerCase().includes(search.toLowerCase()) ||
         fs.description?.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = statusFilter === "" || fs.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
       const matchesType = typeFilter === "" || fs.type === typeFilter;
 
       const matchesProperties = Object.entries(propertyFilters).every(
@@ -407,18 +409,13 @@ export default function SpiderPage() {
     }
   };
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "active":
-        return "success";
-      case "draft":
-        return "default";
-      case "archived":
-        return "warning";
-      default:
-        return "default";
-    }
-  };
+  const selectedFactsheetStatusMeta = selectedFactsheet
+    ? getStatusMeta(
+        selectedFactsheet.status_id || selectedFactsheet.status,
+        settings.statuses,
+        selectedFactsheet.expand?.type,
+      )
+    : null;
 
   return (
     <div className="space-y-6">
@@ -615,8 +612,15 @@ export default function SpiderPage() {
                     {selectedFactsheet.expand.type.name}
                   </span>
                 )}
-                <Badge variant={getStatusVariant(selectedFactsheet.status)}>
-                  {selectedFactsheet.status}
+                <Badge
+                  style={{
+                    backgroundColor: selectedFactsheetStatusMeta?.color,
+                    color: getStatusTextColor(
+                      selectedFactsheetStatusMeta?.color || "#6b7280",
+                    ),
+                  }}
+                >
+                  {selectedFactsheetStatusMeta?.label || "Unknown"}
                 </Badge>
               </div>
 

@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded, PropertyOption } from '../../types';
+import { useAppSettings } from '../../hooks/useAppSettings';
+import { getStatusMeta, getStatusTextColor } from '../../lib/statusConfig';
 
 export interface FactsheetMoveData {
   factsheet: FactsheetExpanded;
@@ -34,6 +36,10 @@ export default function PropertyMatrix({
   displayProperties = [],
   factsheetPropertyValues,
 }: PropertyMatrixProps) {
+  const {
+    settings: { statuses: globalStatuses },
+  } = useAppSettings();
+
   const [draggedFactsheet, setDraggedFactsheet] = useState<{ fs: FactsheetExpanded; fromX: string; fromY: string } | null>(null);
   const [dropTarget, setDropTarget] = useState<{ x: string; y: string } | null>(null);
 
@@ -237,6 +243,11 @@ export default function PropertyMatrix({
                     <div className="space-y-2">
                       {cellFactsheets.map((fs) => {
                         const typeColor = fs.expand?.type?.color || '#6b7280';
+                        const statusMeta = getStatusMeta(
+                          fs.status_id || fs.status,
+                          globalStatuses,
+                          fs.expand?.type,
+                        );
                         const fsPropertyValues = factsheetPropertyValues?.get(fs.id);
                         const isDragging = draggedFactsheet?.fs.id === fs.id;
 
@@ -268,14 +279,14 @@ export default function PropertyMatrix({
 
                               {/* Status badge */}
                               <div className="mt-2 flex items-center gap-2">
-                                <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
-                                  fs.status === 'active'
-                                    ? 'bg-green-100 text-green-700'
-                                    : fs.status === 'archived'
-                                    ? 'bg-amber-100 text-amber-700'
-                                    : 'bg-gray-100 text-gray-600'
-                                }`}>
-                                  {fs.status}
+                                <span
+                                  className="inline-flex px-2 py-0.5 text-xs rounded-full"
+                                  style={{
+                                    backgroundColor: statusMeta.color,
+                                    color: getStatusTextColor(statusMeta.color),
+                                  }}
+                                >
+                                  {statusMeta.label}
                                 </span>
                               </div>
 

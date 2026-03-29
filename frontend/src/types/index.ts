@@ -8,19 +8,27 @@ export type HiddenField =
   | "problems_addressed"
   | "potential_ui";
 
+export interface StatusDefinition {
+  id: string;
+  label: string;
+  color: string;
+}
+
 export interface FactsheetType extends RecordModel {
   name: string;
   color: string;
   icon?: string;
   order?: number;
   hidden_fields?: HiddenField[];
+  status_overrides?: StatusDefinition[];
 }
 
 export interface Factsheet extends RecordModel {
   name: string;
   description: string;
   type: string;
-  status: "draft" | "active" | "archived";
+  status: string;
+  status_id?: string;
   responsibility?: string;
   benefits?: string;
   what_it_does?: string;

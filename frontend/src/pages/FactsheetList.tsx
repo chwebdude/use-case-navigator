@@ -8,6 +8,7 @@ import { useRealtime } from "../hooks/useRealtime";
 import { useQueryStates } from "../hooks/useQueryState";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
+import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
 import type {
   FactsheetExpanded,
   FactsheetType,
@@ -97,7 +98,8 @@ export default function FactsheetList() {
       search === "" ||
       fs.name.toLowerCase().includes(search.toLowerCase()) ||
       fs.description?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "" || fs.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
     const matchesType = typeFilter === "" || fs.type === typeFilter;
 
     // Check property filters
@@ -111,19 +113,6 @@ export default function FactsheetList() {
 
     return matchesSearch && matchesStatus && matchesType && matchesProperties;
   });
-
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "active":
-        return "success";
-      case "draft":
-        return "default";
-      case "archived":
-        return "warning";
-      default:
-        return "default";
-    }
-  };
 
   const factsheetPropertyLookup = useMemo(() => {
     const map = new Map<string, Map<string, FactsheetPropertyExpanded>>();
@@ -274,6 +263,12 @@ export default function FactsheetList() {
           {filteredFactsheets.map((factsheet) => {
             const typeColor = factsheet.expand?.type?.color || "#6b7280";
             const typeName = factsheet.expand?.type?.name || "Unknown";
+            const statusId = factsheet.status_id || factsheet.status;
+            const statusMeta = getStatusMeta(
+              statusId,
+              settings.statuses,
+              factsheet.expand?.type,
+            );
 
             return (
               <Link
@@ -299,10 +294,13 @@ export default function FactsheetList() {
                           {typeName}
                         </span>
                         <Badge
-                          variant={getStatusVariant(factsheet.status)}
                           size="sm"
+                          style={{
+                            backgroundColor: statusMeta.color,
+                            color: getStatusTextColor(statusMeta.color),
+                          }}
                         >
-                          {factsheet.status}
+                          {statusMeta.label}
                         </Badge>
                       </div>
                       <p className="text-gray-500 mt-2 line-clamp-2">

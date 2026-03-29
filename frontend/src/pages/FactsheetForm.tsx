@@ -5,7 +5,12 @@ import { Card, Button, Input, Select } from "../components/ui";
 import { Textarea } from "../components/ui/Input";
 import { useRecord, useRealtime } from "../hooks/useRealtime";
 import { useChangeLog } from "../hooks/useChangeLog";
+import { useAppSettings } from "../hooks/useAppSettings";
 import pb from "../lib/pocketbase";
+import {
+  getStatusMeta,
+  getStatusSelectOptions,
+} from "../lib/statusConfig";
 import type {
   Factsheet,
   FactsheetType,
@@ -14,16 +19,13 @@ import type {
   FactsheetProperty,
 } from "../types";
 
-const statusOptions = [
-  { value: "draft", label: "Draft" },
-  { value: "active", label: "Active" },
-  { value: "archived", label: "Archived" },
-];
+const LEGACY_STATUS_VALUES = new Set(["draft", "active", "archived"]);
 
 export default function FactsheetForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
+  const { settings: appSettings } = useAppSettings();
 
   const { record: existingFactsheet, loading: loadingRecord } =
     useRecord<Factsheet>("factsheets", id);
@@ -75,7 +77,7 @@ export default function FactsheetForm() {
     name: "",
     description: "",
     type: "",
-    status: "draft",
+    status: "",
     responsibility: "",
     benefits: "",
     what_it_does: "",
@@ -94,7 +96,7 @@ export default function FactsheetForm() {
         name: existingFactsheet.name,
         description: existingFactsheet.description || "",
         type: existingFactsheet.type,
-        status: existingFactsheet.status,
+        status: existingFactsheet.status_id || existingFactsheet.status,
         responsibility: existingFactsheet.responsibility || "",
         benefits: existingFactsheet.benefits || "",
         what_it_does: existingFactsheet.what_it_does || "",
@@ -137,6 +139,19 @@ export default function FactsheetForm() {
     }
   }, [factsheetTypes, isEdit, formData.type]);
 
+  const selectedType = factsheetTypes.find((type) => type.id === formData.type);
+  const statusOptions = useMemo(
+    () => getStatusSelectOptions(appSettings.statuses, selectedType),
+    [appSettings.statuses, selectedType],
+  );
+
+  useEffect(() => {
+    if (statusOptions.length === 0) return;
+    if (!formData.status || !statusOptions.some((opt) => opt.value === formData.status)) {
+      setFormData((prev) => ({ ...prev, status: statusOptions[0].value }));
+    }
+  }, [statusOptions, formData.status]);
+
   const handlePropertyChange = (propertyId: string, optionId: string) => {
     setPropertyValues((prev) => ({ ...prev, [propertyId]: optionId }));
   };
@@ -176,6 +191,21 @@ export default function FactsheetForm() {
 
     try {
       let factsheetId: string;
+      const selectedStatusMeta = getStatusMeta(
+        formData.status,
+        appSettings.statuses,
+        selectedType,
+      );
+      const legacyStatus = LEGACY_STATUS_VALUES.has(formData.status)
+        ? formData.status
+        : isEdit && existingFactsheet
+          ? existingFactsheet.status
+          : "draft";
+      const factsheetPayload = {
+        ...formData,
+        status_id: formData.status,
+        status: legacyStatus,
+      };
 
       if (isEdit && id) {
         // Track which fields changed with old/new values
@@ -212,11 +242,18 @@ export default function FactsheetForm() {
               newValue: newType,
             });
           }
-          if (formData.status !== existingFactsheet.status) {
+          const oldStatusId =
+            existingFactsheet.status_id || existingFactsheet.status;
+          if (formData.status !== oldStatusId) {
+            const oldStatusMeta = getStatusMeta(
+              oldStatusId,
+              appSettings.statuses,
+              factsheetTypes.find((type) => type.id === existingFactsheet.type),
+            );
             fieldChanges.push({
               field: "status",
-              oldValue: existingFactsheet.status,
-              newValue: formData.status,
+              oldValue: oldStatusMeta.label,
+              newValue: selectedStatusMeta.label,
             });
           }
           if (
@@ -265,7 +302,7 @@ export default function FactsheetForm() {
           }
         }
 
-        await pb.collection("factsheets").update(id, formData);
+        await pb.collection("factsheets").update(id, factsheetPayload);
         factsheetId = id;
 
         // Log the update with field details
@@ -273,7 +310,7 @@ export default function FactsheetForm() {
           await logFactsheetUpdated(factsheetId, formData.name, fieldChanges);
         }
       } else {
-        const created = await pb.collection("factsheets").create(formData);
+        const created = await pb.collection("factsheets").create(factsheetPayload);
         factsheetId = created.id;
 
         // Log the creation

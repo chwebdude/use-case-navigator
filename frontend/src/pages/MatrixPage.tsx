@@ -281,7 +281,8 @@ export default function MatrixPage() {
         fs.name.toLowerCase().includes(search.toLowerCase()) ||
         fs.description?.toLowerCase().includes(search.toLowerCase());
       const matchesType = typeFilter === "" || fs.type === typeFilter;
-      const matchesStatus = statusFilter === "" || fs.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
 
       // Check property filters
       const matchesProperties = Object.entries(propertyFilters).every(

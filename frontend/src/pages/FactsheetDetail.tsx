@@ -16,7 +16,9 @@ import { SpiderDiagram, DependencyGraph } from "../components/visualizations";
 import type { SpiderDataPoint } from "../components/visualizations/SpiderDiagram";
 import { useRecord, useRealtime } from "../hooks/useRealtime";
 import { useChangeLog } from "../hooks/useChangeLog";
+import { useAppSettings } from "../hooks/useAppSettings";
 import pb from "../lib/pocketbase";
+import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
 import type {
   Factsheet,
   FactsheetType,
@@ -36,6 +38,7 @@ export default function FactsheetDetail() {
   const [relatedFactsheets, setRelatedFactsheets] = useState<
     FactsheetExpanded[]
   >([]);
+  const { settings: appSettings } = useAppSettings();
 
   const { record: factsheet, loading } = useRecord<Factsheet>("factsheets", id);
   const { record: factsheetType } = useRecord<FactsheetType>(
@@ -191,19 +194,6 @@ export default function FactsheetDetail() {
     }
   };
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "active":
-        return "success";
-      case "draft":
-        return "default";
-      case "archived":
-        return "warning";
-      default:
-        return "default";
-    }
-  };
-
   const propertyMap = useMemo(() => {
     const map = new Map<string, FactsheetPropertyExpanded>();
     properties.forEach((fp) => {
@@ -235,6 +225,12 @@ export default function FactsheetDetail() {
   };
 
   const typeColor = factsheetType?.color || "#6b7280";
+  const statusId = factsheet?.status_id || factsheet?.status || "";
+  const statusMeta = getStatusMeta(
+    statusId,
+    appSettings.statuses,
+    factsheetType ?? undefined,
+  );
 
   // Spider diagram data for this factsheet
   const spiderData: SpiderDataPoint[] = useMemo(() => {
@@ -327,8 +323,13 @@ export default function FactsheetDetail() {
                   {factsheetType.name}
                 </span>
               )}
-              <Badge variant={getStatusVariant(factsheet.status)}>
-                {factsheet.status}
+              <Badge
+                style={{
+                  backgroundColor: statusMeta.color,
+                  color: getStatusTextColor(statusMeta.color),
+                }}
+              >
+                {statusMeta.label}
               </Badge>
             </div>
           </div>

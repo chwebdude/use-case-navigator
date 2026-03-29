@@ -17,6 +17,7 @@ import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
 import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import { useAppSettings } from "../hooks/useAppSettings";
+import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
 
 interface ImpactData {
   factsheet: FactsheetExpanded;
@@ -328,7 +329,8 @@ export default function ImpactAnalysisPage() {
         fs.name.toLowerCase().includes(search.toLowerCase()) ||
         fs.description?.toLowerCase().includes(search.toLowerCase());
 
-      const matchesStatus = statusFilter === "" || fs.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
       const matchesType = typeFilter === "" || fs.type === typeFilter;
 
       const matchesProperties = Object.entries(propertyFilters).every(
@@ -605,6 +607,11 @@ export default function ImpactAnalysisPage() {
                 <tbody>
                   {sortedImpactData.map((data) => {
                     const fs = data.factsheet;
+                    const statusMeta = getStatusMeta(
+                      fs.status_id || fs.status,
+                      settings.statuses,
+                      fs.expand?.type,
+                    );
                     return (
                       <tr
                         key={fs.id}
@@ -641,15 +648,12 @@ export default function ImpactAnalysisPage() {
                         </td>
                         <td className="p-3">
                           <Badge
-                            variant={
-                              fs.status === "active"
-                                ? "success"
-                                : fs.status === "draft"
-                                  ? "warning"
-                                  : "default"
-                            }
+                            style={{
+                              backgroundColor: statusMeta.color,
+                              color: getStatusTextColor(statusMeta.color),
+                            }}
                           >
-                            {fs.status}
+                            {statusMeta.label}
                           </Badge>
                         </td>
                         <td className="p-3 text-right">

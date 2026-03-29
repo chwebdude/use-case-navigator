@@ -11,7 +11,9 @@ import { Modal, Button, Badge, MetricBadge } from "./ui";
 import { DependencyGraph, SpiderDiagram } from "./visualizations";
 import type { SpiderDataPoint } from "./visualizations/SpiderDiagram";
 import { useRecord, useRealtime } from "../hooks/useRealtime";
+import { useAppSettings } from "../hooks/useAppSettings";
 import pb from "../lib/pocketbase";
+import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
 import type {
   Factsheet,
   FactsheetType,
@@ -32,6 +34,7 @@ export default function FactsheetDetailModal({
   onClose,
 }: FactsheetDetailModalProps) {
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const { settings: appSettings } = useAppSettings();
 
   const { record: factsheet, loading } = useRecord<Factsheet>(
     "factsheets",
@@ -161,20 +164,13 @@ export default function FactsheetDetailModal({
     expand: "properties",
   });
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "active":
-        return "success";
-      case "draft":
-        return "default";
-      case "archived":
-        return "warning";
-      default:
-        return "default";
-    }
-  };
-
   const typeColor = factsheetType?.color || "#6b7280";
+  const statusId = factsheet?.status_id || factsheet?.status || "";
+  const statusMeta = getStatusMeta(
+    statusId,
+    appSettings.statuses,
+    factsheetType ?? undefined,
+  );
 
   const propertyMap = useMemo(() => {
     const map = new Map<string, FactsheetPropertyExpanded>();
@@ -262,8 +258,13 @@ export default function FactsheetDetailModal({
                 {factsheetType.name}
               </span>
             )}
-            <Badge variant={getStatusVariant(factsheet.status)}>
-              {factsheet.status}
+            <Badge
+              style={{
+                backgroundColor: statusMeta.color,
+                color: getStatusTextColor(statusMeta.color),
+              }}
+            >
+              {statusMeta.label}
             </Badge>
           </div>
 
