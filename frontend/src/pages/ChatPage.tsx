@@ -362,7 +362,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-1 py-3">
         <div>
