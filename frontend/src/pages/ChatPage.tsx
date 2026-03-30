@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Bot, User, AlertCircle, Loader2, Trash2 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import { Button } from "../components/ui";
 import { Card, CardTitle } from "../components/ui";
 import ChatChart, { parseChartBlocks } from "../components/ChatChart";
+import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import { useAppSettings } from "../hooks/useAppSettings";
 import pb from "../lib/pocketbase";
 import { getStatusMeta, normalizeStatuses } from "../lib/statusConfig";
@@ -31,7 +32,10 @@ function resolveStatusLabel(
   return getStatusMeta(statusId, globalStatuses, typeObj).label;
 }
 
-async function loadDataContext(): Promise<string> {
+async function loadDataContext(): Promise<{
+  context: string;
+  factsheetMap: Map<string, string>;
+}> {
   const [
     factsheets,
     types,
@@ -149,7 +153,8 @@ async function loadDataContext(): Promise<string> {
     lines.push(`- "${fsName}" → ${propName}: ${optValue}`);
   }
 
-  return lines.join("\n");
+  const factsheetMap = new Map(factsheets.map((f) => [f.name, f.id]));
+  return { context: lines.join("\n"), factsheetMap };
 }
 
 async function sendChatRequest(
@@ -294,8 +299,82 @@ const markdownComponents = {
   ),
 };
 
-function AssistantMessage({ content }: { content: string }) {
+function linkifyFactsheets(
+  text: string,
+  factsheetMap: Map<string, string>,
+): string {
+  if (factsheetMap.size === 0) return text;
+  // Sort longest-first so longer names match before shorter substrings
+  const entries = [...factsheetMap.entries()].sort(
+    (a, b) => b[0].length - a[0].length,
+  );
+  const placeholders: string[] = [];
+
+  for (const [name, id] of entries) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const link = `[${name}](factsheet:${id})`;
+    const idx = placeholders.length;
+    placeholders.push(link);
+    const ph = `\x00FS${idx}\x00`;
+    // Match bold, quoted, then plain text occurrences
+    text = text.replace(new RegExp(`\\*\\*${escaped}\\*\\*`, "g"), ph);
+    text = text.replace(new RegExp(`"${escaped}"`, "g"), ph);
+    text = text.replace(
+      new RegExp(`(?<![\\w[(/])${escaped}(?![\\w\\]])`, "g"),
+      ph,
+    );
+  }
+
+  for (let i = 0; i < placeholders.length; i++) {
+    text = text.replaceAll(`\x00FS${i}\x00`, placeholders[i]);
+  }
+
+  return text;
+}
+
+function factsheetUrlTransform(url: string): string {
+  if (url.startsWith("factsheet:")) return url;
+  return defaultUrlTransform(url);
+}
+
+function AssistantMessage({
+  content,
+  factsheetMap,
+  onFactsheetClick,
+}: {
+  content: string;
+  factsheetMap: Map<string, string>;
+  onFactsheetClick: (id: string) => void;
+}) {
   const parts = parseChartBlocks(content);
+
+  const components = {
+    ...markdownComponents,
+    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+      if (href?.startsWith("factsheet:")) {
+        const id = href.slice("factsheet:".length);
+        return (
+          <button
+            type="button"
+            onClick={() => onFactsheetClick(id)}
+            className="text-accent-500 underline hover:text-accent-700 cursor-pointer"
+          >
+            {children}
+          </button>
+        );
+      }
+      return (
+        <a
+          href={href}
+          className="text-accent-500 underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {children}
+        </a>
+      );
+    },
+  };
 
   return (
     <>
@@ -303,8 +382,12 @@ function AssistantMessage({ content }: { content: string }) {
         part.type === "chart" ? (
           <ChatChart key={i} chart={part.chart} />
         ) : (
-          <ReactMarkdown key={i} components={markdownComponents}>
-            {part.content}
+          <ReactMarkdown
+            key={i}
+            components={components}
+            urlTransform={factsheetUrlTransform}
+          >
+            {linkifyFactsheets(part.content, factsheetMap)}
           </ReactMarkdown>
         ),
       )}
@@ -318,6 +401,12 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [dataContext, setDataContext] = useState<string | null>(null);
+  const [factsheetMap, setFactsheetMap] = useState<Map<string, string>>(
+    new Map(),
+  );
+  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
+    null,
+  );
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -328,7 +417,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     loadDataContext()
-      .then(setDataContext)
+      .then(({ context, factsheetMap: fm }) => {
+        setDataContext(context);
+        setFactsheetMap(fm);
+      })
       .catch((err) => {
         console.error("Failed to load data context:", err);
         setError("Failed to load application data for chat context.");
@@ -478,7 +570,11 @@ export default function ChatPage() {
               }`}
             >
               {msg.role === "assistant" ? (
-                <AssistantMessage content={msg.content} />
+                <AssistantMessage
+                  content={msg.content}
+                  factsheetMap={factsheetMap}
+                  onFactsheetClick={setSelectedFactsheetId}
+                />
               ) : (
                 msg.content
               )}
@@ -536,6 +632,11 @@ export default function ChatPage() {
           Model: {settings.llmModel} · Data is loaded fresh each session
         </p>
       </div>
+
+      <FactsheetDetailModal
+        factsheetId={selectedFactsheetId}
+        onClose={() => setSelectedFactsheetId(null)}
+      />
     </div>
   );
 }
