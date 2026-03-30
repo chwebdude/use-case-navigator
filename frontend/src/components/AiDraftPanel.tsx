@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Sparkles, Check, Loader2, AlertCircle } from "lucide-react";
 import { Card } from "./ui";
 import { Button } from "./ui";
@@ -23,6 +24,56 @@ export default function AiDraftPanel({
   hiddenFields,
   onApply,
 }: AiDraftPanelProps) {
+  // Track which fields/properties are selected for applying
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  // Reset selections whenever a new draft arrives
+  useEffect(() => {
+    if (!draft) {
+      setSelected({});
+      return;
+    }
+    const initial: Record<string, boolean> = {};
+    if (draft.name) initial["name"] = true;
+    for (const key of [
+      "description",
+      "responsibility",
+      "benefits",
+      "what_it_does",
+      "problems_addressed",
+      "potential_ui",
+    ] as const) {
+      if (draft[key]) initial[key] = true;
+    }
+    for (const [propId, optId] of Object.entries(draft.properties)) {
+      if (optId) initial[`prop:${propId}`] = true;
+    }
+    setSelected(initial);
+  }, [draft]);
+
+  const toggle = (key: string) => {
+    setSelected((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleApply = () => {
+    if (!draft) return;
+    const filtered: AiDraft = {
+      name: selected["name"] ? draft.name : "",
+      description: selected["description"] ? draft.description : "",
+      responsibility: selected["responsibility"] ? draft.responsibility : "",
+      benefits: selected["benefits"] ? draft.benefits : "",
+      what_it_does: selected["what_it_does"] ? draft.what_it_does : "",
+      problems_addressed: selected["problems_addressed"]
+        ? draft.problems_addressed
+        : "",
+      potential_ui: selected["potential_ui"] ? draft.potential_ui : "",
+      properties: {},
+    };
+    for (const [propId, optId] of Object.entries(draft.properties)) {
+      filtered.properties[propId] = selected[`prop:${propId}`] ? optId : "";
+    }
+    onApply(filtered);
+  };
   const getOptionValue = (optionId: string): string => {
     const opt = propertyOptions.find((o) => o.id === optionId);
     return opt?.value || "";
@@ -104,54 +155,83 @@ export default function AiDraftPanel({
         </div>
         <Button
           size="sm"
-          onClick={() => onApply(draft)}
+          onClick={handleApply}
           icon={<Check className="w-4 h-4" />}
         >
-          Apply Draft
+          Apply Selected
         </Button>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {draft.name && (
-          <div>
-            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-              Suggested Name
-            </h4>
-            <p className="text-sm font-medium text-primary-900">
-              {draft.name}
-            </p>
-          </div>
+          <label className="flex items-start gap-2 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={!!selected["name"]}
+              onChange={() => toggle("name")}
+              className="mt-1 accent-accent-500"
+            />
+            <div className={selected["name"] ? "" : "opacity-40"}>
+              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">
+                Suggested Name
+              </h4>
+              <p className="text-sm font-medium text-primary-900">
+                {draft.name}
+              </p>
+            </div>
+          </label>
         )}
 
         {visibleFields.map(({ key, label }) => (
-          <div key={key}>
-            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-              {label}
-            </h4>
-            <p className="text-sm text-primary-800 whitespace-pre-wrap">
-              {draft[key] as string}
-            </p>
-          </div>
+          <label
+            key={key}
+            className="flex items-start gap-2 cursor-pointer group"
+          >
+            <input
+              type="checkbox"
+              checked={!!selected[key]}
+              onChange={() => toggle(key)}
+              className="mt-1 accent-accent-500"
+            />
+            <div className={selected[key] ? "" : "opacity-40"}>
+              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">
+                {label}
+              </h4>
+              <p className="text-sm text-primary-800 whitespace-pre-wrap">
+                {draft[key] as string}
+              </p>
+            </div>
+          </label>
         ))}
 
         {propertyEntries.length > 0 && (
-          <div className="border-t border-gray-200 pt-4">
+          <div className="border-t border-gray-200 pt-3">
             <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
               Suggested Properties
             </h4>
             <div className="grid grid-cols-2 gap-2">
               {propertyEntries.map(([propId, optId]) => (
-                <div
+                <label
                   key={propId}
-                  className="bg-gray-50 px-3 py-2 border border-gray-200"
+                  className="flex items-start gap-2 cursor-pointer bg-gray-50 px-3 py-2 border border-gray-200"
                 >
-                  <span className="text-xs text-gray-500">
-                    {getPropertyName(propId)}
-                  </span>
-                  <p className="text-sm font-medium text-primary-900">
-                    {getOptionValue(optId)}
-                  </p>
-                </div>
+                  <input
+                    type="checkbox"
+                    checked={!!selected[`prop:${propId}`]}
+                    onChange={() => toggle(`prop:${propId}`)}
+                    className="mt-0.5 accent-accent-500"
+                  />
+                  <div
+                    className={selected[`prop:${propId}`] ? "" : "opacity-40"}
+                  >
+                    <span className="text-xs text-gray-500">
+                      {getPropertyName(propId)}
+                    </span>
+                    <p className="text-sm font-medium text-primary-900">
+                      {getOptionValue(optId)}
+                    </p>
+                  </div>
+                </label>
               ))}
             </div>
           </div>

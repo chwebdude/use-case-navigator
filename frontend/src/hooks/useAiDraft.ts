@@ -42,11 +42,7 @@ export function useAiDraft({
   const isConfigured = Boolean(llmEndpoint && llmApiKey && llmModel);
 
   const generateDraft = useCallback(
-    async (
-      name: string,
-      description: string,
-      typeId: string,
-    ) => {
+    async (name: string, description: string, typeId: string) => {
       if (!isConfigured || (!name.trim() && !description.trim())) return;
 
       // Skip if inputs haven't changed since last request
@@ -107,15 +103,24 @@ ${propertyContext.map((p) => `- "${p.name}" (property id: "${p.id}"):\n${p.optio
 
 Respond ONLY with a valid JSON object. No markdown, no code fences, no explanation. The JSON must have:
 - "name": string (a polished, improved version of the given name)
-- "description": string (a few sentences describing the use case)
-- "responsibility": string (who is responsible)
-- "benefits": string (key benefits)
-- "what_it_does": string (what this does)
-- "problems_addressed": string (problems it solves)
-- "potential_ui": string (potential user interface description)
+${visibleFields
+  .map((f) => {
+    const labels: Record<string, string> = {
+      description:
+        '"description": string (a few sentences describing the use case)',
+      responsibility: '"responsibility": string (who is responsible)',
+      benefits: '"benefits": string (key benefits)',
+      what_it_does: '"what_it_does": string (what this does)',
+      problems_addressed: '"problems_addressed": string (problems it solves)',
+      potential_ui:
+        '"potential_ui": string (potential user interface description)',
+    };
+    return `- ${labels[f]}`;
+  })
+  .join("\n")}
 - "properties": object where each key is a property id and each value is the chosen option id (use the exact id strings listed above, not the label text)
 
-For hidden fields, use empty strings. For properties, pick the most appropriate option id based on the use case context. If no option fits, use an empty string.`;
+For properties, pick the most appropriate option id based on the use case context. If no option fits, use an empty string.`;
 
         const userMessage = `Generate a factsheet draft for:
 Name: "${name}"${description.trim() ? `\nDescription keywords: "${description}"` : ""}`;
@@ -148,8 +153,7 @@ Name: "${name}"${description.trim() ? `\nDescription keywords: "${description}"`
         }
 
         const data = await response.json();
-        const content =
-          data.choices?.[0]?.message?.content || "";
+        const content = data.choices?.[0]?.message?.content || "";
 
         // Parse JSON from response, stripping any potential code fences
         const jsonStr = content
@@ -166,23 +170,41 @@ Name: "${name}"${description.trim() ? `\nDescription keywords: "${description}"`
           what_it_does: parsed.what_it_does || "",
           problems_addressed: parsed.problems_addressed || "",
           potential_ui: parsed.potential_ui || "",
-          properties: parsed.properties || {},
+          properties: {},
         };
 
-        // Validate property option ids — also handle LLM returning option values instead of ids
-        for (const [propId, optId] of Object.entries(aiDraft.properties)) {
-          if (!optId) continue;
-          const validOpts = propertyOptions.filter((o) => o.property === propId);
-          // Already a valid option id
-          if (validOpts.some((o) => o.id === optId)) continue;
-          // Try matching by value (case-insensitive) in case LLM returned the label
-          const matchByValue = validOpts.find(
-            (o) => o.value.toLowerCase() === String(optId).toLowerCase(),
+        // Clear hidden fields so they never appear in the draft
+        for (const hf of hiddenFields) {
+          if (hf in aiDraft) {
+            (aiDraft as unknown as Record<string, unknown>)[hf] = "";
+          }
+        }
+
+        // Resolve property keys — LLM may return property names instead of IDs
+        const rawProps: Record<string, string> = parsed.properties || {};
+        const propNameToId = new Map(
+          propertyDefinitions.map((pd) => [pd.name.toLowerCase(), pd.id]),
+        );
+        for (const [rawKey, rawOptId] of Object.entries(rawProps)) {
+          if (!rawOptId) continue;
+          // Resolve property key: could be an ID or a name
+          const propId = propertyDefinitions.some((pd) => pd.id === rawKey)
+            ? rawKey
+            : propNameToId.get(rawKey.toLowerCase()) || null;
+          if (!propId) continue;
+
+          const validOpts = propertyOptions.filter(
+            (o) => o.property === propId,
           );
-          if (matchByValue) {
-            aiDraft.properties[propId] = matchByValue.id;
+          // Check if optId is already a valid option id
+          if (validOpts.some((o) => o.id === rawOptId)) {
+            aiDraft.properties[propId] = rawOptId as string;
           } else {
-            aiDraft.properties[propId] = "";
+            // Try matching by value (case-insensitive)
+            const matchByValue = validOpts.find(
+              (o) => o.value.toLowerCase() === String(rawOptId).toLowerCase(),
+            );
+            aiDraft.properties[propId] = matchByValue ? matchByValue.id : "";
           }
         }
 

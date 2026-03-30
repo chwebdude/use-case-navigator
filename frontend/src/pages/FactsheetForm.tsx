@@ -110,7 +110,13 @@ export default function FactsheetForm() {
     if (aiConfigured && formData.name.trim()) {
       generateDraft(formData.name, formData.description, formData.type);
     }
-  }, [aiConfigured, formData.name, formData.description, formData.type, generateDraft]);
+  }, [
+    aiConfigured,
+    formData.name,
+    formData.description,
+    formData.type,
+    generateDraft,
+  ]);
 
   const applyDraft = useCallback(
     (draft: AiDraft) => {
@@ -151,6 +157,17 @@ export default function FactsheetForm() {
       });
     }
   }, [existingFactsheet]);
+
+  // Auto-trigger AI draft when editing an existing factsheet
+  useEffect(() => {
+    if (isEdit && existingFactsheet && aiConfigured) {
+      generateDraft(
+        existingFactsheet.name,
+        existingFactsheet.description || "",
+        existingFactsheet.type,
+      );
+    }
+  }, [isEdit, existingFactsheet, aiConfigured, generateDraft]);
 
   // Load existing property values when editing
   useEffect(() => {
@@ -483,7 +500,13 @@ export default function FactsheetForm() {
   const showAiPanel = aiConfigured;
 
   return (
-    <div className={showAiPanel ? "max-w-5xl mx-auto space-y-6" : "max-w-2xl mx-auto space-y-6"}>
+    <div
+      className={
+        showAiPanel
+          ? "max-w-5xl mx-auto space-y-6"
+          : "max-w-2xl mx-auto space-y-6"
+      }
+    >
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -499,189 +522,203 @@ export default function FactsheetForm() {
         </h1>
       </div>
 
-      <div className={showAiPanel ? "grid grid-cols-[1fr_380px] gap-6 items-start" : ""}>
-      {/* Form */}
-      <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm">
-              {error}
-            </div>
-          )}
+      <div
+        className={
+          showAiPanel ? "grid grid-cols-[1fr_380px] gap-6 items-start" : ""
+        }
+      >
+        {/* Form */}
+        <Card>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
 
-          <Select
-            label="Type"
-            options={typeOptions}
-            value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-          />
-
-          <Input
-            label="Name"
-            placeholder="Enter factsheet name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            onBlur={triggerAiDraft}
-            required
-          />
-
-          {!isFieldHidden("description") && (
-            <Textarea
-              label="Description"
-              placeholder="Describe the factsheet..."
-              value={formData.description}
+            <Select
+              label="Type"
+              options={typeOptions}
+              value={formData.type}
               onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
+                setFormData({ ...formData, type: e.target.value })
+              }
+            />
+
+            <Input
+              label="Name"
+              placeholder="Enter factsheet name"
+              value={formData.name}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
               }
               onBlur={triggerAiDraft}
-              rows={4}
+              required
             />
-          )}
 
-          <Select
-            label="Status"
-            options={statusOptions}
-            value={formData.status}
-            onChange={(e) =>
-              setFormData({ ...formData, status: e.target.value })
-            }
+            {!isFieldHidden("description") && (
+              <Textarea
+                label="Description"
+                placeholder="Describe the factsheet..."
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                onBlur={triggerAiDraft}
+                rows={4}
+              />
+            )}
+
+            <Select
+              label="Status"
+              options={statusOptions}
+              value={formData.status}
+              onChange={(e) =>
+                setFormData({ ...formData, status: e.target.value })
+              }
+            />
+
+            {/* Property selections */}
+            {propertyDefinitions.length > 0 && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-sm font-medium text-gray-700 mb-4">
+                  Properties
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {propertyDefinitions.map((propDef) => (
+                    <Select
+                      key={propDef.id}
+                      label={propDef.name}
+                      options={getOptionsForProperty(propDef.id)}
+                      value={propertyValues[propDef.id] || ""}
+                      onChange={(e) =>
+                        handlePropertyChange(propDef.id, e.target.value)
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(
+              [
+                "responsibility",
+                "what_it_does",
+                "benefits",
+                "problems_addressed",
+                "potential_ui",
+              ] as const
+            ).some((f) => !isFieldHidden(f)) && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-sm font-medium text-gray-700 mb-4">
+                  Additional Details
+                </h3>
+
+                <div className="space-y-6">
+                  {!isFieldHidden("responsibility") && (
+                    <Input
+                      label="Responsibility"
+                      placeholder="Who is responsible for this?"
+                      value={formData.responsibility}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          responsibility: e.target.value,
+                        })
+                      }
+                    />
+                  )}
+
+                  {!isFieldHidden("benefits") && (
+                    <Textarea
+                      label="Benefits"
+                      placeholder="What are the benefits?"
+                      value={formData.benefits}
+                      onChange={(e) =>
+                        setFormData({ ...formData, benefits: e.target.value })
+                      }
+                      rows={3}
+                    />
+                  )}
+
+                  {!isFieldHidden("what_it_does") && (
+                    <Textarea
+                      label="What it does"
+                      placeholder="Describe what this does..."
+                      value={formData.what_it_does}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          what_it_does: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  )}
+
+                  {!isFieldHidden("problems_addressed") && (
+                    <Textarea
+                      label="Problems addressed"
+                      placeholder="What problems does this address?"
+                      value={formData.problems_addressed}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          problems_addressed: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  )}
+
+                  {!isFieldHidden("potential_ui") && (
+                    <Textarea
+                      label="Potential User Interface"
+                      placeholder="Describe the potential user interface..."
+                      value={formData.potential_ui}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          potential_ui: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-4 pt-4">
+              <Button
+                type="submit"
+                loading={saving}
+                icon={<Save className="w-4 h-4" />}
+              >
+                {isEdit ? "Save Changes" : "Create Factsheet"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate(-1)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        {showAiPanel && (
+          <AiDraftPanel
+            draft={aiDraft}
+            loading={aiLoading}
+            error={aiError}
+            propertyDefinitions={propertyDefinitions}
+            propertyOptions={propertyOptions}
+            hiddenFields={selectedType?.hidden_fields ?? []}
+            onApply={applyDraft}
           />
-
-          {/* Property selections */}
-          {propertyDefinitions.length > 0 && (
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-4">
-                Properties
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                {propertyDefinitions.map((propDef) => (
-                  <Select
-                    key={propDef.id}
-                    label={propDef.name}
-                    options={getOptionsForProperty(propDef.id)}
-                    value={propertyValues[propDef.id] || ""}
-                    onChange={(e) =>
-                      handlePropertyChange(propDef.id, e.target.value)
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {(
-            [
-              "responsibility",
-              "what_it_does",
-              "benefits",
-              "problems_addressed",
-              "potential_ui",
-            ] as const
-          ).some((f) => !isFieldHidden(f)) && (
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-4">
-                Additional Details
-              </h3>
-
-              <div className="space-y-6">
-                {!isFieldHidden("responsibility") && (
-                  <Input
-                    label="Responsibility"
-                    placeholder="Who is responsible for this?"
-                    value={formData.responsibility}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        responsibility: e.target.value,
-                      })
-                    }
-                  />
-                )}
-
-                {!isFieldHidden("benefits") && (
-                  <Textarea
-                    label="Benefits"
-                    placeholder="What are the benefits?"
-                    value={formData.benefits}
-                    onChange={(e) =>
-                      setFormData({ ...formData, benefits: e.target.value })
-                    }
-                    rows={3}
-                  />
-                )}
-
-                {!isFieldHidden("what_it_does") && (
-                  <Textarea
-                    label="What it does"
-                    placeholder="Describe what this does..."
-                    value={formData.what_it_does}
-                    onChange={(e) =>
-                      setFormData({ ...formData, what_it_does: e.target.value })
-                    }
-                    rows={3}
-                  />
-                )}
-
-                {!isFieldHidden("problems_addressed") && (
-                  <Textarea
-                    label="Problems addressed"
-                    placeholder="What problems does this address?"
-                    value={formData.problems_addressed}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        problems_addressed: e.target.value,
-                      })
-                    }
-                    rows={3}
-                  />
-                )}
-
-                {!isFieldHidden("potential_ui") && (
-                  <Textarea
-                    label="Potential User Interface"
-                    placeholder="Describe the potential user interface..."
-                    value={formData.potential_ui}
-                    onChange={(e) =>
-                      setFormData({ ...formData, potential_ui: e.target.value })
-                    }
-                    rows={3}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-4 pt-4">
-            <Button
-              type="submit"
-              loading={saving}
-              icon={<Save className="w-4 h-4" />}
-            >
-              {isEdit ? "Save Changes" : "Create Factsheet"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => navigate(-1)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      {showAiPanel && (
-        <AiDraftPanel
-          draft={aiDraft}
-          loading={aiLoading}
-          error={aiError}
-          propertyDefinitions={propertyDefinitions}
-          propertyOptions={propertyOptions}
-          hiddenFields={selectedType?.hidden_fields ?? []}
-          onApply={applyDraft}
-        />
-      )}
+        )}
       </div>
     </div>
   );
