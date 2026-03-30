@@ -172,6 +172,10 @@ export default function PropertyMatrix({
     return hasUnknown ? [...yAxisOptions, "Unknown"] : yAxisOptions;
   }, [yAxisOptions, factsheets, properties, yAxisProperty]);
 
+  const labelColumnWidth = printable ? "6rem" : "9rem";
+  const dataColumnMinWidth = printable ? "86px" : "200px";
+  const matrixGridTemplateColumns = `${labelColumnWidth} repeat(${xValues.length}, minmax(${dataColumnMinWidth}, 1fr))`;
+
   // Get property name by id
   const getPropertyName = (propId: string) => {
     return propertyDefinitions.find((p) => p.id === propId)?.name || propId;
@@ -190,10 +194,13 @@ export default function PropertyMatrix({
   return (
     <div className={`w-full ${printable ? "matrix-print-grid" : ""}`}>
       {/* X-Axis header row */}
-      <div className={`flex ${printable ? "mb-1.5" : "mb-3"}`}>
+      <div
+        className={`grid ${printable ? "gap-1.5 mb-1.5" : "gap-3 mb-3"}`}
+        style={{ gridTemplateColumns: matrixGridTemplateColumns }}
+      >
         {/* Y-Axis label in corner */}
         <div
-          className={`${printable ? "w-24 pr-1.5 h-8" : "w-36 pr-3 h-12"} shrink-0 flex items-center justify-end`}
+          className={`${printable ? "pr-1.5 h-8" : "pr-3 h-12"} flex items-center justify-end`}
         >
           <span
             className={`${printable ? "text-[10px] leading-tight" : "text-sm"} font-semibold text-gray-600`}
@@ -203,35 +210,35 @@ export default function PropertyMatrix({
         </div>
 
         {/* X-Axis column headers */}
-        <div
-          className={`flex-1 flex min-w-0 ${printable ? "gap-1.5" : "gap-3"}`}
-        >
-          {xValues.map((xVal) => (
-            <div
-              key={xVal}
-              className={`flex-1 ${printable ? "min-w-[86px] h-8 px-1.5 rounded" : "min-w-[200px] h-12 px-4 rounded-lg"} border flex items-center justify-center ${
-                xVal === "Unknown"
-                  ? "bg-gray-100 text-gray-500 border-gray-200"
-                  : "bg-gray-200 text-gray-700 border-gray-300"
-              }`}
+        {xValues.map((xVal) => (
+          <div
+            key={xVal}
+            className={`${printable ? "h-8 px-1.5 rounded" : "h-12 px-4 rounded-lg"} border flex items-center justify-center ${
+              xVal === "Unknown"
+                ? "bg-gray-100 text-gray-500 border-gray-200"
+                : "bg-gray-200 text-gray-700 border-gray-300"
+            }`}
+          >
+            <span
+              className={`font-semibold ${printable ? "text-[9px] text-center leading-tight" : "text-sm"}`}
             >
-              <span
-                className={`font-semibold ${printable ? "text-[9px] text-center leading-tight" : "text-sm"}`}
-              >
-                {xVal}
-              </span>
-            </div>
-          ))}
-        </div>
+              {xVal}
+            </span>
+          </div>
+        ))}
       </div>
 
       {/* Matrix rows */}
       <div className={`flex flex-col ${printable ? "gap-1.5" : "gap-3"}`}>
         {yValues.map((yVal) => (
-          <div key={yVal} className={`flex ${printable ? "gap-1.5" : "gap-3"}`}>
+          <div
+            key={yVal}
+            className={`grid ${printable ? "gap-1.5" : "gap-3"}`}
+            style={{ gridTemplateColumns: matrixGridTemplateColumns }}
+          >
             {/* Y-Axis row label */}
             <div
-              className={`${printable ? "w-24 min-h-[56px] px-1.5 py-1.5 rounded" : "w-36 min-h-[100px] px-3 py-3 rounded-lg"} shrink-0 mr-0 border flex items-center justify-center ${
+              className={`${printable ? "min-h-[56px] px-1.5 py-1.5 rounded" : "min-h-[100px] px-3 py-3 rounded-lg"} border flex items-center justify-center ${
                 yVal === "Unknown"
                   ? "bg-gray-100 text-gray-500 border-gray-200"
                   : "bg-gray-200 text-gray-700 border-gray-300"
@@ -245,181 +252,176 @@ export default function PropertyMatrix({
             </div>
 
             {/* Row cells */}
-            <div
-              className={`flex-1 flex min-w-0 ${printable ? "gap-1.5" : "gap-3"}`}
-            >
-              {xValues.map((xVal) => {
-                const cellFactsheets = matrix.get(yVal)?.get(xVal) || [];
-                const isDropTarget =
-                  dropTarget?.x === xVal && dropTarget?.y === yVal;
-                const isDifferentCell =
-                  draggedFactsheet &&
-                  (draggedFactsheet.fromX !== xVal ||
-                    draggedFactsheet.fromY !== yVal);
+            {xValues.map((xVal) => {
+              const cellFactsheets = matrix.get(yVal)?.get(xVal) || [];
+              const isDropTarget =
+                dropTarget?.x === xVal && dropTarget?.y === yVal;
+              const isDifferentCell =
+                draggedFactsheet &&
+                (draggedFactsheet.fromX !== xVal ||
+                  draggedFactsheet.fromY !== yVal);
 
-                return (
-                  <div
-                    key={`${yVal}-${xVal}`}
-                    className={`flex-1 ${printable ? "min-w-[86px] min-h-[56px] rounded p-1" : "min-w-[200px] min-h-[100px] rounded-lg p-2"} border-2 transition-colors ${
-                      isInteractive && isDropTarget && isDifferentCell
-                        ? "bg-accent-50 border-accent-400"
-                        : "bg-gray-50 border-gray-200"
-                    }`}
-                    onDragOver={(e) => {
-                      if (!isInteractive) return;
-                      e.preventDefault();
-                      if (
-                        draggedFactsheet &&
-                        (draggedFactsheet.fromX !== xVal ||
-                          draggedFactsheet.fromY !== yVal)
-                      ) {
-                        setDropTarget({ x: xVal, y: yVal });
-                      }
-                    }}
-                    onDragLeave={() => {
-                      if (!isInteractive) return;
-                      setDropTarget(null);
-                    }}
-                    onDrop={(e) => {
-                      if (!isInteractive) return;
-                      e.preventDefault();
-                      setDropTarget(null);
-                      if (
-                        draggedFactsheet &&
-                        onFactsheetMove &&
-                        (draggedFactsheet.fromX !== xVal ||
-                          draggedFactsheet.fromY !== yVal)
-                      ) {
-                        onFactsheetMove({
-                          factsheet: draggedFactsheet.fs,
-                          fromX: draggedFactsheet.fromX,
-                          fromY: draggedFactsheet.fromY,
-                          toX: xVal,
-                          toY: yVal,
-                        });
-                      }
-                      setDraggedFactsheet(null);
-                    }}
-                  >
-                    <div className={printable ? "space-y-1" : "space-y-2"}>
-                      {cellFactsheets.map((fs) => {
-                        const typeColor = fs.expand?.type?.color || "#6b7280";
-                        const statusMeta = getStatusMeta(
-                          fs.status_id || fs.status,
-                          globalStatuses,
-                          fs.expand?.type,
-                        );
-                        const fsPropertyValues = factsheetPropertyValues?.get(
-                          fs.id,
-                        );
-                        const isDragging = draggedFactsheet?.fs.id === fs.id;
+              return (
+                <div
+                  key={`${yVal}-${xVal}`}
+                  className={`${printable ? "min-h-[56px] rounded p-1" : "min-h-[100px] rounded-lg p-2"} border-2 transition-colors ${
+                    isInteractive && isDropTarget && isDifferentCell
+                      ? "bg-accent-50 border-accent-400"
+                      : "bg-gray-50 border-gray-200"
+                  }`}
+                  onDragOver={(e) => {
+                    if (!isInteractive) return;
+                    e.preventDefault();
+                    if (
+                      draggedFactsheet &&
+                      (draggedFactsheet.fromX !== xVal ||
+                        draggedFactsheet.fromY !== yVal)
+                    ) {
+                      setDropTarget({ x: xVal, y: yVal });
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (!isInteractive) return;
+                    setDropTarget(null);
+                  }}
+                  onDrop={(e) => {
+                    if (!isInteractive) return;
+                    e.preventDefault();
+                    setDropTarget(null);
+                    if (
+                      draggedFactsheet &&
+                      onFactsheetMove &&
+                      (draggedFactsheet.fromX !== xVal ||
+                        draggedFactsheet.fromY !== yVal)
+                    ) {
+                      onFactsheetMove({
+                        factsheet: draggedFactsheet.fs,
+                        fromX: draggedFactsheet.fromX,
+                        fromY: draggedFactsheet.fromY,
+                        toX: xVal,
+                        toY: yVal,
+                      });
+                    }
+                    setDraggedFactsheet(null);
+                  }}
+                >
+                  <div className={printable ? "space-y-1" : "space-y-2"}>
+                    {cellFactsheets.map((fs) => {
+                      const typeColor = fs.expand?.type?.color || "#6b7280";
+                      const statusMeta = getStatusMeta(
+                        fs.status_id || fs.status,
+                        globalStatuses,
+                        fs.expand?.type,
+                      );
+                      const fsPropertyValues = factsheetPropertyValues?.get(
+                        fs.id,
+                      );
+                      const isDragging = draggedFactsheet?.fs.id === fs.id;
 
-                        return (
+                      return (
+                        <div
+                          key={fs.id}
+                          draggable={isInteractive}
+                          onDragStart={() => {
+                            if (!isInteractive) return;
+                            setDraggedFactsheet({
+                              fs,
+                              fromX: xVal,
+                              fromY: yVal,
+                            });
+                          }}
+                          onDragEnd={() => {
+                            if (!isInteractive) return;
+                            setDraggedFactsheet(null);
+                            setDropTarget(null);
+                          }}
+                          className={`bg-white overflow-hidden ${
+                            printable
+                              ? "rounded border border-gray-200"
+                              : "rounded-lg shadow-sm hover:shadow-md transition-all"
+                          } ${
+                            isInteractive
+                              ? "cursor-grab"
+                              : onFactsheetClick
+                                ? "cursor-pointer"
+                                : "cursor-default"
+                          } ${isDragging ? "opacity-50 scale-95" : ""}`}
+                          onClick={() => onFactsheetClick?.(fs.id)}
+                        >
+                          {/* Color bar */}
                           <div
-                            key={fs.id}
-                            draggable={isInteractive}
-                            onDragStart={() => {
-                              if (!isInteractive) return;
-                              setDraggedFactsheet({
-                                fs,
-                                fromX: xVal,
-                                fromY: yVal,
-                              });
-                            }}
-                            onDragEnd={() => {
-                              if (!isInteractive) return;
-                              setDraggedFactsheet(null);
-                              setDropTarget(null);
-                            }}
-                            className={`bg-white overflow-hidden ${
-                              printable
-                                ? "rounded border border-gray-200"
-                                : "rounded-lg shadow-sm hover:shadow-md transition-all"
-                            } ${
-                              isInteractive
-                                ? "cursor-grab"
-                                : onFactsheetClick
-                                  ? "cursor-pointer"
-                                  : "cursor-default"
-                            } ${isDragging ? "opacity-50 scale-95" : ""}`}
-                            onClick={() => onFactsheetClick?.(fs.id)}
-                          >
-                            {/* Color bar */}
+                            className={printable ? "h-1" : "h-1.5"}
+                            style={{ backgroundColor: typeColor }}
+                          />
+
+                          {/* Card content */}
+                          <div className={printable ? "p-1" : "p-3"}>
                             <div
-                              className={printable ? "h-1" : "h-1.5"}
-                              style={{ backgroundColor: typeColor }}
-                            />
-
-                            {/* Card content */}
-                            <div className={printable ? "p-1" : "p-3"}>
-                              <div
-                                className={`text-primary-900 leading-tight ${
-                                  printable
-                                    ? "text-[9px] font-normal matrix-print-card-title"
-                                    : "text-sm font-normal"
-                                }`}
-                              >
-                                {fs.name}
-                              </div>
-
-                              {/* Status badge */}
-                              <div
-                                className={`${printable ? "mt-1" : "mt-2"} flex items-center gap-1`}
-                              >
-                                <span
-                                  className={`inline-flex rounded-full ${
-                                    printable
-                                      ? "px-1 py-0 text-[8px] leading-tight"
-                                      : "px-2 py-0.5 text-xs"
-                                  }`}
-                                  style={{
-                                    backgroundColor: statusMeta.color,
-                                    color: getStatusTextColor(statusMeta.color),
-                                  }}
-                                >
-                                  {statusMeta.label}
-                                </span>
-                              </div>
-
-                              {/* Property values */}
-                              {displayProperties.length > 0 &&
-                                fsPropertyValues && (
-                                  <div
-                                    className={`${printable ? "mt-1 pt-1" : "mt-2 pt-2"} border-t border-gray-100 space-y-0.5`}
-                                  >
-                                    {displayProperties.map((propId) => {
-                                      const value =
-                                        fsPropertyValues.get(propId);
-                                      if (!value) return null;
-                                      return (
-                                        <div
-                                          key={propId}
-                                          className={`flex justify-between gap-2 ${
-                                            printable
-                                              ? "text-[8px] leading-tight"
-                                              : "text-xs"
-                                          }`}
-                                        >
-                                          <span className="text-gray-500">
-                                            {getPropertyName(propId)}
-                                          </span>
-                                          <span className="text-primary-900 font-medium">
-                                            {value}
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
+                              className={`text-primary-900 leading-tight ${
+                                printable
+                                  ? "text-[9px] font-normal matrix-print-card-title"
+                                  : "text-sm font-normal"
+                              }`}
+                            >
+                              {fs.name}
                             </div>
+
+                            {/* Status badge */}
+                            <div
+                              className={`${printable ? "mt-1" : "mt-2"} flex items-center gap-1`}
+                            >
+                              <span
+                                className={`inline-flex rounded-full ${
+                                  printable
+                                    ? "px-1 py-0 text-[8px] leading-tight"
+                                    : "px-2 py-0.5 text-xs"
+                                }`}
+                                style={{
+                                  backgroundColor: statusMeta.color,
+                                  color: getStatusTextColor(statusMeta.color),
+                                }}
+                              >
+                                {statusMeta.label}
+                              </span>
+                            </div>
+
+                            {/* Property values */}
+                            {displayProperties.length > 0 &&
+                              fsPropertyValues && (
+                                <div
+                                  className={`${printable ? "mt-1 pt-1" : "mt-2 pt-2"} border-t border-gray-100 space-y-0.5`}
+                                >
+                                  {displayProperties.map((propId) => {
+                                    const value = fsPropertyValues.get(propId);
+                                    if (!value) return null;
+                                    return (
+                                      <div
+                                        key={propId}
+                                        className={`flex justify-between gap-2 ${
+                                          printable
+                                            ? "text-[8px] leading-tight"
+                                            : "text-xs"
+                                        }`}
+                                      >
+                                        <span className="text-gray-500">
+                                          {getPropertyName(propId)}
+                                        </span>
+                                        <span className="text-primary-900 font-medium">
+                                          {value}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>
