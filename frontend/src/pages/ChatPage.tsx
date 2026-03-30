@@ -32,20 +32,28 @@ function resolveStatusLabel(
 }
 
 async function loadDataContext(): Promise<string> {
-  const [factsheets, types, dependencies, properties, options, fpLinks, appSettingsRecords] =
-    await Promise.all([
-      pb.collection("factsheets").getFullList<Factsheet>(),
-      pb.collection("factsheet_types").getFullList<FactsheetType>(),
-      pb.collection("dependencies").getFullList<Dependency>(),
-      pb.collection("property_definitions").getFullList<PropertyDefinition>(),
-      pb.collection("property_options").getFullList<PropertyOption>(),
-      pb.collection("factsheet_properties").getFullList<FactsheetProperty>(),
-      pb.collection("app_settings").getFullList(),
-    ]);
+  const [
+    factsheets,
+    types,
+    dependencies,
+    properties,
+    options,
+    fpLinks,
+    appSettingsRecords,
+  ] = await Promise.all([
+    pb.collection("factsheets").getFullList<Factsheet>(),
+    pb.collection("factsheet_types").getFullList<FactsheetType>(),
+    pb.collection("dependencies").getFullList<Dependency>(),
+    pb.collection("property_definitions").getFullList<PropertyDefinition>(),
+    pb.collection("property_options").getFullList<PropertyOption>(),
+    pb.collection("factsheet_properties").getFullList<FactsheetProperty>(),
+    pb.collection("app_settings").getFullList(),
+  ]);
 
-  const globalStatuses = appSettingsRecords.length > 0
-    ? normalizeStatuses(appSettingsRecords[0].statuses)
-    : undefined;
+  const globalStatuses =
+    appSettingsRecords.length > 0
+      ? normalizeStatuses(appSettingsRecords[0].statuses)
+      : undefined;
 
   const typeMap = Object.fromEntries(types.map((t) => [t.id, t.name]));
   const typeObjMap = Object.fromEntries(types.map((t) => [t.id, t]));
@@ -65,7 +73,8 @@ async function loadDataContext(): Promise<string> {
     const typeName = typeMap[f.type] || f.type;
     typeCounts[typeName] = (typeCounts[typeName] || 0) + 1;
     if (!typeStatusCounts[typeName]) typeStatusCounts[typeName] = {};
-    typeStatusCounts[typeName][label] = (typeStatusCounts[typeName][label] || 0) + 1;
+    typeStatusCounts[typeName][label] =
+      (typeStatusCounts[typeName][label] || 0) + 1;
   }
 
   lines.push(
@@ -101,7 +110,11 @@ async function loadDataContext(): Promise<string> {
   lines.push("\n## Factsheets");
   for (const f of factsheets) {
     const typeName = typeMap[f.type] || f.type;
-    const statusLabel = resolveStatusLabel(f, globalStatuses, typeObjMap[f.type]);
+    const statusLabel = resolveStatusLabel(
+      f,
+      globalStatuses,
+      typeObjMap[f.type],
+    );
     lines.push(`- "${f.name}" (type: ${typeName}, status: ${statusLabel})`);
     if (f.description) lines.push(`  Description: ${f.description}`);
     if (f.responsibility) lines.push(`  Responsibility: ${f.responsibility}`);
