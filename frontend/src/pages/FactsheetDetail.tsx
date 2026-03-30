@@ -12,6 +12,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Card, CardTitle, Button, Badge, MetricBadge } from "../components/ui";
+import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import { SpiderDiagram, DependencyGraph } from "../components/visualizations";
 import type { SpiderDataPoint } from "../components/visualizations/SpiderDiagram";
 import { useRecord, useRealtime } from "../hooks/useRealtime";
@@ -34,6 +35,9 @@ export default function FactsheetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
+    null,
+  );
   const [allDependencies, setAllDependencies] = useState<Dependency[]>([]);
   const [relatedFactsheets, setRelatedFactsheets] = useState<
     FactsheetExpanded[]
@@ -521,6 +525,7 @@ export default function FactsheetDetail() {
               <DependencyGraph
                 factsheets={relatedFactsheets}
                 dependencies={allDependencies}
+                onNodeClick={setSelectedFactsheetId}
                 showComments={false}
               />
             </div>
@@ -676,6 +681,11 @@ export default function FactsheetDetail() {
           </div>
         </div>
       </Card>
+
+      <FactsheetDetailModal
+        factsheetId={selectedFactsheetId}
+        onClose={() => setSelectedFactsheetId(null)}
+      />
     </div>
   );
 }

@@ -33,12 +33,20 @@ export default function FactsheetDetailModal({
   factsheetId,
   onClose,
 }: FactsheetDetailModalProps) {
+  const [activeFactsheetId, setActiveFactsheetId] = useState<string | null>(
+    factsheetId,
+  );
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const { settings: appSettings } = useAppSettings();
 
+  useEffect(() => {
+    setActiveFactsheetId(factsheetId);
+    setHistoryExpanded(false);
+  }, [factsheetId]);
+
   const { record: factsheet, loading } = useRecord<Factsheet>(
     "factsheets",
-    factsheetId || undefined,
+    activeFactsheetId || undefined,
   );
   const { record: factsheetType } = useRecord<FactsheetType>(
     "factsheet_types",
@@ -57,7 +65,7 @@ export default function FactsheetDetailModal({
   >([]);
 
   useEffect(() => {
-    if (!factsheetId) {
+    if (!activeFactsheetId) {
       setAllDependencies([]);
       setRelatedFactsheets([]);
       return;
@@ -85,7 +93,7 @@ export default function FactsheetDetailModal({
 
         // Find all related factsheet IDs (full chain)
         const related = new Set<string>();
-        related.add(factsheetId);
+        related.add(activeFactsheetId);
 
         // Traverse downstream (what the focused factsheet depends on, recursively)
         const traverseDownstream = (id: string) => {
@@ -109,8 +117,8 @@ export default function FactsheetDetailModal({
           }
         };
 
-        traverseDownstream(factsheetId);
-        traverseUpstream(factsheetId);
+        traverseDownstream(activeFactsheetId);
+        traverseUpstream(activeFactsheetId);
 
         // Filter dependencies to only include those between related factsheets
         const relevantDeps = deps.filter(
@@ -135,25 +143,25 @@ export default function FactsheetDetailModal({
         setAllDependencies([]);
         setRelatedFactsheets([]);
       });
-  }, [factsheetId]);
+  }, [activeFactsheetId]);
 
   // Count direct dependencies for the summary text
   const directOutgoingCount = allDependencies.filter(
-    (d) => d.factsheet === factsheetId,
+    (d) => d.factsheet === activeFactsheetId,
   ).length;
   const directIncomingCount = allDependencies.filter(
-    (d) => d.depends_on === factsheetId,
+    (d) => d.depends_on === activeFactsheetId,
   ).length;
 
   const { records: properties } = useRealtime<FactsheetPropertyExpanded>({
     collection: "factsheet_properties",
-    filter: factsheetId ? `factsheet = "${factsheetId}"` : "",
+    filter: activeFactsheetId ? `factsheet = "${activeFactsheetId}"` : "",
     expand: "property,option",
   });
 
   const { records: changeLogs } = useRealtime<ChangeLogExpanded>({
     collection: "change_log",
-    filter: factsheetId ? `factsheet = "${factsheetId}"` : "",
+    filter: activeFactsheetId ? `factsheet = "${activeFactsheetId}"` : "",
     sort: "-created",
     expand: "related_factsheet",
   });
@@ -235,8 +243,11 @@ export default function FactsheetDetailModal({
 
   return (
     <Modal
-      isOpen={factsheetId !== null}
-      onClose={onClose}
+      isOpen={activeFactsheetId !== null}
+      onClose={() => {
+        setActiveFactsheetId(null);
+        onClose();
+      }}
       title={loading ? "Loading..." : factsheet?.name || "Factsheet"}
       size="full"
     >
@@ -411,6 +422,7 @@ export default function FactsheetDetailModal({
                 <DependencyGraph
                   factsheets={relatedFactsheets}
                   dependencies={allDependencies}
+                  onNodeClick={setActiveFactsheetId}
                   showComments={false}
                 />
               </div>
@@ -462,7 +474,10 @@ export default function FactsheetDetailModal({
 
           {/* Actions */}
           <div className="flex gap-3 pt-4 border-t border-gray-200">
-            <Link to={`/factsheets/${factsheetId}/edit`} onClick={onClose}>
+            <Link
+              to={`/factsheets/${activeFactsheetId}/edit`}
+              onClick={onClose}
+            >
               <Button
                 variant="secondary"
                 size="sm"
@@ -471,7 +486,7 @@ export default function FactsheetDetailModal({
                 Edit
               </Button>
             </Link>
-            <Link to={`/factsheets/${factsheetId}`} onClick={onClose}>
+            <Link to={`/factsheets/${activeFactsheetId}`} onClick={onClose}>
               <Button
                 variant="ghost"
                 size="sm"
