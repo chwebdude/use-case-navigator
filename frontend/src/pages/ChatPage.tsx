@@ -6,6 +6,7 @@ import { Card, CardTitle } from "../components/ui";
 import ChatChart, { parseChartBlocks } from "../components/ChatChart";
 import { useAppSettings } from "../hooks/useAppSettings";
 import pb from "../lib/pocketbase";
+import { getStatusMeta, normalizeStatuses } from "../lib/statusConfig";
 import type {
   Factsheet,
   FactsheetType,
@@ -13,6 +14,7 @@ import type {
   PropertyDefinition,
   PropertyOption,
   FactsheetProperty,
+  StatusDefinition,
 } from "../types";
 
 interface ChatMessage {
@@ -20,8 +22,17 @@ interface ChatMessage {
   content: string;
 }
 
+function resolveStatusLabel(
+  f: Factsheet,
+  globalStatuses: StatusDefinition[] | undefined,
+  typeObj?: FactsheetType,
+): string {
+  const statusId = f.status_id || f.status;
+  return getStatusMeta(statusId, globalStatuses, typeObj).label;
+}
+
 async function loadDataContext(): Promise<string> {
-  const [factsheets, types, dependencies, properties, options, fpLinks] =
+  const [factsheets, types, dependencies, properties, options, fpLinks, appSettingsRecords] =
     await Promise.all([
       pb.collection("factsheets").getFullList<Factsheet>(),
       pb.collection("factsheet_types").getFullList<FactsheetType>(),
@@ -29,9 +40,15 @@ async function loadDataContext(): Promise<string> {
       pb.collection("property_definitions").getFullList<PropertyDefinition>(),
       pb.collection("property_options").getFullList<PropertyOption>(),
       pb.collection("factsheet_properties").getFullList<FactsheetProperty>(),
+      pb.collection("app_settings").getFullList(),
     ]);
 
+  const globalStatuses = appSettingsRecords.length > 0
+    ? normalizeStatuses(appSettingsRecords[0].statuses)
+    : undefined;
+
   const typeMap = Object.fromEntries(types.map((t) => [t.id, t.name]));
+  const typeObjMap = Object.fromEntries(types.map((t) => [t.id, t]));
   const fsMap = Object.fromEntries(factsheets.map((f) => [f.id, f.name]));
   const propMap = Object.fromEntries(properties.map((p) => [p.id, p.name]));
   const optMap = Object.fromEntries(options.map((o) => [o.id, o]));
@@ -41,10 +58,14 @@ async function loadDataContext(): Promise<string> {
   // Summary with exact counts
   const statusCounts: Record<string, number> = {};
   const typeCounts: Record<string, number> = {};
+  const typeStatusCounts: Record<string, Record<string, number>> = {};
   for (const f of factsheets) {
-    statusCounts[f.status] = (statusCounts[f.status] || 0) + 1;
+    const label = resolveStatusLabel(f, globalStatuses, typeObjMap[f.type]);
+    statusCounts[label] = (statusCounts[label] || 0) + 1;
     const typeName = typeMap[f.type] || f.type;
     typeCounts[typeName] = (typeCounts[typeName] || 0) + 1;
+    if (!typeStatusCounts[typeName]) typeStatusCounts[typeName] = {};
+    typeStatusCounts[typeName][label] = (typeStatusCounts[typeName][label] || 0) + 1;
   }
 
   lines.push(
@@ -64,6 +85,13 @@ async function loadDataContext(): Promise<string> {
       .map(([t, c]) => `${t}: ${c}`)
       .join(", ")}`,
   );
+  lines.push("\n### Factsheets by type and status (use for filtered counts):");
+  for (const [typeName, statuses] of Object.entries(typeStatusCounts)) {
+    const breakdown = Object.entries(statuses)
+      .map(([s, c]) => `${s}: ${c}`)
+      .join(", ");
+    lines.push(`- ${typeName}: ${breakdown}`);
+  }
 
   lines.push("\n## Factsheet Types");
   for (const t of types) {
@@ -73,7 +101,8 @@ async function loadDataContext(): Promise<string> {
   lines.push("\n## Factsheets");
   for (const f of factsheets) {
     const typeName = typeMap[f.type] || f.type;
-    lines.push(`- "${f.name}" (type: ${typeName}, status: ${f.status})`);
+    const statusLabel = resolveStatusLabel(f, globalStatuses, typeObjMap[f.type]);
+    lines.push(`- "${f.name}" (type: ${typeName}, status: ${statusLabel})`);
     if (f.description) lines.push(`  Description: ${f.description}`);
     if (f.responsibility) lines.push(`  Responsibility: ${f.responsibility}`);
     if (f.what_it_does) lines.push(`  What it does: ${f.what_it_does}`);
@@ -123,7 +152,9 @@ Here is the current data in the system:
 
 ${dataContext}
 
-IMPORTANT: The "Summary" section at the top contains pre-computed exact counts. Always use those numbers for counting questions (e.g. "how many factsheets", "how many dependencies"). Do NOT try to count items yourself from the lists below — use the summary numbers.
+IMPORTANT: The "Summary" section at the top contains pre-computed exact counts. Always use those numbers for counting questions (e.g. "how many factsheets", "how many dependencies"). Do NOT try to count items yourself from the lists below — use the summary numbers. The "Factsheets by type and status" subsection has exact cross-tabulated counts for each type-status combination.
+
+When listing items that match a filter (e.g. "Data Foundations with Unknown status"), first check the summary for the exact count, then carefully list ALL matching items from the data. Verify your list has the correct number of items before responding.
 
 When your answer involves numerical data that would benefit from visualization (distributions, comparisons, counts by category), include a chart by adding a fenced code block with the language "chart" containing a JSON object. The JSON must have:
 - "type": one of "bar", "horizontal-bar", or "pie"
