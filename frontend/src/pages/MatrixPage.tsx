@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Eye, ChevronDown, Check } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { Eye, ChevronDown, Check, Printer } from "lucide-react";
 import { Card, CardTitle, Select, Button } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
 import {
@@ -25,6 +26,8 @@ import type {
 } from "../types";
 
 export default function MatrixPage() {
+  const location = useLocation();
+
   const {
     settings,
     loading: settingsLoading,
@@ -317,6 +320,7 @@ export default function MatrixPage() {
     typeFilter !== "" ||
     statusFilter !== "" ||
     Object.values(propertyFilters).some((v) => v !== "");
+  const printLink = `/matrix/print${location.search}`;
 
   return (
     <div className="space-y-6">
@@ -328,13 +332,20 @@ export default function MatrixPage() {
             Plot factsheets on a matrix based on their properties
           </p>
         </div>
-        <SaveDefaultsButton
-          type="matrix"
-          filters={state}
-          onSave={(filters) =>
-            setAppSettings({ defaultMatrixFilters: filters })
-          }
-        />
+        <div className="flex items-center gap-2">
+          <Link to={printLink} target="_blank" rel="noreferrer">
+            <Button variant="secondary" icon={<Printer className="w-4 h-4" />}>
+              Print View
+            </Button>
+          </Link>
+          <SaveDefaultsButton
+            type="matrix"
+            filters={state}
+            onSave={(filters) =>
+              setAppSettings({ defaultMatrixFilters: filters })
+            }
+          />
+        </div>
       </div>
 
       {/* Filters and Additional Settings */}

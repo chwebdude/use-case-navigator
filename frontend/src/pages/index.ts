@@ -9,6 +9,7 @@ export { default as DependencyForm } from "./DependencyForm";
 export { default as PropertiesEditor } from "./PropertiesEditor";
 export { default as DependenciesPage } from "./DependenciesPage";
 export { default as MatrixPage } from "./MatrixPage";
+export { default as MatrixPrint } from "./MatrixPrint";
 export { default as SettingsPage } from "./SettingsPage";
 export { default as SpiderPage } from "./SpiderPage";
 export { default as ScatterPage } from "./ScatterPage";

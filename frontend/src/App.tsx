@@ -14,6 +14,7 @@ import {
   PropertiesEditor,
   DependenciesPage,
   MatrixPage,
+  MatrixPrint,
   SettingsPage,
   SpiderPage,
   ScatterPage,
@@ -37,6 +38,7 @@ function App() {
           path="factsheets/:id/dependencies/print-chain"
           element={<FactsheetDependenciesChainPrint />}
         />
+        <Route path="matrix/print" element={<MatrixPrint />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="factsheets" element={<FactsheetList />} />
