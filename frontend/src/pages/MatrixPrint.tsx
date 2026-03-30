@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Download, Printer } from "lucide-react";
+import { toPng } from "html-to-image";
 import { Button } from "../components/ui";
 import { PropertyMatrix } from "../components/visualizations";
 import { useRealtime } from "../hooks/useRealtime";
@@ -34,6 +35,8 @@ function parseJsonParam<T>(value: string | null, fallback: T): T {
 
 export default function MatrixPrint() {
   const location = useLocation();
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
 
   const queryState = useMemo<MatrixPrintQueryState>(() => {
     const params = new URLSearchParams(location.search);
@@ -133,6 +136,42 @@ export default function MatrixPrint() {
     (queryState.statusFilter ? 1 : 0) +
     Object.values(queryState.propertyFilters).filter(Boolean).length;
 
+  const handleExportPng = async () => {
+    if (!sheetRef.current || exporting) {
+      return;
+    }
+
+    setExporting(true);
+
+    try {
+      const dataUrl = await toPng(sheetRef.current, {
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+        pixelRatio: 2,
+        canvasWidth: sheetRef.current.scrollWidth,
+        canvasHeight: sheetRef.current.scrollHeight,
+      });
+
+      const link = document.createElement("a");
+      const xAxisSlug = (xAxisLabel || "x-axis")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      const yAxisSlug = (yAxisLabel || "y-axis")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      link.download = `matrix-${xAxisSlug}-${yAxisSlug}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error("Failed to export matrix as PNG", error);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <>
       <style media="print">{`
@@ -158,9 +197,20 @@ export default function MatrixPrint() {
           >
             Print
           </Button>
+          <Button
+            variant="secondary"
+            icon={<Download className="w-4 h-4" />}
+            onClick={handleExportPng}
+            disabled={loading || exporting}
+          >
+            {exporting ? "Exporting..." : "Export PNG"}
+          </Button>
         </div>
 
-        <div className="matrix-print-sheet bg-white border border-gray-300 p-6 print:border-0 print:p-0 print:bg-white">
+        <div
+          ref={sheetRef}
+          className="matrix-print-sheet bg-white border border-gray-300 p-6 print:border-0 print:p-0 print:bg-white"
+        >
           <div className="matrix-print-header flex items-start justify-between gap-6 mb-6">
             <div>
               <h1 className="text-3xl font-bold text-primary-900">
