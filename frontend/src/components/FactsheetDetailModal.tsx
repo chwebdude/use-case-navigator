@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Edit,
@@ -12,8 +12,13 @@ import { DependencyGraph, SpiderDiagram } from "./visualizations";
 import type { SpiderDataPoint } from "./visualizations/SpiderDiagram";
 import { useRecord, useRealtime } from "../hooks/useRealtime";
 import { useAppSettings } from "../hooks/useAppSettings";
+import { useChangeLog } from "../hooks/useChangeLog";
 import pb from "../lib/pocketbase";
-import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
+import {
+  getStatusMeta,
+  getStatusTextColor,
+  getStatusesForType,
+} from "../lib/statusConfig";
 import type {
   Factsheet,
   FactsheetType,
@@ -37,12 +42,32 @@ export default function FactsheetDetailModal({
     factsheetId,
   );
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
   const { settings: appSettings } = useAppSettings();
+  const { logChange } = useChangeLog();
 
   useEffect(() => {
     setActiveFactsheetId(factsheetId);
     setHistoryExpanded(false);
+    setStatusDropdownOpen(false);
   }, [factsheetId]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        statusDropdownRef.current &&
+        !statusDropdownRef.current.contains(e.target as Node)
+      ) {
+        setStatusDropdownOpen(false);
+      }
+    };
+    if (statusDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [statusDropdownOpen]);
 
   const { record: factsheet, loading } = useRecord<Factsheet>(
     "factsheets",
@@ -180,6 +205,43 @@ export default function FactsheetDetailModal({
     factsheetType ?? undefined,
   );
 
+  const availableStatuses = getStatusesForType(
+    appSettings.statuses,
+    factsheetType ?? undefined,
+  );
+
+  const LEGACY_STATUS_VALUES = new Set(["draft", "active", "archived"]);
+
+  const handleStatusChange = async (newStatusId: string) => {
+    if (!factsheet || !activeFactsheetId || newStatusId === statusId) {
+      setStatusDropdownOpen(false);
+      return;
+    }
+    const oldMeta = statusMeta;
+    const newMeta = getStatusMeta(
+      newStatusId,
+      appSettings.statuses,
+      factsheetType ?? undefined,
+    );
+    const legacyStatus = LEGACY_STATUS_VALUES.has(newStatusId)
+      ? newStatusId
+      : factsheet.status;
+    try {
+      await pb.collection("factsheets").update(activeFactsheetId, {
+        status_id: newStatusId,
+        status: legacyStatus,
+      });
+      await logChange({
+        factsheetId: activeFactsheetId,
+        action: "updated",
+        description: `Status changed from "${oldMeta.label}" to "${newMeta.label}"`,
+      });
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    }
+    setStatusDropdownOpen(false);
+  };
+
   const propertyMap = useMemo(() => {
     const map = new Map<string, FactsheetPropertyExpanded>();
     properties.forEach((fp) => {
@@ -269,15 +331,39 @@ export default function FactsheetDetailModal({
                 {factsheetType.name}
               </span>
             )}
-            <Badge
-              className="rounded-full"
-              style={{
-                backgroundColor: statusMeta.color,
-                color: getStatusTextColor(statusMeta.color),
-              }}
-            >
-              {statusMeta.label}
-            </Badge>
+            <div className="relative" ref={statusDropdownRef}>
+              <Badge
+                className="rounded-full cursor-pointer hover:opacity-80 transition-opacity"
+                style={{
+                  backgroundColor: statusMeta.color,
+                  color: getStatusTextColor(statusMeta.color),
+                }}
+                onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+              >
+                {statusMeta.label}
+                <ChevronDown className="w-3 h-3 ml-1 inline" />
+              </Badge>
+              {statusDropdownOpen && (
+                <div className="absolute z-50 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                  {availableStatuses.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => handleStatusChange(s.id)}
+                      className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-gray-100 ${
+                        s.id === statusId ? "font-semibold" : ""
+                      }`}
+                    >
+                      <span
+                        className="w-3 h-3 rounded-full inline-block flex-shrink-0"
+                        style={{ backgroundColor: s.color }}
+                      />
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Description */}
