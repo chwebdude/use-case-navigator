@@ -7,6 +7,7 @@ import {
   FactsheetList,
   FactsheetDetail,
   FactsheetPrint,
+  FactsheetFullPrint,
   FactsheetDependenciesPrint,
   FactsheetDependenciesChainPrint,
   FactsheetForm,
@@ -30,6 +31,10 @@ function App() {
       <UsernamePrompt isOpen={!isLoggedIn} onSubmit={setUsername} />
       <Routes>
         <Route path="factsheets/:id/print" element={<FactsheetPrint />} />
+        <Route
+          path="factsheets/:id/print-full"
+          element={<FactsheetFullPrint />}
+        />
         <Route
           path="factsheets/:id/dependencies/print"
           element={<FactsheetDependenciesPrint />}

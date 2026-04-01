@@ -342,7 +342,16 @@ export default function FactsheetDetail() {
         <div className="flex gap-2">
           <Link to={`/factsheets/${id}/print`} target="_blank" rel="noreferrer">
             <Button variant="secondary" icon={<Printer className="w-4 h-4" />}>
-              Print View
+              Print Card
+            </Button>
+          </Link>
+          <Link
+            to={`/factsheets/${id}/print-full`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Button variant="secondary" icon={<Printer className="w-4 h-4" />}>
+              Print Full
             </Button>
           </Link>
           <Link to={`/factsheets/${id}/edit`}>
