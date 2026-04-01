@@ -11,8 +11,11 @@ import {
   MarkerType,
   Handle,
   Position,
+  getNodesBounds,
+  getViewportForBounds,
 } from "@xyflow/react";
 import dagre from "dagre";
+import { toPng } from "html-to-image";
 import "@xyflow/react/dist/style.css";
 import type {
   FactsheetExpanded,
@@ -42,6 +45,7 @@ interface DependencyGraphProps {
   showComments?: boolean;
   focusedFactsheetId?: string | null;
   unrelatedDisplayMode?: "dim" | "hide";
+  onExportHandlerChange?: (handler: (() => Promise<void>) | null) => void;
 }
 
 interface PropertyDisplay {
@@ -207,7 +211,10 @@ export default function DependencyGraph({
   showComments = true,
   focusedFactsheetId,
   unrelatedDisplayMode = "dim",
+  onExportHandlerChange,
 }: DependencyGraphProps) {
+  const graphWrapperRef = useRef<HTMLDivElement>(null);
+
   const {
     settings: { statuses: globalStatuses },
   } = useAppSettings();
@@ -389,6 +396,11 @@ export default function DependencyGraph({
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
+  const nodesRef = useRef<Node[]>(nodes);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   // Track previous state to detect meaningful changes
   const prevNodeStateRef = useRef<string>("");
@@ -497,8 +509,69 @@ export default function DependencyGraph({
     [onNodeRightClick],
   );
 
+  const exportToPng = useCallback(async () => {
+    const currentNodes = nodesRef.current;
+
+    if (!graphWrapperRef.current || currentNodes.length === 0) {
+      return;
+    }
+
+    const viewportElement = graphWrapperRef.current.querySelector(
+      ".react-flow__viewport",
+    ) as HTMLElement | null;
+
+    if (!viewportElement) {
+      return;
+    }
+
+    const bounds = getNodesBounds(currentNodes);
+    const imageWidth = Math.max(Math.round(bounds.width + 120), 800);
+    const imageHeight = Math.max(Math.round(bounds.height + 120), 600);
+    const { x, y, zoom } = getViewportForBounds(
+      bounds,
+      imageWidth,
+      imageHeight,
+      0.1,
+      2,
+      0.1,
+    );
+
+    const dataUrl = await toPng(viewportElement, {
+      cacheBust: true,
+      backgroundColor: "#ffffff",
+      width: imageWidth,
+      height: imageHeight,
+      pixelRatio: 2,
+      style: {
+        width: `${imageWidth}px`,
+        height: `${imageHeight}px`,
+        transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+      },
+    });
+
+    const link = document.createElement("a");
+    link.download = "dependency-graph.png";
+    link.href = dataUrl;
+    link.click();
+  }, []);
+
+  useEffect(() => {
+    if (!onExportHandlerChange) {
+      return;
+    }
+
+    onExportHandlerChange(exportToPng);
+
+    return () => {
+      onExportHandlerChange(null);
+    };
+  }, [exportToPng, onExportHandlerChange]);
+
   return (
-    <div className="w-full h-full min-h-[200px] bg-gray-50">
+    <div
+      ref={graphWrapperRef}
+      className="w-full h-full min-h-[200px] bg-gray-50"
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}

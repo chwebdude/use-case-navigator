@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Focus,
   EyeOff,
+  Download,
 } from "lucide-react";
 import { Card, CardTitle, Button, Modal } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
@@ -81,6 +82,8 @@ export default function DependenciesPage() {
 
   const [layoutKey, setLayoutKey] = useState(0);
   const isFirstRender = useRef(true);
+  const exportGraphHandlerRef = useRef<(() => Promise<void>) | null>(null);
+  const [exportingGraph, setExportingGraph] = useState(false);
 
   // Connection modal state (for creating new dependencies)
   const [connectionModal, setConnectionModal] =
@@ -264,6 +267,21 @@ export default function DependenciesPage() {
 
   const handleAutoAlign = () => {
     setLayoutKey((k) => k + 1);
+  };
+
+  const handleExportGraph = async () => {
+    if (!exportGraphHandlerRef.current || exportingGraph) {
+      return;
+    }
+
+    setExportingGraph(true);
+    try {
+      await exportGraphHandlerRef.current();
+    } catch (error) {
+      console.error("Failed to export dependency graph as PNG", error);
+    } finally {
+      setExportingGraph(false);
+    }
   };
 
   const handleEdgeClick = (dependencyId: string) => {
@@ -575,6 +593,18 @@ export default function DependenciesPage() {
             >
               Auto Align
             </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Download className="w-4 h-4" />}
+              onClick={handleExportGraph}
+              disabled={
+                loading || filteredFactsheets.length === 0 || exportingGraph
+              }
+            >
+              {exportingGraph ? "Exporting..." : "Export PNG"}
+            </Button>
           </div>
         }
       />
@@ -620,6 +650,9 @@ export default function DependenciesPage() {
             showComments={showComments}
             focusedFactsheetId={focusedFactsheetId}
             unrelatedDisplayMode={unrelatedDisplayMode}
+            onExportHandlerChange={(handler) => {
+              exportGraphHandlerRef.current = handler;
+            }}
           />
         </div>
       )}
