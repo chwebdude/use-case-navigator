@@ -48,7 +48,7 @@ export default function ScatterPage() {
   const [state, setState] = useQueryStates({
     search: "",
     statusFilter: "",
-    typeFilter: "",
+    typeFilter: [] as string[],
     propertyFilters: {} as Record<string, string>,
     xAxis: "",
     yAxis: "",
@@ -66,7 +66,7 @@ export default function ScatterPage() {
   } = state;
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
-  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setTypeFilter = (v: string[]) => setState("typeFilter", v);
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
   const setXAxis = (v: string) => setState("xAxis", v);
@@ -155,7 +155,8 @@ export default function ScatterPage() {
         fs.description?.toLowerCase().includes(search.toLowerCase());
       const matchesStatus =
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
-      const matchesType = typeFilter === "" || fs.type === typeFilter;
+      const matchesType =
+        typeFilter.length === 0 || typeFilter.includes(fs.type);
       const matchesProperties = Object.entries(propertyFilters).every(
         ([propId, value]) => {
           if (value === "") return true;
@@ -294,14 +295,14 @@ export default function ScatterPage() {
 
   const clearAllFilters = () => {
     setSearch("");
-    setTypeFilter("");
+    setTypeFilter([]);
     setStatusFilter("");
     setPropertyFilters({});
   };
 
   const hasFilters =
     search !== "" ||
-    typeFilter !== "" ||
+    typeFilter.length > 0 ||
     statusFilter !== "" ||
     Object.values(propertyFilters).some((v) => v !== "");
 

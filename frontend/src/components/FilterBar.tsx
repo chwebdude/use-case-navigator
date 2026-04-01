@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import { Card, Select, Button } from "./ui";
+import { Card, Select, Button, MultiSelect } from "./ui";
 import type {
   PropertyDefinition,
   PropertyOption,
@@ -16,8 +16,8 @@ interface FilterBarProps {
   statusFilter: string;
   onStatusChange: (value: string) => void;
 
-  typeFilter: string;
-  onTypeChange: (value: string) => void;
+  typeFilter: string[];
+  onTypeChange: (values: string[]) => void;
 
   propertyFilters: Record<string, string>;
   onPropertyFilterChange: (propId: string, value: string) => void;
@@ -78,17 +78,29 @@ export function FilterBar({
   }, [propertyOptions]);
 
   const statusOptions = useMemo(() => {
-    const selectedType = factsheetTypes.find((type) => type.id === typeFilter);
-    if (selectedType) {
+    if (typeFilter.length > 0) {
+      // If specific types are selected, show statuses for those types
+      const seen = new Set<string>();
+      const combined = typeFilter
+        .map((typeId) => factsheetTypes.find((type) => type.id === typeId))
+        .filter((type): type is FactsheetType => type !== undefined)
+        .flatMap((type) => getStatusesForType(globalStatuses, type))
+        .filter((status) => {
+          if (seen.has(status.id)) return false;
+          seen.add(status.id);
+          return true;
+        });
+
       return [
         { value: "", label: "All Statuses" },
-        ...getStatusesForType(globalStatuses, selectedType).map((status) => ({
+        ...combined.map((status) => ({
           value: status.id,
           label: status.label,
         })),
       ];
     }
 
+    // If no types selected, show all available statuses
     const seen = new Set<string>();
     const combined = [
       ...getStatusesForType(globalStatuses),
@@ -176,20 +188,17 @@ export function FilterBar({
 
           {/* Type filter */}
           <div className="w-32 sm:w-36 lg:w-40">
-            <Select
+            <MultiSelect
               label="Type"
-              className="h-8 text-sm"
-              options={[
-                { value: "", label: "All Types" },
-                ...factsheetTypes
-                  .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-                  .map((type) => ({
-                    value: type.id,
-                    label: type.name,
-                  })),
-              ]}
-              value={typeFilter}
-              onChange={(e) => onTypeChange(e.target.value)}
+              placeholder="All Types"
+              options={factsheetTypes
+                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                .map((type) => ({
+                  value: type.id,
+                  label: type.name,
+                }))}
+              values={typeFilter}
+              onChange={onTypeChange}
             />
           </div>
 

@@ -45,7 +45,7 @@ export default function ImpactAnalysisPage() {
   const [state, setState] = useQueryStates({
     search: "",
     statusFilter: "",
-    typeFilter: "",
+    typeFilter: [] as string[],
     propertyFilters: {} as Record<string, string>,
     metricFilter: "",
     sortField: "averageImpact" as SortField,
@@ -67,7 +67,7 @@ export default function ImpactAnalysisPage() {
   } = state;
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
-  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setTypeFilter = (v: string[]) => setState("typeFilter", v);
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
   const setMetricFilter = (v: string) => setState("metricFilter", v);
@@ -331,7 +331,8 @@ export default function ImpactAnalysisPage() {
 
       const matchesStatus =
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
-      const matchesType = typeFilter === "" || fs.type === typeFilter;
+      const matchesType =
+        typeFilter.length === 0 || typeFilter.includes(fs.type);
 
       const matchesProperties = Object.entries(propertyFilters).every(
         ([propId, value]) => {
@@ -390,14 +391,14 @@ export default function ImpactAnalysisPage() {
 
   const hasFilters =
     search !== "" ||
-    typeFilter !== "" ||
+    typeFilter.length > 0 ||
     statusFilter !== "" ||
     Object.keys(propertyFilters).some((k) => propertyFilters[k] !== "") ||
     metricFilter !== "";
 
   const clearAllFilters = () => {
     setSearch("");
-    setTypeFilter("");
+    setTypeFilter([]);
     setStatusFilter("");
     setPropertyFilters({});
     setMetricFilter("");

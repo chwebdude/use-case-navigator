@@ -17,7 +17,7 @@ interface MatrixPrintQueryState {
   search: string;
   xAxis: string;
   yAxis: string;
-  typeFilter: string;
+  typeFilter: string[];
   statusFilter: string;
   propertyFilters: Record<string, string>;
   displayProperties: string[];
@@ -33,6 +33,18 @@ function parseJsonParam<T>(value: string | null, fallback: T): T {
   }
 }
 
+function parseTypeFilterParam(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+
+  if (value.startsWith("[")) {
+    return parseJsonParam<string[]>(value, []);
+  }
+
+  return [value];
+}
+
 export default function MatrixPrint() {
   const location = useLocation();
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -45,7 +57,7 @@ export default function MatrixPrint() {
       search: params.get("search") ?? "",
       xAxis: params.get("xAxis") ?? "",
       yAxis: params.get("yAxis") ?? "",
-      typeFilter: params.get("typeFilter") ?? "",
+      typeFilter: parseTypeFilterParam(params.get("typeFilter")),
       statusFilter: params.get("statusFilter") ?? "",
       propertyFilters: parseJsonParam<Record<string, string>>(
         params.get("propertyFilters"),
@@ -107,7 +119,8 @@ export default function MatrixPrint() {
         fs.name.toLowerCase().includes(queryState.search.toLowerCase()) ||
         fs.description?.toLowerCase().includes(queryState.search.toLowerCase());
       const matchesType =
-        queryState.typeFilter === "" || fs.type === queryState.typeFilter;
+        queryState.typeFilter.length === 0 ||
+        queryState.typeFilter.includes(fs.type);
       const matchesStatus =
         queryState.statusFilter === "" ||
         (fs.status_id || fs.status) === queryState.statusFilter;
@@ -132,7 +145,7 @@ export default function MatrixPrint() {
     queryState.yAxis;
   const activeFilterCount =
     (queryState.search ? 1 : 0) +
-    (queryState.typeFilter ? 1 : 0) +
+    (queryState.typeFilter.length > 0 ? 1 : 0) +
     (queryState.statusFilter ? 1 : 0) +
     Object.values(queryState.propertyFilters).filter(Boolean).length;
 

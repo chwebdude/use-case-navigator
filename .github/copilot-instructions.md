@@ -221,6 +221,12 @@ const [selectedId, setSelectedId] = useState<string | null>(null);
 return (
   <>
     <button onClick={() => { setSelectedId(id); setIsOpen(true); }}>Open</button>
+
+  ### URL-Backed Filter State
+
+  - Filters synchronized through `useQueryState` or `useQueryStates` may be strings, arrays, or objects
+  - Multi-select filters such as `typeFilter` should use `string[]`, not a single string
+  - When saving defaults or reading print/query views, preserve array filters as JSON-backed values and normalize legacy single-string values when needed
     <ModalComponent isOpen={isOpen} onClose={() => setIsOpen(false)} />
   </>
 );

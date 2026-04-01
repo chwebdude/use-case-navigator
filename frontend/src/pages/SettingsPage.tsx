@@ -1452,12 +1452,15 @@ export default function SettingsPage() {
                       Search: "{appSettings.defaultFactsheetFilters.search}"
                     </p>
                   )}
-                  {appSettings.defaultFactsheetFilters.typeFilter && (
+                  {appSettings.defaultFactsheetFilters.typeFilter?.length ? (
                     <p>
                       Type Filter: "
-                      {appSettings.defaultFactsheetFilters.typeFilter}"
+                      {appSettings.defaultFactsheetFilters.typeFilter.join(
+                        ", ",
+                      )}
+                      "
                     </p>
-                  )}
+                  ) : null}
                   {appSettings.defaultFactsheetFilters.statusFilter && (
                     <p>
                       Status Filter: "
@@ -1494,12 +1497,15 @@ export default function SettingsPage() {
                       Search: "{appSettings.defaultDependenciesFilters.search}"
                     </p>
                   )}
-                  {appSettings.defaultDependenciesFilters.typeFilter && (
+                  {appSettings.defaultDependenciesFilters.typeFilter?.length ? (
                     <p>
                       Type Filter: "
-                      {appSettings.defaultDependenciesFilters.typeFilter}"
+                      {appSettings.defaultDependenciesFilters.typeFilter.join(
+                        ", ",
+                      )}
+                      "
                     </p>
-                  )}
+                  ) : null}
                   {appSettings.defaultDependenciesFilters
                     .unrelatedDisplayMode && (
                     <p>

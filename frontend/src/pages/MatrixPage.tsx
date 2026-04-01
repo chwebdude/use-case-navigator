@@ -38,7 +38,7 @@ export default function MatrixPage() {
     search: "",
     xAxis: "",
     yAxis: "",
-    typeFilter: "",
+    typeFilter: [] as string[],
     statusFilter: "",
     propertyFilters: {} as Record<string, string>,
     displayProperties: [] as string[],
@@ -56,7 +56,7 @@ export default function MatrixPage() {
   const setSearch = (v: string) => setState("search", v);
   const setXAxis = (v: string) => setState("xAxis", v);
   const setYAxis = (v: string) => setState("yAxis", v);
-  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setTypeFilter = (v: string[]) => setState("typeFilter", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
@@ -143,7 +143,7 @@ export default function MatrixPage() {
 
   const clearAllFilters = () => {
     setSearch("");
-    setTypeFilter("");
+    setTypeFilter([]);
     setStatusFilter("");
     setPropertyFilters({});
   };
@@ -283,7 +283,8 @@ export default function MatrixPage() {
         search === "" ||
         fs.name.toLowerCase().includes(search.toLowerCase()) ||
         fs.description?.toLowerCase().includes(search.toLowerCase());
-      const matchesType = typeFilter === "" || fs.type === typeFilter;
+      const matchesType =
+        typeFilter.length === 0 || typeFilter.includes(fs.type);
       const matchesStatus =
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
 
@@ -317,7 +318,7 @@ export default function MatrixPage() {
 
   const hasFilters =
     search !== "" ||
-    typeFilter !== "" ||
+    typeFilter.length > 0 ||
     statusFilter !== "" ||
     Object.values(propertyFilters).some((v) => v !== "");
   const printLink = `/matrix/print${location.search}`;

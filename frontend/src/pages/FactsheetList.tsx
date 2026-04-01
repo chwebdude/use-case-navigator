@@ -28,7 +28,7 @@ export default function FactsheetList() {
   const [state, setState] = useQueryStates({
     search: "",
     statusFilter: "",
-    typeFilter: "",
+    typeFilter: [] as string[],
     propertyFilters: {} as Record<string, string>,
   });
 
@@ -41,7 +41,7 @@ export default function FactsheetList() {
   const { search, statusFilter, typeFilter, propertyFilters } = state;
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
-  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setTypeFilter = (v: string[]) => setState("typeFilter", v);
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
 
@@ -100,7 +100,7 @@ export default function FactsheetList() {
       fs.description?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus =
       statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
-    const matchesType = typeFilter === "" || fs.type === typeFilter;
+    const matchesType = typeFilter.length === 0 || typeFilter.includes(fs.type);
 
     // Check property filters
     const matchesProperties = Object.entries(propertyFilters).every(
@@ -152,14 +152,14 @@ export default function FactsheetList() {
 
   const clearAllFilters = () => {
     setSearch("");
-    setTypeFilter("");
+    setTypeFilter([]);
     setStatusFilter("");
     setPropertyFilters({});
   };
 
   const hasFilters =
     search !== "" ||
-    typeFilter !== "" ||
+    typeFilter.length > 0 ||
     statusFilter !== "" ||
     Object.values(propertyFilters).some((v) => v !== "");
 
@@ -220,7 +220,7 @@ export default function FactsheetList() {
         </div>
       ) : filteredFactsheets.length === 0 ? (
         <Card className="text-center py-16">
-          {search || statusFilter || typeFilter ? (
+          {hasFilters ? (
             <>
               <Filter className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-primary-900">
@@ -235,7 +235,7 @@ export default function FactsheetList() {
                 onClick={() => {
                   setSearch("");
                   setStatusFilter("");
-                  setTypeFilter("");
+                  setTypeFilter([]);
                 }}
               >
                 Clear Filters

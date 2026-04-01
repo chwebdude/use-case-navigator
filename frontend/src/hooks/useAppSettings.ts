@@ -25,12 +25,12 @@ export type IconId = (typeof AVAILABLE_ICONS)[number]["id"];
 export interface FactsheetFilters {
   search?: string;
   statusFilter?: string;
-  typeFilter?: string;
+  typeFilter?: string[];
 }
 
 export interface DependenciesFilters {
   search?: string;
-  typeFilter?: string;
+  typeFilter?: string[];
   statusFilter?: string;
   displayProperties?: string[];
   showComments?: boolean;
@@ -41,7 +41,7 @@ export interface MatrixFilters {
   search?: string;
   xAxis?: string;
   yAxis?: string;
-  typeFilter?: string;
+  typeFilter?: string[];
   statusFilter?: string;
   displayProperties?: string[];
 }
@@ -49,7 +49,7 @@ export interface MatrixFilters {
 export interface SpiderFilters {
   search?: string;
   statusFilter?: string;
-  typeFilter?: string;
+  typeFilter?: string[];
   selectedMetrics?: string;
   axisMode?: "properties" | "metrics";
 }
@@ -57,7 +57,7 @@ export interface SpiderFilters {
 export interface ScatterFilters {
   search?: string;
   statusFilter?: string;
-  typeFilter?: string;
+  typeFilter?: string[];
   xAxis?: string;
   yAxis?: string;
   axisMode?: "properties" | "metrics";
@@ -66,7 +66,7 @@ export interface ScatterFilters {
 export interface ImpactFilters {
   search?: string;
   statusFilter?: string;
-  typeFilter?: string;
+  typeFilter?: string[];
   propertyFilters?: Record<string, string>;
   metricFilter?: string;
   sortField?: "name" | "dependentCount" | "averageImpact" | "totalImpact";
@@ -125,16 +125,26 @@ export function useAppSettings() {
         maxMetricWeight:
           record.max_metric_weight ?? DEFAULT_SETTINGS.maxMetricWeight,
         statuses: normalizeStatuses(record.statuses),
-        defaultFactsheetFilters: parseJsonField(
-          record.default_factsheet_filters,
+        defaultFactsheetFilters: normalizeFilterTypeSelection(
+          parseJsonField<FactsheetFilters>(record.default_factsheet_filters),
         ),
-        defaultDependenciesFilters: parseJsonField(
-          record.default_dependencies_filters,
+        defaultDependenciesFilters: normalizeFilterTypeSelection(
+          parseJsonField<DependenciesFilters>(
+            record.default_dependencies_filters,
+          ),
         ),
-        defaultMatrixFilters: parseJsonField(record.default_matrix_filters),
-        defaultSpiderFilters: parseJsonField(record.default_spider_filters),
-        defaultScatterFilters: parseJsonField(record.default_scatter_filters),
-        defaultImpactFilters: parseJsonField(record.default_impact_filters),
+        defaultMatrixFilters: normalizeFilterTypeSelection(
+          parseJsonField<MatrixFilters>(record.default_matrix_filters),
+        ),
+        defaultSpiderFilters: normalizeFilterTypeSelection(
+          parseJsonField<SpiderFilters>(record.default_spider_filters),
+        ),
+        defaultScatterFilters: normalizeFilterTypeSelection(
+          parseJsonField<ScatterFilters>(record.default_scatter_filters),
+        ),
+        defaultImpactFilters: normalizeFilterTypeSelection(
+          parseJsonField<ImpactFilters>(record.default_impact_filters),
+        ),
         llmEndpoint: record.llm_endpoint || undefined,
         llmApiKey: record.llm_api_key || undefined,
         llmModel: record.llm_model || undefined,
@@ -299,4 +309,29 @@ function parseJsonField<T>(value: unknown): T | undefined {
     }
   }
   return value as T;
+}
+
+function normalizeFilterTypeSelection<T extends { typeFilter?: string[] }>(
+  filters: T | undefined,
+): T | undefined {
+  if (!filters) {
+    return filters;
+  }
+
+  const rawTypeFilter = (filters as T & { typeFilter?: string | string[] })
+    .typeFilter;
+
+  if (rawTypeFilter === undefined) {
+    return filters;
+  }
+
+  return {
+    ...filters,
+    typeFilter:
+      typeof rawTypeFilter === "string"
+        ? rawTypeFilter === ""
+          ? []
+          : [rawTypeFilter]
+        : rawTypeFilter,
+  };
 }

@@ -41,7 +41,7 @@ export default function DependenciesPage() {
 
   const [state, setState] = useQueryStates({
     search: "",
-    typeFilter: "",
+    typeFilter: [] as string[],
     statusFilter: "",
     propertyFilters: {} as Record<string, string>,
     displayProperties: [] as string[],
@@ -61,7 +61,7 @@ export default function DependenciesPage() {
     unrelatedDisplayMode,
   } = state;
   const setSearch = (v: string) => setState("search", v);
-  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setTypeFilter = (v: string[]) => setState("typeFilter", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
@@ -164,7 +164,8 @@ export default function DependenciesPage() {
         search === "" ||
         fs.name.toLowerCase().includes(search.toLowerCase()) ||
         fs.description?.toLowerCase().includes(search.toLowerCase());
-      const matchesType = typeFilter === "" || fs.type === typeFilter;
+      const matchesType =
+        typeFilter.length === 0 || typeFilter.includes(fs.type);
       const matchesStatus =
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
 
@@ -355,7 +356,7 @@ export default function DependenciesPage() {
 
   const clearAllFilters = () => {
     setSearch("");
-    setTypeFilter("");
+    setTypeFilter([]);
     setStatusFilter("");
     setPropertyFilters({});
   };
@@ -405,7 +406,7 @@ export default function DependenciesPage() {
 
   const hasFilters =
     search !== "" ||
-    typeFilter !== "" ||
+    typeFilter.length > 0 ||
     statusFilter !== "" ||
     Object.values(propertyFilters).some((v) => v !== "");
 

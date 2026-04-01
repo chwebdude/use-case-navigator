@@ -9,6 +9,7 @@ export {
 } from "./Card";
 export { default as Input, Textarea } from "./Input";
 export { default as Select } from "./Select";
+export { MultiSelect } from "./MultiSelect";
 export { default as Badge } from "./Badge";
 export { MetricBadge } from "./MetricBadge";
 export { default as Modal } from "./Modal";

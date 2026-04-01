@@ -47,7 +47,7 @@ export default function SpiderPage() {
   const [state, setState] = useQueryStates({
     search: "",
     statusFilter: "",
-    typeFilter: "",
+    typeFilter: [] as string[],
     propertyFilters: {} as Record<string, string>,
     selectedMetrics: "", // Start empty to detect URL presence
     axisMode: "metrics" as AxisMode,
@@ -63,7 +63,7 @@ export default function SpiderPage() {
   } = state;
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
-  const setTypeFilter = (v: string) => setState("typeFilter", v);
+  const setTypeFilter = (v: string[]) => setState("typeFilter", v);
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
   const setAxisMode = (v: AxisMode) => setState("axisMode", v);
@@ -214,7 +214,8 @@ export default function SpiderPage() {
         fs.description?.toLowerCase().includes(search.toLowerCase());
       const matchesStatus =
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
-      const matchesType = typeFilter === "" || fs.type === typeFilter;
+      const matchesType =
+        typeFilter.length === 0 || typeFilter.includes(fs.type);
 
       const matchesProperties = Object.entries(propertyFilters).every(
         ([propId, value]) => {
@@ -382,14 +383,14 @@ export default function SpiderPage() {
 
   const clearAllFilters = () => {
     setSearch("");
-    setTypeFilter("");
+    setTypeFilter([]);
     setStatusFilter("");
     setPropertyFilters({});
   };
 
   const hasFilters =
     search !== "" ||
-    typeFilter !== "" ||
+    typeFilter.length > 0 ||
     statusFilter !== "" ||
     Object.values(propertyFilters).some((v) => v !== "");
 
