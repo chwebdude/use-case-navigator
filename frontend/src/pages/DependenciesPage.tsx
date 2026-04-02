@@ -15,6 +15,7 @@ import { Textarea } from "../components/ui/Input";
 import {
   DependencyGraph,
   type ConnectionRequest,
+  type DependencyGraphExportHandlers,
 } from "../components/visualizations";
 import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import { useRealtime } from "../hooks/useRealtime";
@@ -82,8 +83,12 @@ export default function DependenciesPage() {
 
   const [layoutKey, setLayoutKey] = useState(0);
   const isFirstRender = useRef(true);
-  const exportGraphHandlerRef = useRef<(() => Promise<void>) | null>(null);
-  const [exportingGraph, setExportingGraph] = useState(false);
+  const exportGraphHandlerRef = useRef<DependencyGraphExportHandlers | null>(
+    null,
+  );
+  const [exportingGraphFormat, setExportingGraphFormat] = useState<
+    "png" | "svg" | null
+  >(null);
 
   // Connection modal state (for creating new dependencies)
   const [connectionModal, setConnectionModal] =
@@ -269,18 +274,22 @@ export default function DependenciesPage() {
     setLayoutKey((k) => k + 1);
   };
 
-  const handleExportGraph = async () => {
-    if (!exportGraphHandlerRef.current || exportingGraph) {
+  const handleExportGraph = async (format: "png" | "svg") => {
+    if (!exportGraphHandlerRef.current || exportingGraphFormat) {
       return;
     }
 
-    setExportingGraph(true);
+    setShowExportDropdown(false);
+    setExportingGraphFormat(format);
     try {
-      await exportGraphHandlerRef.current();
+      await exportGraphHandlerRef.current[format]();
     } catch (error) {
-      console.error("Failed to export dependency graph as PNG", error);
+      console.error(
+        `Failed to export dependency graph as ${format.toUpperCase()}`,
+        error,
+      );
     } finally {
-      setExportingGraph(false);
+      setExportingGraphFormat(null);
     }
   };
 
@@ -396,7 +405,9 @@ export default function DependenciesPage() {
 
   // Property display dropdown state
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -406,6 +417,13 @@ export default function DependenciesPage() {
         !dropdownRef.current.contains(event.target as Node)
       ) {
         setShowPropertyDropdown(false);
+      }
+
+      if (
+        exportDropdownRef.current &&
+        !exportDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowExportDropdown(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -594,17 +612,43 @@ export default function DependenciesPage() {
               Auto Align
             </Button>
 
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Download className="w-4 h-4" />}
-              onClick={handleExportGraph}
-              disabled={
-                loading || filteredFactsheets.length === 0 || exportingGraph
-              }
-            >
-              {exportingGraph ? "Exporting..." : "Export PNG"}
-            </Button>
+            <div className="relative" ref={exportDropdownRef}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Download className="w-4 h-4" />}
+                onClick={() => setShowExportDropdown((open) => !open)}
+                disabled={
+                  loading ||
+                  filteredFactsheets.length === 0 ||
+                  exportingGraphFormat !== null
+                }
+              >
+                {exportingGraphFormat
+                  ? `Exporting ${exportingGraphFormat.toUpperCase()}...`
+                  : "Export Graph"}
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+
+              {showExportDropdown && (
+                <div className="absolute right-0 top-full mt-1 min-w-[180px] bg-white border border-gray-200 shadow-lg z-50">
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    onClick={() => handleExportGraph("png")}
+                  >
+                    Export PNG
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 border-t border-gray-100"
+                    onClick={() => handleExportGraph("svg")}
+                  >
+                    Export SVG
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         }
       />

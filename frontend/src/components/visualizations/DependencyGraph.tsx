@@ -11,6 +11,7 @@ import {
   MarkerType,
   Handle,
   Position,
+  getBezierPath,
   getNodesBounds,
   getViewportForBounds,
 } from "@xyflow/react";
@@ -32,6 +33,11 @@ export interface ConnectionRequest {
   targetName: string;
 }
 
+export interface DependencyGraphExportHandlers {
+  png: () => Promise<void>;
+  svg: () => Promise<void>;
+}
+
 interface DependencyGraphProps {
   factsheets: FactsheetExpanded[];
   dependencies: Dependency[];
@@ -45,7 +51,9 @@ interface DependencyGraphProps {
   showComments?: boolean;
   focusedFactsheetId?: string | null;
   unrelatedDisplayMode?: "dim" | "hide";
-  onExportHandlerChange?: (handler: (() => Promise<void>) | null) => void;
+  onExportHandlerChange?: (
+    handlers: DependencyGraphExportHandlers | null,
+  ) => void;
 }
 
 interface PropertyDisplay {
@@ -69,6 +77,228 @@ interface FactsheetNodeProps {
 const NODE_WIDTH = 200;
 const NODE_BASE_HEIGHT = 80;
 const PROPERTY_LINE_HEIGHT = 20;
+const GRAPH_EXPORT_PADDING = 60;
+
+function getNodeWidth(node: Node): number {
+  return node.measured?.width ?? node.width ?? NODE_WIDTH;
+}
+
+function getNodeRenderHeight(node: Node): number {
+  return node.measured?.height ?? node.height ?? getNodeHeight(node);
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function wrapSvgText(
+  value: string,
+  maxCharsPerLine: number,
+  maxLines: number,
+): string[] {
+  const normalized = value.trim().replace(/\s+/g, " ");
+
+  if (!normalized) {
+    return [];
+  }
+
+  const words = normalized.split(" ");
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+
+    if (candidate.length <= maxCharsPerLine) {
+      currentLine = candidate;
+      continue;
+    }
+
+    if (currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      lines.push(word.slice(0, Math.max(1, maxCharsPerLine - 1)) + "…");
+      currentLine = "";
+    }
+
+    if (lines.length === maxLines) {
+      return lines;
+    }
+  }
+
+  if (currentLine && lines.length < maxLines) {
+    lines.push(currentLine);
+  }
+
+  if (
+    lines.length === maxLines &&
+    words.join(" ").length > lines.join(" ").length
+  ) {
+    const lastLine = lines[maxLines - 1];
+    lines[maxLines - 1] =
+      `${lastLine.slice(0, Math.max(1, maxCharsPerLine - 1)).trimEnd()}…`;
+  }
+
+  return lines;
+}
+
+function downloadSvg(svgContent: string, fileName: string): void {
+  const blob = new Blob([svgContent], {
+    type: "image/svg+xml;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  link.click();
+
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function buildDependencyGraphSvg(nodes: Node[], edges: Edge[]): string {
+  if (nodes.length === 0) {
+    return [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" viewBox="0 0 1 1"></svg>',
+    ].join("");
+  }
+
+  const bounds = getNodesBounds(nodes);
+  const width = Math.max(1, Math.ceil(bounds.width + GRAPH_EXPORT_PADDING * 2));
+  const height = Math.max(
+    1,
+    Math.ceil(bounds.height + GRAPH_EXPORT_PADDING * 2),
+  );
+  const offsetX = GRAPH_EXPORT_PADDING - bounds.x;
+  const offsetY = GRAPH_EXPORT_PADDING - bounds.y;
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+
+  const edgeSvg = edges
+    .map((edge) => {
+      const sourceNode = nodeMap.get(edge.source);
+      const targetNode = nodeMap.get(edge.target);
+
+      if (!sourceNode || !targetNode) {
+        return "";
+      }
+
+      const sourceWidth = getNodeWidth(sourceNode);
+      const sourceHeight = getNodeRenderHeight(sourceNode);
+      const sourceX = sourceNode.position.x + offsetX + sourceWidth / 2;
+      const sourceY = sourceNode.position.y + offsetY + sourceHeight;
+      const targetWidth = getNodeWidth(targetNode);
+      const targetX = targetNode.position.x + offsetX + targetWidth / 2;
+      const targetY = targetNode.position.y + offsetY;
+      const [path, labelX, labelY] = getBezierPath({
+        sourceX,
+        sourceY,
+        sourcePosition: Position.Bottom,
+        targetX,
+        targetY,
+        targetPosition: Position.Top,
+      });
+      const isDimmed =
+        (edge.data as { dimmed?: boolean } | undefined)?.dimmed === true;
+      const stroke = isDimmed ? "#d1d5db" : "#00aeef";
+      const opacity = isDimmed ? 0.3 : 1;
+      const label = typeof edge.label === "string" ? edge.label.trim() : "";
+      const labelLines = label ? wrapSvgText(label, 30, 2) : [];
+      const labelWidth =
+        labelLines.length > 0
+          ? Math.max(...labelLines.map((line) => line.length)) * 6.2 + 16
+          : 0;
+      const labelHeight =
+        labelLines.length > 0 ? labelLines.length * 12 + 8 : 0;
+
+      return [
+        `<path d="${escapeXml(path)}" fill="none" stroke="${stroke}" stroke-width="2" opacity="${opacity}" marker-end="url(#${isDimmed ? "arrow-dim" : "arrow-primary"})" />`,
+        labelLines.length > 0
+          ? `<g opacity="${opacity}"><rect x="${(labelX - labelWidth / 2).toFixed(1)}" y="${(labelY - labelHeight / 2).toFixed(1)}" width="${labelWidth.toFixed(1)}" height="${labelHeight.toFixed(1)}" rx="6" fill="#ffffff" fill-opacity="0.92" /><text x="${labelX.toFixed(1)}" y="${(labelY - (labelLines.length - 1) * 6).toFixed(1)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="10" fill="${isDimmed ? "#9ca3af" : "#6b7280"}">${labelLines
+              .map(
+                (line, index) =>
+                  `<tspan x="${labelX.toFixed(1)}" dy="${index === 0 ? 0 : 12}">${escapeXml(line)}</tspan>`,
+              )
+              .join("")}</text></g>`
+          : "",
+      ].join("");
+    })
+    .join("");
+
+  const nodeSvg = nodes
+    .map((node) => {
+      const data = node.data as FactsheetNodeProps["data"];
+      const x = node.position.x + offsetX;
+      const y = node.position.y + offsetY;
+      const nodeWidth = getNodeWidth(node);
+      const nodeHeight = getNodeRenderHeight(node);
+      const isDimmed = data.dimmed === true;
+      const cardFill = isDimmed ? "#f3f4f6" : "#ffffff";
+      const textColor = isDimmed ? "#9ca3af" : "#0f172a";
+      const secondaryTextColor = isDimmed ? "#9ca3af" : "#6b7280";
+      const typeColor = isDimmed ? "#9ca3af" : data.typeColor;
+      const statusColor = isDimmed ? "#d1d5db" : data.statusColor;
+      const statusTextColor = isDimmed
+        ? "#6b7280"
+        : getStatusTextColor(data.statusColor);
+      const opacity = isDimmed ? 0.55 : 1;
+      const titleMaxChars = Math.max(12, Math.floor((nodeWidth - 32) / 6.8));
+      const titleLines = wrapSvgText(data.label, titleMaxChars, 1);
+      const typeBadgeWidth = Math.max(44, data.typeName.length * 6.4 + 14);
+      const statusBadgeWidth = Math.max(48, data.statusLabel.length * 6.2 + 18);
+      const properties = data.properties ?? [];
+
+      return [
+        `<g opacity="${opacity}">`,
+        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${nodeWidth.toFixed(1)}" height="${nodeHeight.toFixed(1)}" rx="10" fill="${cardFill}" stroke="#e5e7eb" stroke-width="2" />`,
+        `<rect x="${(x + 16).toFixed(1)}" y="${(y + 15).toFixed(1)}" width="12" height="12" fill="${typeColor}" />`,
+        `<rect x="${(x + 36).toFixed(1)}" y="${(y + 12).toFixed(1)}" width="${typeBadgeWidth.toFixed(1)}" height="18" rx="4" fill="${typeColor}" />`,
+        `<text x="${(x + 36 + typeBadgeWidth / 2).toFixed(1)}" y="${(y + 24.5).toFixed(1)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#ffffff">${escapeXml(data.typeName)}</text>`,
+        `<text x="${(x + 16).toFixed(1)}" y="${(y + 50).toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="500" fill="${textColor}">${titleLines
+          .map(
+            (line, index) =>
+              `<tspan x="${(x + 16).toFixed(1)}" dy="${index === 0 ? 0 : 14}">${escapeXml(line)}</tspan>`,
+          )
+          .join("")}</text>`,
+        `<rect x="${(x + 16).toFixed(1)}" y="${(y + 65).toFixed(1)}" width="${statusBadgeWidth.toFixed(1)}" height="20" rx="10" fill="${statusColor}" />`,
+        `<text x="${(x + 16 + statusBadgeWidth / 2).toFixed(1)}" y="${(y + 79).toFixed(1)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="500" fill="${statusTextColor}">${escapeXml(data.statusLabel)}</text>`,
+        properties.length > 0
+          ? `<line x1="${(x + 16).toFixed(1)}" y1="${(y + 87).toFixed(1)}" x2="${(x + nodeWidth - 16).toFixed(1)}" y2="${(y + 87).toFixed(1)}" stroke="#e5e7eb" stroke-width="1" />`
+          : "",
+        properties
+          .map((property, index) => {
+            const rowY = y + 104 + index * PROPERTY_LINE_HEIGHT;
+
+            return [
+              `<text x="${(x + 16).toFixed(1)}" y="${rowY.toFixed(1)}" font-family="Arial, Helvetica, sans-serif" font-size="10" fill="${secondaryTextColor}">${escapeXml(property.name)}:</text>`,
+              `<text x="${(x + nodeWidth - 16).toFixed(1)}" y="${rowY.toFixed(1)}" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="${textColor}">${escapeXml(property.value)}</text>`,
+            ].join("");
+          })
+          .join(""),
+        `</g>`,
+      ].join("");
+    })
+    .join("");
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Dependency graph export">`,
+    "<defs>",
+    '<marker id="arrow-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#00aeef" /></marker>',
+    '<marker id="arrow-dim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#d1d5db" /></marker>',
+    "</defs>",
+    `<rect width="${width}" height="${height}" fill="#f9fafb" />`,
+    edgeSvg,
+    nodeSvg,
+    "</svg>",
+  ].join("");
+}
 
 // Calculate node height based on number of properties
 function getNodeHeight(node: Node): number {
@@ -397,10 +627,15 @@ export default function DependencyGraph({
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
   const nodesRef = useRef<Node[]>(nodes);
+  const edgesRef = useRef<Edge[]>(edges);
 
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
 
   // Track previous state to detect meaningful changes
   const prevNodeStateRef = useRef<string>("");
@@ -547,17 +782,32 @@ export default function DependencyGraph({
     });
   }, []);
 
+  const exportToSvg = useCallback(async () => {
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+
+    if (currentNodes.length === 0) {
+      return;
+    }
+
+    const svgContent = buildDependencyGraphSvg(currentNodes, currentEdges);
+    downloadSvg(svgContent, "dependency-graph.svg");
+  }, []);
+
   useEffect(() => {
     if (!onExportHandlerChange) {
       return;
     }
 
-    onExportHandlerChange(exportToPng);
+    onExportHandlerChange({
+      png: exportToPng,
+      svg: exportToSvg,
+    });
 
     return () => {
       onExportHandlerChange(null);
     };
-  }, [exportToPng, onExportHandlerChange]);
+  }, [exportToPng, exportToSvg, onExportHandlerChange]);
 
   return (
     <div

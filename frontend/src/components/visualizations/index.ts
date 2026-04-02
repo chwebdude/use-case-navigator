@@ -1,6 +1,7 @@
 export {
   default as DependencyGraph,
   type ConnectionRequest,
+  type DependencyGraphExportHandlers,
 } from "./DependencyGraph";
 export {
   default as PropertyMatrix,
