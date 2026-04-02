@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Download, Printer } from "lucide-react";
-import { toPng } from "html-to-image";
 import { Badge, Button, MetricBadge } from "../components/ui";
+import { exportElementToPng } from "../lib/pngExport";
 import { DependencyGraph, SpiderDiagram } from "../components/visualizations";
 import type { SpiderDataPoint } from "../components/visualizations/SpiderDiagram";
 import { useAppSettings } from "../hooks/useAppSettings";
@@ -221,23 +221,15 @@ export default function FactsheetFullPrint() {
     setExporting(true);
 
     try {
-      const dataUrl = await toPng(sheetRef.current, {
-        cacheBust: true,
-        backgroundColor: "#ffffff",
-        pixelRatio: 2,
-        canvasWidth: sheetRef.current.scrollWidth,
-        canvasHeight: sheetRef.current.scrollHeight,
-      });
-
-      const link = document.createElement("a");
       const nameSlug = (factsheet?.name || "factsheet")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
 
-      link.download = `${nameSlug}-full-details.png`;
-      link.href = dataUrl;
-      link.click();
+      await exportElementToPng(sheetRef.current, {
+        fileName: `${nameSlug}-full-details.png`,
+        targetScale: 5,
+      });
     } catch (error) {
       console.error("Failed to export full factsheet print as PNG", error);
     } finally {

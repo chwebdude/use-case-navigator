@@ -15,8 +15,8 @@ import {
   getViewportForBounds,
 } from "@xyflow/react";
 import dagre from "dagre";
-import { toPng } from "html-to-image";
 import "@xyflow/react/dist/style.css";
+import { exportElementToPng } from "../../lib/pngExport";
 import type {
   FactsheetExpanded,
   Dependency,
@@ -536,23 +536,15 @@ export default function DependencyGraph({
       0.1,
     );
 
-    const dataUrl = await toPng(viewportElement, {
-      cacheBust: true,
-      backgroundColor: "#ffffff",
+    await exportElementToPng(viewportElement, {
+      fileName: "dependency-graph.png",
       width: imageWidth,
       height: imageHeight,
-      pixelRatio: 2,
+      targetScale: 4,
       style: {
-        width: `${imageWidth}px`,
-        height: `${imageHeight}px`,
         transform: `translate(${x}px, ${y}px) scale(${zoom})`,
       },
     });
-
-    const link = document.createElement("a");
-    link.download = "dependency-graph.png";
-    link.href = dataUrl;
-    link.click();
   }, []);
 
   useEffect(() => {

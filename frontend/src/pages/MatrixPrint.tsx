@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowLeft, Download, Printer } from "lucide-react";
-import { toPng } from "html-to-image";
 import { Button } from "../components/ui";
+import { exportElementToPng } from "../lib/pngExport";
 import { PropertyMatrix } from "../components/visualizations";
 import { useRealtime } from "../hooks/useRealtime";
 import type {
@@ -157,15 +157,6 @@ export default function MatrixPrint() {
     setExporting(true);
 
     try {
-      const dataUrl = await toPng(sheetRef.current, {
-        cacheBust: true,
-        backgroundColor: "#ffffff",
-        pixelRatio: 2,
-        canvasWidth: sheetRef.current.scrollWidth,
-        canvasHeight: sheetRef.current.scrollHeight,
-      });
-
-      const link = document.createElement("a");
       const xAxisSlug = (xAxisLabel || "x-axis")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
@@ -175,9 +166,10 @@ export default function MatrixPrint() {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
 
-      link.download = `matrix-${xAxisSlug}-${yAxisSlug}.png`;
-      link.href = dataUrl;
-      link.click();
+      await exportElementToPng(sheetRef.current, {
+        fileName: `matrix-${xAxisSlug}-${yAxisSlug}.png`,
+        targetScale: 5,
+      });
     } catch (error) {
       console.error("Failed to export matrix as PNG", error);
     } finally {
