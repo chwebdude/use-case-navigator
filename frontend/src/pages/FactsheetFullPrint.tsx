@@ -164,6 +164,20 @@ export default function FactsheetFullPrint() {
     return new Set<HiddenField>(factsheetType?.hidden_fields ?? []);
   }, [factsheetType?.hidden_fields]);
 
+  const sortedProperties = useMemo(() => {
+    return [...properties].sort((a, b) => {
+      const orderA = a.expand?.property?.order ?? Number.MAX_SAFE_INTEGER;
+      const orderB = b.expand?.property?.order ?? Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+
+      const nameA = a.expand?.property?.name ?? "";
+      const nameB = b.expand?.property?.name ?? "";
+      return nameA.localeCompare(nameB);
+    });
+  }, [properties]);
+
   const spiderData: SpiderDataPoint[] = useMemo(() => {
     if (!factsheet || metrics.length < 3) return [];
 
@@ -398,6 +412,33 @@ export default function FactsheetFullPrint() {
               </section>
             )}
           </div>
+
+          <section className="space-y-3 break-inside-avoid">
+            <h2 className="text-base font-semibold text-primary-900 uppercase tracking-wide">
+              Properties
+            </h2>
+            {sortedProperties.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No properties configured yet
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {sortedProperties.map((prop) => (
+                  <div
+                    key={prop.id}
+                    className="p-3 border border-gray-200 bg-gray-50"
+                  >
+                    <p className="text-sm text-gray-500">
+                      {prop.expand?.property?.name || "Property"}
+                    </p>
+                    <p className="font-medium text-primary-900 break-words">
+                      {prop.expand?.option?.value || "Not set"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
           <section className="space-y-3 break-inside-avoid">
             <h2 className="text-base font-semibold text-primary-900 uppercase tracking-wide">
