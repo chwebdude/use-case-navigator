@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { logFilterChange } from "../lib/apm";
 
 type StateValue =
   | string
@@ -103,11 +104,26 @@ export function useQueryState<T extends StateValue>(
     options.debounceMs,
   ]);
 
-  const setStateValue = useCallback((value: T | ((prev: T) => T)) => {
-    setState((prev) =>
-      typeof value === "function" ? (value as (prev: T) => T)(prev) : value,
-    );
-  }, []);
+  const setStateValue = useCallback(
+    (value: T | ((prev: T) => T)) => {
+      setState((prev) => {
+        const nextValue =
+          typeof value === "function" ? (value as (prev: T) => T)(prev) : value;
+
+        if (!isEqualStateValue(prev, nextValue)) {
+          logFilterChange({
+            key,
+            previousValue: prev,
+            nextValue,
+            pathname: location.pathname,
+          });
+        }
+
+        return nextValue;
+      });
+    },
+    [key, location.pathname],
+  );
 
   return [state, setStateValue];
 }
@@ -189,14 +205,45 @@ export function useQueryStates<T extends Record<string, StateValue>>(
           typeof value === "function"
             ? (value as (prev: any) => StateValue)(prev[key])
             : value;
+
+        if (!isEqualStateValue(prev[key], newValue)) {
+          logFilterChange({
+            key: String(key),
+            previousValue: prev[key],
+            nextValue: newValue,
+            pathname: location.pathname,
+          });
+        }
+
         return {
           ...prev,
           [key]: newValue,
         };
       });
     },
-    [],
+    [location.pathname],
   );
 
   return [state, setStateValue];
+}
+
+function isEqualStateValue(a: StateValue, b: StateValue): boolean {
+  if (Object.is(a, b)) {
+    return true;
+  }
+
+  if (
+    typeof a === "object" &&
+    a !== null &&
+    typeof b === "object" &&
+    b !== null
+  ) {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
 }

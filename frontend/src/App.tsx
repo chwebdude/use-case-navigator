@@ -1,7 +1,10 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "./components/layout";
 import UsernamePrompt from "./components/UsernamePrompt";
+import { useAppSettings } from "./hooks/useAppSettings";
 import { useUser } from "./hooks/useUser";
+import { configureApm } from "./lib/apm";
 import {
   Dashboard,
   FactsheetList,
@@ -24,7 +27,28 @@ import {
 } from "./pages";
 
 function App() {
-  const { setUsername, isLoggedIn } = useUser();
+  const { setUsername, isLoggedIn, username } = useUser();
+  const { settings: appSettings, loading: appSettingsLoading } =
+    useAppSettings();
+
+  useEffect(() => {
+    if (appSettingsLoading) {
+      return;
+    }
+
+    configureApm({
+      serverUrl: appSettings.elasticApmServerUrl,
+      serviceName:
+        import.meta.env.VITE_ELASTIC_APM_SERVICE_NAME || appSettings.title,
+      environment: import.meta.env.MODE,
+      username,
+    });
+  }, [
+    appSettingsLoading,
+    appSettings.elasticApmServerUrl,
+    appSettings.title,
+    username,
+  ]);
 
   return (
     <BrowserRouter>

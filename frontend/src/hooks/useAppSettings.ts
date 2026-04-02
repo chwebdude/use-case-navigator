@@ -89,6 +89,7 @@ interface AppSettings {
   llmEndpoint?: string;
   llmApiKey?: string;
   llmModel?: string;
+  elasticApmServerUrl?: string;
 }
 
 interface AppSettingsRecord extends RecordModel {
@@ -105,6 +106,7 @@ interface AppSettingsRecord extends RecordModel {
   llm_endpoint?: string;
   llm_api_key?: string;
   llm_model?: string;
+  elastic_apm_server_url?: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -148,6 +150,7 @@ export function useAppSettings() {
         llmEndpoint: record.llm_endpoint || undefined,
         llmApiKey: record.llm_api_key || undefined,
         llmModel: record.llm_model || undefined,
+        elasticApmServerUrl: record.elastic_apm_server_url || undefined,
       }
     : DEFAULT_SETTINGS;
 
@@ -220,6 +223,7 @@ export function useAppSettings() {
         llmEndpoint: "llm_endpoint",
         llmApiKey: "llm_api_key",
         llmModel: "llm_model",
+        elasticApmServerUrl: "elastic_apm_server_url",
       };
 
       const pbPayload: Record<string, unknown> = {};

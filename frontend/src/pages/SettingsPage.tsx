@@ -2077,6 +2077,26 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* Elastic APM Configuration */}
+      <Card>
+        <CardTitle>Elastic APM Configuration</CardTitle>
+        <p className="text-sm text-gray-500 mt-1 mb-6">
+          Configure frontend telemetry for Elastic APM. The current username is
+          sent as an APM label named &quot;username&quot;.
+        </p>
+        <div className="space-y-4">
+          <Input
+            label="APM Server URL"
+            placeholder="https://your-apm-server:8200"
+            value={appSettings.elasticApmServerUrl || ""}
+            onChange={(e) =>
+              setAppSettings({ elasticApmServerUrl: e.target.value })
+            }
+            hint="Elastic APM server endpoint for browser RUM events. Leave empty to disable APM."
+          />
+        </div>
+      </Card>
+
       {/* PocketBase Admin */}
       <Card>
         <CardTitle>PocketBase Admin</CardTitle>

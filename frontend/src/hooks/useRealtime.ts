@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
-import type { RecordModel, RecordSubscription } from 'pocketbase';
-import pb from '../lib/pocketbase';
+import { useEffect, useState, useCallback } from "react";
+import type { RecordModel, RecordSubscription } from "pocketbase";
+import pb from "../lib/pocketbase";
+import { logPocketbaseRealtimeEvent } from "../lib/apm";
 
 interface UseRealtimeOptions {
   collection: string;
@@ -37,7 +38,9 @@ export function useRealtime<T extends RecordModel>({
       setRecords(result);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch records'));
+      setError(
+        err instanceof Error ? err : new Error("Failed to fetch records"),
+      );
     } finally {
       setLoading(false);
     }
@@ -50,20 +53,33 @@ export function useRealtime<T extends RecordModel>({
     let unsubscribe: (() => void) | undefined;
 
     pb.collection(collection)
-      .subscribe<T>('*', async (event: RecordSubscription<T>) => {
+      .subscribe<T>("*", async (event: RecordSubscription<T>) => {
+        logPocketbaseRealtimeEvent({
+          collection,
+          action: event.action,
+          recordId: event.record?.id,
+        });
+
         // For create/update, fetch the full record with expand data
         // since subscription events don't include expanded relations
-        if ((event.action === 'create' || event.action === 'update') && expand) {
+        if (
+          (event.action === "create" || event.action === "update") &&
+          expand
+        ) {
           try {
-            const fullRecord = await pb.collection(collection).getOne<T>(event.record.id, { expand });
+            const fullRecord = await pb
+              .collection(collection)
+              .getOne<T>(event.record.id, { expand });
             setRecords((prev) => {
-              if (event.action === 'create') {
+              if (event.action === "create") {
                 if (prev.some((r) => r.id === fullRecord.id)) {
                   return prev;
                 }
                 return [...prev, fullRecord];
               } else {
-                return prev.map((r) => r.id === fullRecord.id ? fullRecord : r);
+                return prev.map((r) =>
+                  r.id === fullRecord.id ? fullRecord : r,
+                );
               }
             });
           } catch {
@@ -74,17 +90,17 @@ export function useRealtime<T extends RecordModel>({
 
         setRecords((prev) => {
           switch (event.action) {
-            case 'create':
+            case "create":
               // Check if record already exists to avoid duplicates
               if (prev.some((r) => r.id === event.record.id)) {
                 return prev;
               }
               return [...prev, event.record];
-            case 'update':
+            case "update":
               return prev.map((r) =>
-                r.id === event.record.id ? event.record : r
+                r.id === event.record.id ? event.record : r,
               );
-            case 'delete':
+            case "delete":
               return prev.filter((r) => r.id !== event.record.id);
             default:
               return prev;
@@ -108,7 +124,7 @@ export function useRealtime<T extends RecordModel>({
 export function useRecord<T extends RecordModel>(
   collection: string,
   id: string | undefined,
-  expand?: string
+  expand?: string,
 ) {
   const [record, setRecord] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,7 +143,9 @@ export function useRecord<T extends RecordModel>(
       setRecord(result);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch record'));
+      setError(
+        err instanceof Error ? err : new Error("Failed to fetch record"),
+      );
     } finally {
       setLoading(false);
     }
@@ -143,7 +161,13 @@ export function useRecord<T extends RecordModel>(
 
     pb.collection(collection)
       .subscribe<T>(id, (event: RecordSubscription<T>) => {
-        if (event.action === 'delete') {
+        logPocketbaseRealtimeEvent({
+          collection,
+          action: event.action,
+          recordId: event.record?.id,
+        });
+
+        if (event.action === "delete") {
           setRecord(null);
         } else {
           setRecord(event.record);

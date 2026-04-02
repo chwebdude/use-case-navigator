@@ -6,6 +6,11 @@ import { Card, CardTitle } from "../components/ui";
 import ChatChart, { parseChartBlocks } from "../components/ChatChart";
 import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import { useAppSettings } from "../hooks/useAppSettings";
+import {
+  captureApmError,
+  completeChatRequestTransaction,
+  startChatRequestTransaction,
+} from "../lib/apm";
 import pb from "../lib/pocketbase";
 import { getStatusMeta, normalizeStatuses } from "../lib/statusConfig";
 import type {
@@ -202,22 +207,60 @@ Answer questions based on this data. Be concise and specific. If asked about dep
     ? baseUrl
     : `${baseUrl}/v1/chat/completions`;
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
+  const transaction = startChatRequestTransaction({
+    endpoint: url,
+    model,
+    messageCount: messages.length,
+    promptLength: body.messages.reduce(
+      (sum, message) => sum + (message.content?.length ?? 0),
+      0,
+    ),
+    question:
+      messages.length > 0 ? messages[messages.length - 1].content : undefined,
   });
+  let requestStatus = 0;
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`LLM request failed (${response.status}): ${text}`);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+    requestStatus = response.status;
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`LLM request failed (${response.status}): ${text}`);
+    }
+
+    const data = await response.json();
+    const content =
+      data.choices?.[0]?.message?.content || "No response from model.";
+    completeChatRequestTransaction({
+      transaction,
+      status: requestStatus,
+      responseLength: content.length,
+    });
+    return content;
+  } catch (error) {
+    completeChatRequestTransaction({
+      transaction,
+      status: requestStatus,
+    });
+
+    captureApmError(error instanceof Error ? error : "Chat request failed", {
+      labels: {
+        llm_endpoint: url,
+        llm_model: model,
+        llm_message_count: messages.length,
+      },
+    });
+
+    throw error;
   }
-
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || "No response from model.";
 }
 
 const markdownComponents = {
