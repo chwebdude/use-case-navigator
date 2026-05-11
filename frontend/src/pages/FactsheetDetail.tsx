@@ -5,7 +5,6 @@ import {
   Edit,
   Trash2,
   Plus,
-  GitBranch,
   History,
   Printer,
   ChevronDown,
@@ -302,8 +301,8 @@ export default function FactsheetDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3 sm:items-center sm:gap-4">
           <Link to="/factsheets">
             <Button
               variant="ghost"
@@ -339,7 +338,7 @@ export default function FactsheetDetail() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <Link to={`/factsheets/${id}/print`} target="_blank" rel="noreferrer">
             <Button variant="secondary" icon={<Printer className="w-4 h-4" />}>
               Print Card
@@ -439,41 +438,37 @@ export default function FactsheetDetail() {
 
       {/* Dependencies */}
       <Card>
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Dependencies</CardTitle>
           <div className="flex gap-2">
-            {dependencies.length > 0 && (
-              <>
-                <Link
-                  to={`/factsheets/${id}/dependencies/print`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={<Printer className="w-4 h-4" />}
-                    title="Print direct dependencies only"
-                  >
-                    Print
-                  </Button>
-                </Link>
-                <Link
-                  to={`/factsheets/${id}/dependencies/print-chain`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={<Printer className="w-4 h-4" />}
-                    title="Print full dependency chain"
-                  >
-                    Print All
-                  </Button>
-                </Link>
-              </>
-            )}
+            <Link
+              to={`/factsheets/${id}/dependencies/print`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<Printer className="w-4 h-4" />}
+                title="Print direct dependencies only"
+              >
+                Print
+              </Button>
+            </Link>
+            <Link
+              to={`/factsheets/${id}/dependencies/print-chain`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<Printer className="w-4 h-4" />}
+                title="Print full dependency chain"
+              >
+                Print All
+              </Button>
+            </Link>
             <Link to={`/factsheets/${id}/dependencies/new`}>
               <Button
                 size="sm"
@@ -488,15 +483,14 @@ export default function FactsheetDetail() {
 
         {dependencies.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            <GitBranch className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-            <p>No dependencies added yet</p>
+            <p>No dependencies configured yet</p>
           </div>
         ) : (
           <div className="space-y-3">
             {dependencies.map((dep) => (
               <div
                 key={dep.id}
-                className="flex items-center justify-between p-3 bg-gray-50"
+                className="flex flex-col items-start gap-3 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <Link
@@ -581,7 +575,7 @@ export default function FactsheetDetail() {
             <p>No properties configured yet</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {properties.map((prop) => (
               <div key={prop.id} className="p-3 bg-gray-50">
                 <p className="text-sm text-gray-500">
@@ -679,7 +673,7 @@ export default function FactsheetDetail() {
 
       {/* Metadata */}
       <Card padding="sm">
-        <div className="flex gap-8 text-sm text-gray-500">
+        <div className="flex flex-col gap-2 text-sm text-gray-500 sm:flex-row sm:gap-8">
           <div>
             <span className="font-medium">Created:</span>{" "}
             {new Date(factsheet.created).toLocaleDateString()}
