@@ -74,7 +74,10 @@ async function loadDataContext(): Promise<{
   const fsMap = Object.fromEntries(factsheets.map((f) => [f.id, f.name]));
   const propMap = Object.fromEntries(properties.map((p) => [p.id, p.name]));
   const optMap = Object.fromEntries(options.map((o) => [o.id, o]));
-  const factsheetPropertyLookup = new Map<string, Map<string, FactsheetProperty>>();
+  const factsheetPropertyLookup = new Map<
+    string,
+    Map<string, FactsheetProperty>
+  >();
   fpLinks.forEach((fp) => {
     if (!factsheetPropertyLookup.has(fp.factsheet)) {
       factsheetPropertyLookup.set(fp.factsheet, new Map());
@@ -82,12 +85,15 @@ async function loadDataContext(): Promise<{
     factsheetPropertyLookup.get(fp.factsheet)!.set(fp.property, fp);
   });
 
-  const computeMetricScore = (factsheetId: string, metric: Metric): number | null => {
+  const computeMetricScore = (
+    factsheetId: string,
+    metric: Metric,
+  ): number | null => {
     const metricProperties = metric.properties?.length
       ? metric.properties
-      : ((metric as Metric & { expand?: { properties?: PropertyDefinition[] } }).expand?.properties?.map(
-          (p) => p.id,
-        ) ?? []);
+      : ((
+          metric as Metric & { expand?: { properties?: PropertyDefinition[] } }
+        ).expand?.properties?.map((p) => p.id) ?? []);
     if (metricProperties.length === 0) return null;
 
     const fsProps = factsheetPropertyLookup.get(factsheetId);
@@ -101,9 +107,7 @@ async function loadDataContext(): Promise<{
       const selectedOption = optMap[selectedProperty.option];
 
       const weight =
-        typeof selectedOption?.weight === "number"
-          ? selectedOption.weight
-          : 0;
+        typeof selectedOption?.weight === "number" ? selectedOption.weight : 0;
       sum += weight;
       count += 1;
     });
@@ -190,9 +194,9 @@ async function loadDataContext(): Promise<{
   for (const m of metrics) {
     const metricProperties = m.properties?.length
       ? m.properties
-      : ((m as Metric & { expand?: { properties?: PropertyDefinition[] } }).expand?.properties?.map(
-          (p) => p.id,
-        ) ?? []);
+      : ((
+          m as Metric & { expand?: { properties?: PropertyDefinition[] } }
+        ).expand?.properties?.map((p) => p.id) ?? []);
     const propertyNames = metricProperties
       .map((pid) => propMap[pid] || pid)
       .join(", ");
@@ -620,7 +624,8 @@ export default function ChatPage() {
             Talk to the Data
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Ask questions about your factsheets, dependencies, properties, and metrics
+            Ask questions about your factsheets, dependencies, properties, and
+            metrics
           </p>
         </div>
         {messages.length > 0 && (
@@ -645,7 +650,8 @@ export default function ChatPage() {
             <Bot className="w-12 h-12 mx-auto mb-4 opacity-40" />
             <p className="text-lg font-medium">Start a conversation</p>
             <p className="text-sm mt-1">
-              Ask about factsheets, dependencies, properties, metrics, or statistics.
+              Ask about factsheets, dependencies, properties, metrics, or
+              statistics.
             </p>
             <div className="mt-6 flex flex-wrap gap-2 justify-center max-w-lg mx-auto">
               {[
