@@ -60,6 +60,7 @@ export interface ScatterFilters {
   typeFilter?: string[];
   xAxis?: string;
   yAxis?: string;
+  bubbleSizeBy?: string;
   axisMode?: "properties" | "metrics";
 }
 

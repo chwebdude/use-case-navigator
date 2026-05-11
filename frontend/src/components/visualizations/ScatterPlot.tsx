@@ -5,6 +5,7 @@ export interface ScatterPoint {
   name: string;
   x: number | null;
   y: number | null;
+  size?: number | null;
   color: string;
 }
 
@@ -19,6 +20,7 @@ interface ScatterPlotProps {
   yLabel: string;
   xTicks: AxisTick[];
   yTicks: AxisTick[];
+  bubbleSizeLabel?: string;
   width?: number;
   height?: number;
   showLegend?: boolean;
@@ -34,6 +36,7 @@ export default function ScatterPlot({
   yLabel,
   xTicks,
   yTicks,
+  bubbleSizeLabel,
   width = 720,
   height = 420,
   showLegend = true,
@@ -78,6 +81,43 @@ export default function ScatterPlot({
       innerHeight -
       ((v - yDomain.min) / (yDomain.max - yDomain.min)) * innerHeight
     );
+  };
+
+  const sizeDomain = useMemo(() => {
+    const values = points
+      .map((point) => point.size)
+      .filter((value): value is number => typeof value === "number");
+
+    if (values.length === 0) {
+      return null;
+    }
+
+    return {
+      min: Math.min(...values),
+      max: Math.max(...values),
+    };
+  }, [points]);
+
+  const getRadius = (point: ScatterPoint) => {
+    const baseRadius = 5;
+    const minRadius = 4;
+    const maxRadius = 11;
+
+    if (
+      !sizeDomain ||
+      typeof point.size !== "number" ||
+      Number.isNaN(point.size)
+    ) {
+      return baseRadius;
+    }
+
+    if (sizeDomain.max === sizeDomain.min) {
+      return (minRadius + maxRadius) / 2;
+    }
+
+    const normalized =
+      (point.size - sizeDomain.min) / (sizeDomain.max - sizeDomain.min);
+    return minRadius + normalized * (maxRadius - minRadius);
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -234,7 +274,7 @@ export default function ScatterPlot({
             const cy = yScale(p.y);
             const isHighlighted = highlightedId === p.id;
             const isHovered = hovered?.id === p.id;
-            const r = isHighlighted || isHovered ? 7 : 5;
+            const r = getRadius(p) + (isHighlighted || isHovered ? 2 : 0);
             const opacity = highlightedId
               ? isHighlighted
                 ? 1
@@ -280,6 +320,11 @@ export default function ScatterPlot({
           <div className="text-gray-300">
             {yLabel}: {hovered.y ?? "Unknown"}
           </div>
+          {bubbleSizeLabel && typeof hovered.size === "number" && (
+            <div className="text-gray-300">
+              {bubbleSizeLabel}: {hovered.size}
+            </div>
+          )}
         </div>
       )}
 

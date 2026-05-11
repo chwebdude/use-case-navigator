@@ -52,6 +52,7 @@ export default function ScatterPage() {
     propertyFilters: {} as Record<string, string>,
     xAxis: "",
     yAxis: "",
+    bubbleSizeBy: "",
     axisMode: "properties" as AxisMode,
   });
 
@@ -62,6 +63,7 @@ export default function ScatterPage() {
     propertyFilters,
     xAxis,
     yAxis,
+    bubbleSizeBy,
     axisMode,
   } = state;
   const setSearch = (v: string) => setState("search", v);
@@ -71,6 +73,7 @@ export default function ScatterPage() {
     setState("propertyFilters", v);
   const setXAxis = (v: string) => setState("xAxis", v);
   const setYAxis = (v: string) => setState("yAxis", v);
+  const setBubbleSizeBy = (v: string) => setState("bubbleSizeBy", v);
   const setAxisMode = (v: AxisMode) => setState("axisMode", v);
 
   useApplyPageDefaults(
@@ -120,6 +123,7 @@ export default function ScatterPage() {
     if (mode !== axisMode) {
       setXAxis("");
       setYAxis("");
+      setBubbleSizeBy("");
     }
     setAxisMode(mode);
   };
@@ -222,6 +226,15 @@ export default function ScatterPage() {
   const axisOptions =
     axisMode === "metrics" ? metricAxisOptions : propertyAxisOptions;
 
+  const bubbleSizeMode: AxisMode =
+    axisMode === "properties" ? "metrics" : "properties";
+  const bubbleSizeOptions =
+    bubbleSizeMode === "metrics" ? metricAxisOptions : propertyAxisOptions;
+  const bubbleSizeLabel =
+    bubbleSizeMode === "metrics"
+      ? "Bubble Size (Metric, Optional)"
+      : "Bubble Size (Property, Optional)";
+
   const xTicks: AxisTick[] = useMemo(() => {
     if (!xAxis) return [];
     const max = settings.maxMetricWeight ?? 10;
@@ -275,17 +288,32 @@ export default function ScatterPage() {
           fs.expand?.type?.color || colorPalette[index % colorPalette.length];
         const xValRaw = getValue(xAxis, fs.id, axisMode);
         const yValRaw = getValue(yAxis, fs.id, axisMode);
+        const sizeRaw = bubbleSizeBy
+          ? getValue(bubbleSizeBy, fs.id, bubbleSizeMode)
+          : null;
         const xVal =
           xValRaw == null ? null : Math.max(0, Math.min(max, xValRaw));
         const yVal =
           yValRaw == null ? null : Math.max(0, Math.min(max, yValRaw));
-        return { id: fs.id, name: fs.name, color: typeColor, x: xVal, y: yVal };
+        const sizeVal =
+          sizeRaw == null ? null : Math.max(0, Math.min(max, sizeRaw));
+
+        return {
+          id: fs.id,
+          name: fs.name,
+          color: typeColor,
+          x: xVal,
+          y: yVal,
+          size: sizeVal,
+        };
       })
       .filter((p) => p.x !== null && p.y !== null);
   }, [
     filteredFactsheets,
     xAxis,
     yAxis,
+    bubbleSizeBy,
+    bubbleSizeMode,
     axisMode,
     propertyLookup,
     optionsByProperty,
@@ -404,6 +432,19 @@ export default function ScatterPage() {
                 placeholder={`Select ${axisMode}...`}
               />
             </div>
+            <div className="w-72">
+              <Select
+                label={bubbleSizeLabel}
+                options={[
+                  { value: "", label: "No bubble sizing" },
+                  ...bubbleSizeOptions,
+                ]}
+                value={bubbleSizeBy}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setBubbleSizeBy(e.target.value)
+                }
+              />
+            </div>
           </div>
         </div>
       </Card>
@@ -436,6 +477,12 @@ export default function ScatterPage() {
                 }
                 xTicks={xTicks}
                 yTicks={yTicks}
+                bubbleSizeLabel={
+                  bubbleSizeBy
+                    ? bubbleSizeOptions.find((o) => o.value === bubbleSizeBy)
+                        ?.label || "Bubble Size"
+                    : undefined
+                }
                 height={340}
                 showLegend={true}
                 legendPosition="right"
