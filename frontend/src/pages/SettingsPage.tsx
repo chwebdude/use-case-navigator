@@ -1915,7 +1915,10 @@ export default function SettingsPage() {
 
           <div className="space-y-3">
             {propertyDefinitions.map((prop) => (
-              <div key={prop.id} className="grid grid-cols-[220px_1fr] gap-3 items-center">
+              <div
+                key={prop.id}
+                className="grid grid-cols-[220px_1fr] gap-3 items-center"
+              >
                 <div className="text-sm font-medium text-primary-900">
                   {prop.name}
                 </div>
@@ -1925,7 +1928,9 @@ export default function SettingsPage() {
                     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                     .map((type) => ({ value: type.id, label: type.name }))}
                   values={prop.factsheet_types ?? []}
-                  onChange={(values) => handleUpdatePropertyTypes(prop.id, values)}
+                  onChange={(values) =>
+                    handleUpdatePropertyTypes(prop.id, values)
+                  }
                 />
               </div>
             ))}

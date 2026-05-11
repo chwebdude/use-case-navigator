@@ -188,12 +188,17 @@ Name: "${name}"${description.trim() ? `\nDescription keywords: "${description}"`
         // Resolve property keys — LLM may return property names instead of IDs
         const rawProps: Record<string, string> = parsed.properties || {};
         const propNameToId = new Map(
-          applicablePropertyDefinitions.map((pd) => [pd.name.toLowerCase(), pd.id]),
+          applicablePropertyDefinitions.map((pd) => [
+            pd.name.toLowerCase(),
+            pd.id,
+          ]),
         );
         for (const [rawKey, rawOptId] of Object.entries(rawProps)) {
           if (!rawOptId) continue;
           // Resolve property key: could be an ID or a name
-          const propId = applicablePropertyDefinitions.some((pd) => pd.id === rawKey)
+          const propId = applicablePropertyDefinitions.some(
+            (pd) => pd.id === rawKey,
+          )
             ? rawKey
             : propNameToId.get(rawKey.toLowerCase()) || null;
           if (!propId) continue;

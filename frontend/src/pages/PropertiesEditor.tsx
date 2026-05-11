@@ -1,35 +1,43 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
-import { Card, Button, Select } from '../components/ui';
-import { useRealtime, useRecord } from '../hooks/useRealtime';
-import { useChangeLog } from '../hooks/useChangeLog';
-import pb from '../lib/pocketbase';
-import { filterPropertiesForType, isPropertyVisibleForType } from '../lib/propertyVisibility';
-import type { PropertyDefinition, PropertyOption, FactsheetProperty, Factsheet } from '../types';
+import { useState, useEffect, useMemo } from "react";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, Save } from "lucide-react";
+import { Card, Button, Select } from "../components/ui";
+import { useRealtime, useRecord } from "../hooks/useRealtime";
+import { useChangeLog } from "../hooks/useChangeLog";
+import pb from "../lib/pocketbase";
+import {
+  filterPropertiesForType,
+  isPropertyVisibleForType,
+} from "../lib/propertyVisibility";
+import type {
+  PropertyDefinition,
+  PropertyOption,
+  FactsheetProperty,
+  Factsheet,
+} from "../types";
 
 export default function PropertiesEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   // values maps property definition ID to option ID
   const [values, setValues] = useState<Record<string, string>>({});
 
-  const { record: factsheet } = useRecord<Factsheet>('factsheets', id);
+  const { record: factsheet } = useRecord<Factsheet>("factsheets", id);
 
   const { records: propertyDefinitions } = useRealtime<PropertyDefinition>({
-    collection: 'property_definitions',
-    sort: 'order',
+    collection: "property_definitions",
+    sort: "order",
   });
 
   const { records: propertyOptions } = useRealtime<PropertyOption>({
-    collection: 'property_options',
-    sort: 'order',
+    collection: "property_options",
+    sort: "order",
   });
 
   const { records: existingProperties } = useRealtime<FactsheetProperty>({
-    collection: 'factsheet_properties',
+    collection: "factsheet_properties",
     filter: `factsheet = "${id}"`,
   });
 
@@ -78,20 +86,24 @@ export default function PropertiesEditor() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setError('');
+    setError("");
 
     try {
       // For each property definition, create or update the value
       for (const propDef of propertyDefinitions) {
         const isApplicable = isPropertyVisibleForType(propDef, factsheet?.type);
         const newOptionId = values[propDef.id];
-        const existing = existingProperties.find((p) => p.property === propDef.id);
-        const oldOptionValue = existing ? getOptionValue(existing.option) : null;
+        const existing = existingProperties.find(
+          (p) => p.property === propDef.id,
+        );
+        const oldOptionValue = existing
+          ? getOptionValue(existing.option)
+          : null;
         const newOptionValue = newOptionId ? getOptionValue(newOptionId) : null;
 
         if (!isApplicable) {
           if (existing) {
-            await pb.collection('factsheet_properties').delete(existing.id);
+            await pb.collection("factsheet_properties").delete(existing.id);
             await logPropertyChanged(id!, propDef.name, oldOptionValue, null);
           }
           continue;
@@ -101,14 +113,19 @@ export default function PropertiesEditor() {
           if (existing) {
             // Only update and log if the value actually changed
             if (existing.option !== newOptionId) {
-              await pb.collection('factsheet_properties').update(existing.id, {
+              await pb.collection("factsheet_properties").update(existing.id, {
                 option: newOptionId,
               });
-              await logPropertyChanged(id!, propDef.name, oldOptionValue, newOptionValue);
+              await logPropertyChanged(
+                id!,
+                propDef.name,
+                oldOptionValue,
+                newOptionValue,
+              );
             }
           } else {
             // Create new
-            await pb.collection('factsheet_properties').create({
+            await pb.collection("factsheet_properties").create({
               factsheet: id,
               property: propDef.id,
               option: newOptionId,
@@ -117,15 +134,15 @@ export default function PropertiesEditor() {
           }
         } else if (existing) {
           // Delete if value is empty but record exists
-          await pb.collection('factsheet_properties').delete(existing.id);
+          await pb.collection("factsheet_properties").delete(existing.id);
           await logPropertyChanged(id!, propDef.name, oldOptionValue, null);
         }
       }
 
       navigate(`/factsheets/${id}`);
     } catch (err) {
-      console.error('Failed to save properties:', err);
-      setError('Failed to save properties');
+      console.error("Failed to save properties:", err);
+      setError("Failed to save properties");
     } finally {
       setSaving(false);
     }
@@ -134,7 +151,7 @@ export default function PropertiesEditor() {
   const getOptionsForProperty = (propDefId: string) => {
     const opts = optionsByProperty.get(propDefId) || [];
     return [
-      { value: '', label: 'Select...' },
+      { value: "", label: "Select..." },
       ...opts.map((opt) => ({ value: opt.id, label: opt.value })),
     ];
   };
@@ -143,7 +160,11 @@ export default function PropertiesEditor() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
         <Link to={`/factsheets/${id}`}>
-          <Button variant="ghost" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<ArrowLeft className="w-4 h-4" />}
+          >
             Back
           </Button>
         </Link>
@@ -153,7 +174,9 @@ export default function PropertiesEditor() {
       <Card>
         {visiblePropertyDefinitions.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-500 mb-4">No properties available for this factsheet type.</p>
+            <p className="text-gray-500 mb-4">
+              No properties available for this factsheet type.
+            </p>
             <Link to="/settings">
               <Button variant="secondary">Go to Settings</Button>
             </Link>
@@ -171,14 +194,18 @@ export default function PropertiesEditor() {
                 key={propDef.id}
                 label={propDef.name}
                 options={getOptionsForProperty(propDef.id)}
-                value={values[propDef.id] || ''}
+                value={values[propDef.id] || ""}
                 onChange={(e) => handleValueChange(propDef.id, e.target.value)}
               />
             ))}
 
             <div className="flex gap-3 pt-4">
-              <Button type="submit" disabled={saving} icon={<Save className="w-4 h-4" />}>
-                {saving ? 'Saving...' : 'Save Properties'}
+              <Button
+                type="submit"
+                disabled={saving}
+                icon={<Save className="w-4 h-4" />}
+              >
+                {saving ? "Saving..." : "Save Properties"}
               </Button>
               <Link to={`/factsheets/${id}`}>
                 <Button type="button" variant="secondary">
