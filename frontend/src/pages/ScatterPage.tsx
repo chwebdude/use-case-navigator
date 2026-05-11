@@ -411,12 +411,12 @@ export default function ScatterPage() {
       <Card className="flex-1 min-h-0 overflow-hidden">
         <div className="flex h-full min-h-0 flex-col">
           <div className="flex items-center justify-between mb-3 shrink-0">
-          <CardTitle>
-            Scatter Plot
-            {axisMode === "metrics" && " (Metric Scores)"}
-            {axisMode === "properties" && " (Property Weights)"}
-          </CardTitle>
-          <Badge variant="default">{points.length} points</Badge>
+            <CardTitle>
+              Scatter Plot
+              {axisMode === "metrics" && " (Metric Scores)"}
+              {axisMode === "properties" && " (Property Weights)"}
+            </CardTitle>
+            <Badge variant="default">{points.length} points</Badge>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden">
             {xAxis && yAxis ? (
@@ -425,12 +425,14 @@ export default function ScatterPage() {
                 xLabel={
                   axisMode === "metrics"
                     ? metrics.find((m) => m.id === xAxis)?.name || "X"
-                    : propertyDefinitions.find((p) => p.id === xAxis)?.name || "X"
+                    : propertyDefinitions.find((p) => p.id === xAxis)?.name ||
+                      "X"
                 }
                 yLabel={
                   axisMode === "metrics"
                     ? metrics.find((m) => m.id === yAxis)?.name || "Y"
-                    : propertyDefinitions.find((p) => p.id === yAxis)?.name || "Y"
+                    : propertyDefinitions.find((p) => p.id === yAxis)?.name ||
+                      "Y"
                 }
                 xTicks={xTicks}
                 yTicks={yTicks}

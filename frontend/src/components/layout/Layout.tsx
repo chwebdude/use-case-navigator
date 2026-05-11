@@ -1,18 +1,21 @@
-import { useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import Header from './Header';
-import Sidebar from './Sidebar';
+import { useEffect, useState } from "react";
+import { Outlet } from "react-router-dom";
+import Header from "./Header";
+import Sidebar from "./Sidebar";
 
 export default function Layout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === "undefined") {
       return false;
     }
-    return window.localStorage.getItem('sidebar-collapsed') === '1';
+    return window.localStorage.getItem("sidebar-collapsed") === "1";
   });
 
   useEffect(() => {
-    window.localStorage.setItem('sidebar-collapsed', isSidebarCollapsed ? '1' : '0');
+    window.localStorage.setItem(
+      "sidebar-collapsed",
+      isSidebarCollapsed ? "1" : "0",
+    );
   }, [isSidebarCollapsed]);
 
   return (

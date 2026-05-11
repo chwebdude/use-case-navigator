@@ -119,7 +119,9 @@ export default function ScatterPlot({
               className="w-2.5 h-2.5 rounded-full shrink-0"
               style={{ backgroundColor: p.color }}
             />
-            <span className="text-gray-700 whitespace-nowrap truncate">{p.name}</span>
+            <span className="text-gray-700 whitespace-nowrap truncate">
+              {p.name}
+            </span>
           </button>
         ))}
       </div>

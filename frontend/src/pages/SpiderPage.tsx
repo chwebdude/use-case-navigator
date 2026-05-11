@@ -605,7 +605,8 @@ export default function SpiderPage() {
                       title={point.name}
                       onClick={() => handlePointClick(point)}
                       className={`text-left flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors hover:bg-gray-100 ${
-                        highlightedFactsheet && highlightedFactsheet !== point.id
+                        highlightedFactsheet &&
+                        highlightedFactsheet !== point.id
                           ? "opacity-40"
                           : "opacity-100"
                       }`}
@@ -614,7 +615,9 @@ export default function SpiderPage() {
                         className="w-2.5 h-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: point.color }}
                       />
-                      <span className="truncate text-gray-700">{point.name}</span>
+                      <span className="truncate text-gray-700">
+                        {point.name}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -628,7 +631,9 @@ export default function SpiderPage() {
               </div>
               <div>
                 <span className="font-medium">
-                  {axisMode === "metrics" ? metrics.length : propertyDefinitions.length}
+                  {axisMode === "metrics"
+                    ? metrics.length
+                    : propertyDefinitions.length}
                 </span>{" "}
                 {axisMode === "metrics" ? "metrics" : "properties"} compared
               </div>

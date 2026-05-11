@@ -93,7 +93,7 @@ function NavSection({ title, items, isCollapsed }: NavSectionProps) {
             to={item.to}
             title={isCollapsed ? item.label : undefined}
             className={({ isActive }) =>
-              `flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 text-sm font-medium mx-2 transition-colors ${
+              `flex items-center ${isCollapsed ? "justify-center" : "gap-3"} px-3 py-2.5 text-sm font-medium mx-2 transition-colors ${
                 isActive
                   ? "bg-accent-500 text-white"
                   : "text-gray-600 hover:bg-gray-100 hover:text-primary-900"
@@ -113,7 +113,7 @@ export default function Sidebar({ isCollapsed }: SidebarProps) {
   return (
     <aside
       className={`bg-white border-r border-gray-200 flex flex-col shrink-0 transition-[width] duration-200 ${
-        isCollapsed ? 'w-16' : 'w-64'
+        isCollapsed ? "w-16" : "w-64"
       }`}
     >
       <div className="flex-1 py-6 overflow-y-auto">
