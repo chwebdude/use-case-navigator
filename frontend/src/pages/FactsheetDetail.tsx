@@ -19,6 +19,7 @@ import { useChangeLog } from "../hooks/useChangeLog";
 import { useAppSettings } from "../hooks/useAppSettings";
 import pb from "../lib/pocketbase";
 import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
+import { isPropertyVisibleForType } from "../lib/propertyVisibility";
 import type {
   Factsheet,
   FactsheetType,
@@ -148,6 +149,16 @@ export default function FactsheetDetail() {
     expand: "property,option",
   });
 
+  const visibleProperties = useMemo(
+    () =>
+      properties.filter((property) => {
+        const propertyDefinition = property.expand?.property;
+        if (!propertyDefinition) return true;
+        return isPropertyVisibleForType(propertyDefinition, factsheet?.type);
+      }),
+    [properties, factsheet?.type],
+  );
+
   const { records: metrics } = useRealtime<MetricExpanded>({
     collection: "metrics",
     sort: "order",
@@ -199,11 +210,11 @@ export default function FactsheetDetail() {
 
   const propertyMap = useMemo(() => {
     const map = new Map<string, FactsheetPropertyExpanded>();
-    properties.forEach((fp) => {
+    visibleProperties.forEach((fp) => {
       map.set(fp.property, fp);
     });
     return map;
-  }, [properties]);
+  }, [visibleProperties]);
 
   const computeMetricScore = (metric: MetricExpanded) => {
     const props = metric.properties?.length
@@ -570,13 +581,13 @@ export default function FactsheetDetail() {
           </Link>
         </div>
 
-        {properties.length === 0 ? (
+        {visibleProperties.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <p>No properties configured yet</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {properties.map((prop) => (
+            {visibleProperties.map((prop) => (
               <div key={prop.id} className="p-3 bg-gray-50">
                 <p className="text-sm text-gray-500">
                   {prop.expand?.property?.name || "Property"}

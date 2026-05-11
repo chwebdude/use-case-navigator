@@ -26,7 +26,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, CardTitle, Button, Input } from "../components/ui";
+import { Card, CardTitle, Button, Input, MultiSelect } from "../components/ui";
 import { useRealtime } from "../hooks/useRealtime";
 import {
   useAppSettings,
@@ -1013,6 +1013,7 @@ export default function SettingsPage() {
       const prop = await pb.collection("property_definitions").create({
         name: newProp.name,
         order: propertyDefinitions.length,
+        factsheet_types: null,
       });
 
       const distributedWeights = computeDistributedWeights(
@@ -1083,6 +1084,20 @@ export default function SettingsPage() {
       refreshOptions();
     } catch (err) {
       console.error("Failed to delete property:", err);
+    }
+  };
+
+  const handleUpdatePropertyTypes = async (
+    propertyId: string,
+    factsheetTypeIds: string[],
+  ) => {
+    try {
+      await pb.collection("property_definitions").update(propertyId, {
+        factsheet_types: factsheetTypeIds.length > 0 ? factsheetTypeIds : null,
+      });
+      refreshProps();
+    } catch (err) {
+      console.error("Failed to update property type visibility:", err);
     }
   };
 
@@ -1887,6 +1902,37 @@ export default function SettingsPage() {
             >
               Add Property
             </Button>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-200 pt-6 mt-6">
+          <h4 className="font-medium text-primary-900 mb-2">
+            Property Visibility by Factsheet Type
+          </h4>
+          <p className="text-sm text-gray-500 mb-4">
+            Leave empty to show a property for all factsheet types.
+          </p>
+
+          <div className="space-y-3">
+            {propertyDefinitions.map((prop) => (
+              <div key={prop.id} className="grid grid-cols-[220px_1fr] gap-3 items-center">
+                <div className="text-sm font-medium text-primary-900">
+                  {prop.name}
+                </div>
+                <MultiSelect
+                  placeholder="All types"
+                  options={[...factsheetTypes]
+                    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                    .map((type) => ({ value: type.id, label: type.name }))}
+                  values={prop.factsheet_types ?? []}
+                  onChange={(values) => handleUpdatePropertyTypes(prop.id, values)}
+                />
+              </div>
+            ))}
+
+            {propertyDefinitions.length === 0 && (
+              <p className="text-sm text-gray-500">No properties available.</p>
+            )}
           </div>
         </div>
       </Card>

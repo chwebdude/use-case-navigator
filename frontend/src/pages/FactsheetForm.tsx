@@ -11,6 +11,10 @@ import { useAiDraft } from "../hooks/useAiDraft";
 import type { AiDraft } from "../hooks/useAiDraft";
 import pb from "../lib/pocketbase";
 import { getStatusMeta, getStatusSelectOptions } from "../lib/statusConfig";
+import {
+  filterPropertiesForType,
+  isPropertyVisibleForType,
+} from "../lib/propertyVisibility";
 import type {
   Factsheet,
   FactsheetType,
@@ -203,6 +207,10 @@ export default function FactsheetForm() {
   }, [factsheetTypes, isEdit, formData.type]);
 
   const selectedType = factsheetTypes.find((type) => type.id === formData.type);
+  const visiblePropertyDefinitions = useMemo(
+    () => filterPropertiesForType(propertyDefinitions, formData.type),
+    [propertyDefinitions, formData.type],
+  );
 
   const isFieldHidden = (fieldName: string): boolean => {
     return (selectedType?.hidden_fields ?? []).includes(fieldName as any);
@@ -392,6 +400,7 @@ export default function FactsheetForm() {
 
       // Save property values and track changes
       for (const propDef of propertyDefinitions) {
+        const isApplicable = isPropertyVisibleForType(propDef, formData.type);
         const newOptionId = propertyValues[propDef.id];
         const existing = isEdit
           ? existingProperties.find((p) => p.property === propDef.id)
@@ -400,6 +409,19 @@ export default function FactsheetForm() {
           ? getOptionValue(existing.option)
           : null;
         const newOptionValue = newOptionId ? getOptionValue(newOptionId) : null;
+
+        if (!isApplicable) {
+          if (existing) {
+            await pb.collection("factsheet_properties").delete(existing.id);
+            await logPropertyChanged(
+              factsheetId,
+              propDef.name,
+              oldOptionValue,
+              null,
+            );
+          }
+          continue;
+        }
 
         // Check if there's a valid option selected (not empty string)
         if (newOptionId && newOptionId !== "" && newOptionId.trim()) {
@@ -579,13 +601,13 @@ export default function FactsheetForm() {
             />
 
             {/* Property selections */}
-            {propertyDefinitions.length > 0 && (
+            {visiblePropertyDefinitions.length > 0 && (
               <div className="border-t border-gray-200 pt-6">
                 <h3 className="text-sm font-medium text-gray-700 mb-4">
                   Properties
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
-                  {propertyDefinitions.map((propDef) => (
+                  {visiblePropertyDefinitions.map((propDef) => (
                     <Select
                       key={propDef.id}
                       label={propDef.name}

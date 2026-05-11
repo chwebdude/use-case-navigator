@@ -19,6 +19,7 @@ import {
   getStatusTextColor,
   getStatusesForType,
 } from "../lib/statusConfig";
+import { isPropertyVisibleForType } from "../lib/propertyVisibility";
 import type {
   Factsheet,
   FactsheetType,
@@ -184,6 +185,16 @@ export default function FactsheetDetailModal({
     expand: "property,option",
   });
 
+  const visibleProperties = useMemo(
+    () =>
+      properties.filter((property) => {
+        const propertyDefinition = property.expand?.property;
+        if (!propertyDefinition) return true;
+        return isPropertyVisibleForType(propertyDefinition, factsheet?.type);
+      }),
+    [properties, factsheet?.type],
+  );
+
   const { records: changeLogs } = useRealtime<ChangeLogExpanded>({
     collection: "change_log",
     filter: activeFactsheetId ? `factsheet = "${activeFactsheetId}"` : "",
@@ -244,11 +255,11 @@ export default function FactsheetDetailModal({
 
   const propertyMap = useMemo(() => {
     const map = new Map<string, FactsheetPropertyExpanded>();
-    properties.forEach((fp) => {
+    visibleProperties.forEach((fp) => {
       map.set(fp.property, fp);
     });
     return map;
-  }, [properties]);
+  }, [visibleProperties]);
 
   const computeMetricScore = (metric: MetricExpanded) => {
     const props = metric.properties?.length
@@ -379,13 +390,13 @@ export default function FactsheetDetailModal({
           )}
 
           {/* Properties */}
-          {properties.length > 0 && (
+          {visibleProperties.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-2">
                 Properties
               </h4>
               <div className="grid grid-cols-2 gap-3">
-                {properties.map((prop) => (
+                {visibleProperties.map((prop) => (
                   <div key={prop.id} className="bg-gray-50 p-2">
                     <p className="text-xs text-gray-500">
                       {prop.expand?.property?.name}

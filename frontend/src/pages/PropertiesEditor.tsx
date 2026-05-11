@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Card, Button, Select } from '../components/ui';
-import { useRealtime } from '../hooks/useRealtime';
+import { useRealtime, useRecord } from '../hooks/useRealtime';
 import { useChangeLog } from '../hooks/useChangeLog';
 import pb from '../lib/pocketbase';
-import type { PropertyDefinition, PropertyOption, FactsheetProperty } from '../types';
+import { filterPropertiesForType, isPropertyVisibleForType } from '../lib/propertyVisibility';
+import type { PropertyDefinition, PropertyOption, FactsheetProperty, Factsheet } from '../types';
 
 export default function PropertiesEditor() {
   const { id } = useParams();
@@ -14,6 +15,8 @@ export default function PropertiesEditor() {
   const [error, setError] = useState('');
   // values maps property definition ID to option ID
   const [values, setValues] = useState<Record<string, string>>({});
+
+  const { record: factsheet } = useRecord<Factsheet>('factsheets', id);
 
   const { records: propertyDefinitions } = useRealtime<PropertyDefinition>({
     collection: 'property_definitions',
@@ -31,6 +34,11 @@ export default function PropertiesEditor() {
   });
 
   const { logPropertyChanged } = useChangeLog();
+
+  const visiblePropertyDefinitions = useMemo(
+    () => filterPropertiesForType(propertyDefinitions, factsheet?.type),
+    [propertyDefinitions, factsheet?.type],
+  );
 
   // Helper to get option value by id
   const getOptionValue = (optionId: string) => {
@@ -75,10 +83,19 @@ export default function PropertiesEditor() {
     try {
       // For each property definition, create or update the value
       for (const propDef of propertyDefinitions) {
+        const isApplicable = isPropertyVisibleForType(propDef, factsheet?.type);
         const newOptionId = values[propDef.id];
         const existing = existingProperties.find((p) => p.property === propDef.id);
         const oldOptionValue = existing ? getOptionValue(existing.option) : null;
         const newOptionValue = newOptionId ? getOptionValue(newOptionId) : null;
+
+        if (!isApplicable) {
+          if (existing) {
+            await pb.collection('factsheet_properties').delete(existing.id);
+            await logPropertyChanged(id!, propDef.name, oldOptionValue, null);
+          }
+          continue;
+        }
 
         if (newOptionId && newOptionId.trim()) {
           if (existing) {
@@ -134,9 +151,9 @@ export default function PropertiesEditor() {
       </div>
 
       <Card>
-        {propertyDefinitions.length === 0 ? (
+        {visiblePropertyDefinitions.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-500 mb-4">No property definitions configured yet.</p>
+            <p className="text-gray-500 mb-4">No properties available for this factsheet type.</p>
             <Link to="/settings">
               <Button variant="secondary">Go to Settings</Button>
             </Link>
@@ -149,7 +166,7 @@ export default function PropertiesEditor() {
               </div>
             )}
 
-            {propertyDefinitions.map((propDef) => (
+            {visiblePropertyDefinitions.map((propDef) => (
               <Select
                 key={propDef.id}
                 label={propDef.name}

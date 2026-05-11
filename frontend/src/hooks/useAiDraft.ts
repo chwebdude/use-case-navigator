@@ -4,6 +4,7 @@ import type {
   PropertyDefinition,
   PropertyOption,
 } from "../types";
+import { filterPropertiesForType } from "../lib/propertyVisibility";
 
 export interface AiDraft {
   name: string;
@@ -63,9 +64,13 @@ export function useAiDraft({
       try {
         const selectedType = factsheetTypes.find((t) => t.id === typeId);
         const hiddenFields = selectedType?.hidden_fields ?? [];
+        const applicablePropertyDefinitions = filterPropertiesForType(
+          propertyDefinitions,
+          typeId,
+        );
 
         // Build property context
-        const propertyContext = propertyDefinitions.map((pd) => {
+        const propertyContext = applicablePropertyDefinitions.map((pd) => {
           const opts = propertyOptions
             .filter((o) => o.property === pd.id)
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -183,12 +188,12 @@ Name: "${name}"${description.trim() ? `\nDescription keywords: "${description}"`
         // Resolve property keys — LLM may return property names instead of IDs
         const rawProps: Record<string, string> = parsed.properties || {};
         const propNameToId = new Map(
-          propertyDefinitions.map((pd) => [pd.name.toLowerCase(), pd.id]),
+          applicablePropertyDefinitions.map((pd) => [pd.name.toLowerCase(), pd.id]),
         );
         for (const [rawKey, rawOptId] of Object.entries(rawProps)) {
           if (!rawOptId) continue;
           // Resolve property key: could be an ID or a name
-          const propId = propertyDefinitions.some((pd) => pd.id === rawKey)
+          const propId = applicablePropertyDefinitions.some((pd) => pd.id === rawKey)
             ? rawKey
             : propNameToId.get(rawKey.toLowerCase()) || null;
           if (!propId) continue;
@@ -209,7 +214,7 @@ Name: "${name}"${description.trim() ? `\nDescription keywords: "${description}"`
         }
 
         // Fill in any properties the LLM didn't return at all
-        for (const pd of propertyDefinitions) {
+        for (const pd of applicablePropertyDefinitions) {
           if (!(pd.id in aiDraft.properties)) {
             aiDraft.properties[pd.id] = "";
           }

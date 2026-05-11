@@ -45,6 +45,7 @@ export interface Dependency extends RecordModel {
 export interface PropertyDefinition extends RecordModel {
   name: string;
   order?: number;
+  factsheet_types?: string[];
 }
 
 export interface PropertyOption extends RecordModel {
