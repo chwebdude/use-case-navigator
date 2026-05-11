@@ -18,6 +18,8 @@ import {
   DependencyGraph,
   type ConnectionRequest,
   type DependencyGraphExportHandlers,
+  type DependencyGraphViewportHandlers,
+  type GraphViewportState,
 } from "../components/visualizations";
 import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import { useRealtime } from "../hooks/useRealtime";
@@ -93,6 +95,11 @@ export default function DependenciesPage() {
     "png" | "svg" | null
   >(null);
   const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
+  const viewportHandlerRef = useRef<DependencyGraphViewportHandlers | null>(
+    null,
+  );
+  const viewportBeforeHideFocusRef = useRef<GraphViewportState | null>(null);
+  const shouldRestoreViewportRef = useRef(false);
 
   // Connection modal state (for creating new dependencies)
   const [connectionModal, setConnectionModal] =
@@ -114,8 +121,37 @@ export default function DependenciesPage() {
   // Auto-align when focus changes in hide mode (since nodes are removed/added)
   useEffect(() => {
     if (unrelatedDisplayMode === "hide") {
+      if (!focusedFactsheetId && shouldRestoreViewportRef.current) {
+        return;
+      }
       setLayoutKey((k) => k + 1);
     }
+  }, [focusedFactsheetId, unrelatedDisplayMode]);
+
+  useEffect(() => {
+    if (unrelatedDisplayMode !== "hide") {
+      return;
+    }
+
+    if (focusedFactsheetId !== null || !shouldRestoreViewportRef.current) {
+      return;
+    }
+
+    const savedViewport = viewportBeforeHideFocusRef.current;
+    if (!savedViewport) {
+      shouldRestoreViewportRef.current = false;
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      void viewportHandlerRef.current?.setViewport(savedViewport);
+      shouldRestoreViewportRef.current = false;
+      viewportBeforeHideFocusRef.current = null;
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
   }, [focusedFactsheetId, unrelatedDisplayMode]);
 
   useEffect(() => {
@@ -246,9 +282,20 @@ export default function DependenciesPage() {
 
   const handleNodeRightClick = (factsheetId: string) => {
     // Toggle focus: if already focused on this node, clear focus
-    setFocusedFactsheetId(
-      focusedFactsheetId === factsheetId ? null : factsheetId,
-    );
+    const isClearingFocus = focusedFactsheetId === factsheetId;
+
+    if (unrelatedDisplayMode === "hide") {
+      if (isClearingFocus) {
+        shouldRestoreViewportRef.current =
+          viewportBeforeHideFocusRef.current !== null;
+      } else {
+        viewportBeforeHideFocusRef.current =
+          viewportHandlerRef.current?.getViewport() || null;
+        shouldRestoreViewportRef.current = false;
+      }
+    }
+
+    setFocusedFactsheetId(isClearingFocus ? null : factsheetId);
   };
 
   const handleConnect = (connection: ConnectionRequest) => {
@@ -755,6 +802,9 @@ export default function DependenciesPage() {
             unrelatedDisplayMode={unrelatedDisplayMode}
             onExportHandlerChange={(handler) => {
               exportGraphHandlerRef.current = handler;
+            }}
+            onViewportHandlerChange={(handler) => {
+              viewportHandlerRef.current = handler;
             }}
           />
         </div>

@@ -38,6 +38,17 @@ export interface DependencyGraphExportHandlers {
   svg: () => Promise<void>;
 }
 
+export interface GraphViewportState {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+export interface DependencyGraphViewportHandlers {
+  getViewport: () => GraphViewportState | null;
+  setViewport: (viewport: GraphViewportState) => Promise<void>;
+}
+
 interface DependencyGraphProps {
   factsheets: FactsheetExpanded[];
   dependencies: Dependency[];
@@ -53,6 +64,9 @@ interface DependencyGraphProps {
   unrelatedDisplayMode?: "dim" | "hide";
   onExportHandlerChange?: (
     handlers: DependencyGraphExportHandlers | null,
+  ) => void;
+  onViewportHandlerChange?: (
+    handlers: DependencyGraphViewportHandlers | null,
   ) => void;
 }
 
@@ -442,8 +456,16 @@ export default function DependencyGraph({
   focusedFactsheetId,
   unrelatedDisplayMode = "dim",
   onExportHandlerChange,
+  onViewportHandlerChange,
 }: DependencyGraphProps) {
   const graphWrapperRef = useRef<HTMLDivElement>(null);
+  const reactFlowInstanceRef = useRef<{
+    getViewport: () => GraphViewportState;
+    setViewport: (
+      viewport: GraphViewportState,
+      options?: { duration?: number },
+    ) => Promise<boolean>;
+  } | null>(null);
 
   const {
     settings: { statuses: globalStatuses },
@@ -809,6 +831,33 @@ export default function DependencyGraph({
     };
   }, [exportToPng, exportToSvg, onExportHandlerChange]);
 
+  const getViewport = useCallback((): GraphViewportState | null => {
+    return reactFlowInstanceRef.current?.getViewport() ?? null;
+  }, []);
+
+  const setViewport = useCallback(async (viewport: GraphViewportState) => {
+    if (!reactFlowInstanceRef.current) {
+      return;
+    }
+
+    await reactFlowInstanceRef.current.setViewport(viewport, { duration: 0 });
+  }, []);
+
+  useEffect(() => {
+    if (!onViewportHandlerChange) {
+      return;
+    }
+
+    onViewportHandlerChange({
+      getViewport,
+      setViewport,
+    });
+
+    return () => {
+      onViewportHandlerChange(null);
+    };
+  }, [getViewport, onViewportHandlerChange, setViewport]);
+
   return (
     <div
       ref={graphWrapperRef}
@@ -824,6 +873,9 @@ export default function DependencyGraph({
         onEdgeClick={handleEdgeClick}
         onConnect={handleConnect}
         nodeTypes={nodeTypes}
+        onInit={(instance) => {
+          reactFlowInstanceRef.current = instance;
+        }}
         fitView
         fitViewOptions={{
           padding: 0.25,
