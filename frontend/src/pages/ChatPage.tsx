@@ -17,6 +17,7 @@ import type {
   Factsheet,
   FactsheetType,
   Dependency,
+  Metric,
   PropertyDefinition,
   PropertyOption,
   FactsheetProperty,
@@ -45,6 +46,7 @@ async function loadDataContext(): Promise<{
     factsheets,
     types,
     dependencies,
+    metrics,
     properties,
     options,
     fpLinks,
@@ -53,6 +55,9 @@ async function loadDataContext(): Promise<{
     pb.collection("factsheets").getFullList<Factsheet>(),
     pb.collection("factsheet_types").getFullList<FactsheetType>(),
     pb.collection("dependencies").getFullList<Dependency>(),
+    pb
+      .collection("metrics")
+      .getFullList<Metric>({ expand: "properties", sort: "order,name" }),
     pb.collection("property_definitions").getFullList<PropertyDefinition>(),
     pb.collection("property_options").getFullList<PropertyOption>(),
     pb.collection("factsheet_properties").getFullList<FactsheetProperty>(),
@@ -69,6 +74,43 @@ async function loadDataContext(): Promise<{
   const fsMap = Object.fromEntries(factsheets.map((f) => [f.id, f.name]));
   const propMap = Object.fromEntries(properties.map((p) => [p.id, p.name]));
   const optMap = Object.fromEntries(options.map((o) => [o.id, o]));
+  const factsheetPropertyLookup = new Map<string, Map<string, FactsheetProperty>>();
+  fpLinks.forEach((fp) => {
+    if (!factsheetPropertyLookup.has(fp.factsheet)) {
+      factsheetPropertyLookup.set(fp.factsheet, new Map());
+    }
+    factsheetPropertyLookup.get(fp.factsheet)!.set(fp.property, fp);
+  });
+
+  const computeMetricScore = (factsheetId: string, metric: Metric): number | null => {
+    const metricProperties = metric.properties?.length
+      ? metric.properties
+      : ((metric as Metric & { expand?: { properties?: PropertyDefinition[] } }).expand?.properties?.map(
+          (p) => p.id,
+        ) ?? []);
+    if (metricProperties.length === 0) return null;
+
+    const fsProps = factsheetPropertyLookup.get(factsheetId);
+    if (!fsProps) return null;
+
+    let sum = 0;
+    let count = 0;
+    metricProperties.forEach((propertyId) => {
+      const selectedProperty = fsProps.get(propertyId);
+      if (!selectedProperty) return;
+      const selectedOption = optMap[selectedProperty.option];
+
+      const weight =
+        typeof selectedOption?.weight === "number"
+          ? selectedOption.weight
+          : 0;
+      sum += weight;
+      count += 1;
+    });
+
+    if (count === 0) return null;
+    return sum / count;
+  };
 
   const lines: string[] = [];
 
@@ -92,6 +134,7 @@ async function loadDataContext(): Promise<{
   lines.push(`- Total factsheets: ${factsheets.length}`);
   lines.push(`- Total factsheet types: ${types.length}`);
   lines.push(`- Total dependencies: ${dependencies.length}`);
+  lines.push(`- Total metrics: ${metrics.length}`);
   lines.push(`- Total property definitions: ${properties.length}`);
   lines.push(
     `- Factsheets by status: ${Object.entries(statusCounts)
@@ -129,6 +172,32 @@ async function loadDataContext(): Promise<{
     if (f.responsibility) lines.push(`  Responsibility: ${f.responsibility}`);
     if (f.what_it_does) lines.push(`  What it does: ${f.what_it_does}`);
     if (f.benefits) lines.push(`  Benefits: ${f.benefits}`);
+
+    if (metrics.length > 0) {
+      const metricValues = metrics
+        .map((metric) => {
+          const score = computeMetricScore(f.id, metric);
+          return score === null ? null : `${metric.name}: ${score.toFixed(2)}`;
+        })
+        .filter((entry): entry is string => entry !== null);
+      if (metricValues.length > 0) {
+        lines.push(`  Calculated metrics: ${metricValues.join(", ")}`);
+      }
+    }
+  }
+
+  lines.push("\n## Metrics");
+  for (const m of metrics) {
+    const metricProperties = m.properties?.length
+      ? m.properties
+      : ((m as Metric & { expand?: { properties?: PropertyDefinition[] } }).expand?.properties?.map(
+          (p) => p.id,
+        ) ?? []);
+    const propertyNames = metricProperties
+      .map((pid) => propMap[pid] || pid)
+      .join(", ");
+    lines.push(`- ${m.name}: uses properties [${propertyNames}]`);
+    if (m.description) lines.push(`  Description: ${m.description}`);
   }
 
   lines.push("\n## Dependencies");
@@ -169,7 +238,7 @@ async function sendChatRequest(
   apiKey: string,
   model: string,
 ): Promise<string> {
-  const systemPrompt = `You are a helpful assistant for the "Use Case Navigator" application. You answer questions about the data (factsheets, dependencies, properties) managed in the system.
+  const systemPrompt = `You are a helpful assistant for the "Use Case Navigator" application. You answer questions about the data (factsheets, dependencies, properties, metrics) managed in the system.
 
 Here is the current data in the system:
 
@@ -178,6 +247,8 @@ ${dataContext}
 IMPORTANT: The "Summary" section at the top contains pre-computed exact counts. Always use those numbers for counting questions (e.g. "how many factsheets", "how many dependencies"). Do NOT try to count items yourself from the lists below — use the summary numbers. The "Factsheets by type and status" subsection has exact cross-tabulated counts for each type-status combination.
 
 When listing items that match a filter (e.g. "Data Foundations with Unknown status"), first check the summary for the exact count, then carefully list ALL matching items from the data. Verify your list has the correct number of items before responding.
+
+When a user asks about a specific factsheet, include its calculated metric values (if available) in the answer.
 
 When your answer involves numerical data that would benefit from visualization (distributions, comparisons, counts by category), include a chart by adding a fenced code block with the language "chart" containing a JSON object. The JSON must have:
 - "type": one of "bar", "horizontal-bar", or "pie"
@@ -191,7 +262,7 @@ Example:
 
 Always include the chart AFTER a brief text explanation. Use "pie" for proportions/shares, "bar" for comparisons with few categories, and "horizontal-bar" when there are many categories or long labels.
 
-Answer questions based on this data. Be concise and specific. If asked about dependencies, trace the dependency chains. If asked about statistics, use the summary counts or compute from the data. Format your answers with markdown when appropriate.`;
+Answer questions based on this data. Be concise and specific. If asked about dependencies, trace the dependency chains. If asked about statistics, use the summary counts or compute from the data. If asked about metric values, use the provided calculated metric values from the factsheet data. Format your answers with markdown when appropriate.`;
 
   const body = {
     model,
@@ -549,7 +620,7 @@ export default function ChatPage() {
             Talk to the Data
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Ask questions about your factsheets, dependencies, and properties
+            Ask questions about your factsheets, dependencies, properties, and metrics
           </p>
         </div>
         {messages.length > 0 && (
@@ -574,7 +645,7 @@ export default function ChatPage() {
             <Bot className="w-12 h-12 mx-auto mb-4 opacity-40" />
             <p className="text-lg font-medium">Start a conversation</p>
             <p className="text-sm mt-1">
-              Ask about factsheets, dependencies, properties, or statistics.
+              Ask about factsheets, dependencies, properties, metrics, or statistics.
             </p>
             <div className="mt-6 flex flex-wrap gap-2 justify-center max-w-lg mx-auto">
               {[
@@ -582,6 +653,7 @@ export default function ChatPage() {
                 "Which factsheets have the most dependencies?",
                 "Summarize the factsheets by status",
                 "What are the dependency chains?",
+                "Show the calculated metrics for each factsheet",
               ].map((suggestion) => (
                 <button
                   key={suggestion}
