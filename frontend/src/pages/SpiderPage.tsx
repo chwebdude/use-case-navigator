@@ -419,7 +419,7 @@ export default function SpiderPage() {
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-4">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -464,10 +464,10 @@ export default function SpiderPage() {
       />
 
       {/* Main content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Spider Diagram */}
         <Card className="lg:col-span-2">
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Mode selector */}
             <div className="flex gap-4 items-start">
               <div className="flex gap-2">
@@ -552,11 +552,11 @@ export default function SpiderPage() {
             </div>
 
             {/* Diagram visualization */}
-            <div className="flex justify-center">
+            <div className="flex items-start justify-center py-1">
               {loading ? (
-                <div className="animate-pulse h-[500px] w-full bg-gray-100 rounded" />
+                <div className="animate-pulse h-full min-h-[280px] w-full bg-gray-100 rounded" />
               ) : dimensionNames.length < 3 ? (
-                <div className="flex items-center justify-center h-[400px] text-gray-500">
+                <div className="flex items-center justify-center h-full min-h-[280px] text-gray-500">
                   <div className="text-center">
                     <Radar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                     <p>Select at least 3 {axisMode} for the spider diagram</p>
@@ -570,7 +570,7 @@ export default function SpiderPage() {
                   </div>
                 </div>
               ) : filteredFactsheets.length === 0 ? (
-                <div className="flex items-center justify-center h-[400px] text-gray-500">
+                <div className="flex items-center justify-center h-full min-h-[280px] text-gray-500">
                   <div className="text-center">
                     <Radar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                     <p>No factsheets match the current filters</p>
@@ -581,15 +581,57 @@ export default function SpiderPage() {
                   data={filteredSpiderData}
                   metrics={dimensionNames}
                   maxValue={10}
-                  size={500}
+                  size={340}
                   showLabels={true}
-                  showLegend={true}
+                  showLegend={false}
                   interactive={true}
                   onPointHover={handlePointHover}
                   onPointClick={handlePointClick}
                   highlightedId={highlightedFactsheet}
                 />
               )}
+            </div>
+
+            {filteredSpiderData.length > 0 && (
+              <div className="shrink-0 border-t border-gray-200 pt-2">
+                <div className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                  Factsheets
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                  {filteredSpiderData.map((point) => (
+                    <button
+                      type="button"
+                      key={point.id}
+                      title={point.name}
+                      onClick={() => handlePointClick(point)}
+                      className={`text-left flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors hover:bg-gray-100 ${
+                        highlightedFactsheet && highlightedFactsheet !== point.id
+                          ? "opacity-40"
+                          : "opacity-100"
+                      }`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: point.color }}
+                      />
+                      <span className="truncate text-gray-700">{point.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="shrink-0 border-t border-gray-200 pt-2 text-xs text-gray-600 flex gap-6 flex-wrap">
+              <div>
+                <span className="font-medium">{filteredFactsheets.length}</span>{" "}
+                factsheet{filteredFactsheets.length !== 1 ? "s" : ""} shown
+              </div>
+              <div>
+                <span className="font-medium">
+                  {axisMode === "metrics" ? metrics.length : propertyDefinitions.length}
+                </span>{" "}
+                {axisMode === "metrics" ? "metrics" : "properties"} compared
+              </div>
             </div>
           </div>
         </Card>
@@ -723,35 +765,6 @@ export default function SpiderPage() {
           )}
         </Card>
       </div>
-
-      {/* Summary stats */}
-      <Card padding="sm">
-        <div className="flex gap-8 text-sm text-gray-600">
-          <div>
-            <span className="font-medium">{filteredFactsheets.length}</span>{" "}
-            factsheet
-            {filteredFactsheets.length !== 1 ? "s" : ""} shown
-          </div>
-          <div>
-            <span className="font-medium">
-              {axisMode === "metrics"
-                ? metrics.length
-                : propertyDefinitions.length}
-            </span>{" "}
-            {axisMode === "metrics" ? "metric" : "propert"}
-            {(axisMode === "metrics"
-              ? metrics.length
-              : propertyDefinitions.length) !== 1
-              ? axisMode === "metrics"
-                ? "s"
-                : "ies"
-              : axisMode === "metrics"
-                ? ""
-                : "y"}{" "}
-            compared
-          </div>
-        </div>
-      </Card>
     </div>
   );
 }

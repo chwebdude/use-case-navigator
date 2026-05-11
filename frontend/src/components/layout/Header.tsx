@@ -10,20 +10,44 @@ function AppIcon({ iconId, className }: { iconId: IconId; className?: string }) 
   return IconComponent ? <IconComponent className={className} /> : <Icons.Cpu className={className} />;
 }
 
-export default function Header() {
+interface HeaderProps {
+  isSidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+}
+
+export default function Header({
+  isSidebarCollapsed,
+  onToggleSidebar,
+}: HeaderProps) {
   const { username, setUsername } = useUser();
   const { settings } = useAppSettings();
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
 
   return (
     <header className="h-16 bg-primary-900 border-b border-primary-700 flex items-center justify-between px-6 shrink-0">
-      {/* Logo */}
-      <Link to="/" className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-accent-500 flex items-center justify-center">
-          <AppIcon iconId={settings.icon} className="w-6 h-6 text-white" />
-        </div>
-        <span className="text-white font-semibold text-lg">{settings.title}</span>
-      </Link>
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="w-9 h-9 border border-primary-700 text-white hover:bg-primary-800 transition-colors flex items-center justify-center"
+          aria-label={isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          title={isSidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        >
+          {isSidebarCollapsed ? (
+            <Icons.PanelLeftOpen className="w-4 h-4" />
+          ) : (
+            <Icons.PanelLeftClose className="w-4 h-4" />
+          )}
+        </button>
+
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 bg-accent-500 flex items-center justify-center shrink-0">
+            <AppIcon iconId={settings.icon} className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-white font-semibold text-lg truncate">{settings.title}</span>
+        </Link>
+      </div>
 
       {/* User info */}
       {username && (

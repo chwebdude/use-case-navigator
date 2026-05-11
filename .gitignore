@@ -41,3 +41,4 @@ npm-debug.log*
 coverage/
 
 logs/*
+.playwright-mcp/*

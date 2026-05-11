@@ -447,9 +447,9 @@ export default function DependenciesPage() {
     Object.values(propertyFilters).some((v) => v !== "");
 
   return (
-    <div className="space-y-6">
+    <div className="h-full min-h-0 flex flex-col gap-4">
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-primary-900">Dependencies</h1>
           <p className="text-gray-500 mt-1">
@@ -655,11 +655,11 @@ export default function DependenciesPage() {
 
       {/* Graph */}
       {loading ? (
-        <Card className="h-[600px] flex items-center justify-center">
+        <Card className="flex-1 min-h-[320px] flex items-center justify-center">
           <div className="animate-pulse text-gray-400">Loading graph...</div>
         </Card>
       ) : filteredFactsheets.length === 0 ? (
-        <Card className="text-center py-16">
+        <Card className="flex-1 min-h-[320px] text-center py-16">
           <CardTitle>
             {hasFilters ? "No matching factsheets" : "No factsheets yet"}
           </CardTitle>
@@ -679,7 +679,7 @@ export default function DependenciesPage() {
           )}
         </Card>
       ) : (
-        <div className="h-[600px] border border-gray-200">
+        <div className="flex-1 min-h-[320px] border border-gray-200 bg-white overflow-hidden">
           <DependencyGraph
             key={layoutKey}
             factsheets={filteredFactsheets}

@@ -307,8 +307,8 @@ export default function ScatterPage() {
     Object.values(propertyFilters).some((v) => v !== "");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="h-full min-h-0 flex flex-col gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <Grid3X3 className="w-8 h-8 text-accent-500" />
           <div>
@@ -350,8 +350,8 @@ export default function ScatterPage() {
         excludePropertyIds={[xAxis, yAxis]}
       />
 
-      <Card padding="sm">
-        <div className="space-y-4">
+      <Card padding="sm" className="shrink-0">
+        <div className="space-y-3">
           <div className="flex gap-4 items-center">
             <div className="flex gap-2">
               <button
@@ -381,7 +381,7 @@ export default function ScatterPage() {
                 : "Select properties with their corresponding weights"}
             </p>
           </div>
-          <div className="flex gap-6 items-end">
+          <div className="flex flex-wrap gap-4 items-end">
             <div className="w-56">
               <Select
                 label="X Axis (Horizontal)"
@@ -408,44 +408,51 @@ export default function ScatterPage() {
         </div>
       </Card>
 
-      <Card>
-        <div className="flex items-center justify-between mb-4">
+      <Card className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="flex items-center justify-between mb-3 shrink-0">
           <CardTitle>
             Scatter Plot
             {axisMode === "metrics" && " (Metric Scores)"}
             {axisMode === "properties" && " (Property Weights)"}
           </CardTitle>
           <Badge variant="default">{points.length} points</Badge>
-        </div>
-        {xAxis && yAxis ? (
-          <ScatterPlot
-            points={points}
-            xLabel={
-              axisMode === "metrics"
-                ? metrics.find((m) => m.id === xAxis)?.name || "X"
-                : propertyDefinitions.find((p) => p.id === xAxis)?.name || "X"
-            }
-            yLabel={
-              axisMode === "metrics"
-                ? metrics.find((m) => m.id === yAxis)?.name || "Y"
-                : propertyDefinitions.find((p) => p.id === yAxis)?.name || "Y"
-            }
-            xTicks={xTicks}
-            yTicks={yTicks}
-            highlightedId={highlightedId}
-            onPointHover={(p) => setHighlightedId(p?.id ?? null)}
-            onPointClick={(p) => {
-              setHighlightedId(p.id);
-              setSelectedFactsheetId(p.id);
-            }}
-          />
-        ) : (
-          <div className="w-full h-[420px] bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center">
-            <p className="text-gray-500">
-              Select both X and Y axis properties to view the scatter plot
-            </p>
           </div>
-        )}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {xAxis && yAxis ? (
+              <ScatterPlot
+                points={points}
+                xLabel={
+                  axisMode === "metrics"
+                    ? metrics.find((m) => m.id === xAxis)?.name || "X"
+                    : propertyDefinitions.find((p) => p.id === xAxis)?.name || "X"
+                }
+                yLabel={
+                  axisMode === "metrics"
+                    ? metrics.find((m) => m.id === yAxis)?.name || "Y"
+                    : propertyDefinitions.find((p) => p.id === yAxis)?.name || "Y"
+                }
+                xTicks={xTicks}
+                yTicks={yTicks}
+                height={340}
+                showLegend={true}
+                legendPosition="right"
+                highlightedId={highlightedId}
+                onPointHover={(p) => setHighlightedId(p?.id ?? null)}
+                onPointClick={(p) => {
+                  setHighlightedId(p.id);
+                  setSelectedFactsheetId(p.id);
+                }}
+              />
+            ) : (
+              <div className="w-full h-full min-h-[280px] bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center">
+                <p className="text-gray-500 text-center px-4">
+                  Select both X and Y axis properties to view the scatter plot
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </Card>
 
       <FactsheetDetailModal

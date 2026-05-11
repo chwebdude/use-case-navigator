@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Card, Select, Button, MultiSelect } from "./ui";
 import type {
   PropertyDefinition,
@@ -121,6 +121,7 @@ export function FilterBar({
 
   const [propertyGridColumns, setPropertyGridColumns] = useState(2);
   const [showAllPropertyFilters, setShowAllPropertyFilters] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   useEffect(() => {
     const getColumns = () => {
@@ -160,12 +161,23 @@ export function FilterBar({
   const visiblePropertyFilters = showAllPropertyFilters
     ? filterableProperties
     : filterableProperties.slice(0, propertyGridColumns);
+  const hasAdvancedFilters =
+    filterableProperties.length > 0 || Boolean(additionalSettings);
+  const activePropertyFilterCount = Object.values(propertyFilters).filter(
+    (value) => value !== "",
+  ).length;
 
   useEffect(() => {
     if (!shouldCollapsePropertyFilters) {
       setShowAllPropertyFilters(false);
     }
   }, [shouldCollapsePropertyFilters]);
+
+  useEffect(() => {
+    if (activePropertyFilterCount > 0) {
+      setShowAdvancedFilters(true);
+    }
+  }, [activePropertyFilterCount]);
 
   return (
     <Card padding="sm">
@@ -190,6 +202,7 @@ export function FilterBar({
           <div className="w-32 sm:w-36 lg:w-40">
             <MultiSelect
               label="Type"
+              className="h-8"
               placeholder="All Types"
               options={factsheetTypes
                 .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -213,30 +226,27 @@ export function FilterBar({
             />
           </div>
 
-          {/* Property filters - shown if 3 or fewer */}
-          {filterableProperties.length <= 3 &&
-            filterableProperties.map((prop) => {
-              const opts = optionsByProperty.get(prop.id) || [];
-              return (
-                <div key={prop.id} className="w-32 sm:w-36 lg:w-40">
-                  <Select
-                    label={prop.name}
-                    className="h-8 text-sm"
-                    options={[
-                      { value: "", label: `All ${prop.name}` },
-                      ...opts.map((opt) => ({
-                        value: opt.value,
-                        label: opt.value,
-                      })),
-                    ]}
-                    value={propertyFilters[prop.id] || ""}
-                    onChange={(e) =>
-                      onPropertyFilterChange(prop.id, e.target.value)
-                    }
-                  />
-                </div>
-              );
-            })}
+          {/* Advanced filters toggle */}
+          {hasAdvancedFilters && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowAdvancedFilters((prev) => !prev)}
+              icon={<SlidersHorizontal className="w-4 h-4" />}
+            >
+              {showAdvancedFilters ? "Hide advanced" : "More filters"}
+              {activePropertyFilterCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 text-xs bg-accent-500 text-white rounded-full">
+                  {activePropertyFilterCount}
+                </span>
+              )}
+              <ChevronDown
+                className={`w-4 h-4 ml-1 transition-transform ${
+                  showAdvancedFilters ? "rotate-180" : "rotate-0"
+                }`}
+              />
+            </Button>
+          )}
 
           {/* Clear filters button */}
           {hasFilters && (
@@ -255,53 +265,57 @@ export function FilterBar({
           )}
         </div>
 
-        {/* Property filters in grid if more than 3 */}
-        {filterableProperties.length > 3 && (
+        {/* Advanced filters */}
+        {showAdvancedFilters && hasAdvancedFilters && (
           <div className="space-y-2">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2">
-              {visiblePropertyFilters.map((prop) => {
-                const opts = optionsByProperty.get(prop.id) || [];
-                return (
-                  <div key={prop.id}>
-                    <Select
-                      label={prop.name}
-                      className="h-8 text-sm"
-                      options={[
-                        { value: "", label: `All ${prop.name}` },
-                        ...opts.map((opt) => ({
-                          value: opt.value,
-                          label: opt.value,
-                        })),
-                      ]}
-                      value={propertyFilters[prop.id] || ""}
-                      onChange={(e) =>
-                        onPropertyFilterChange(prop.id, e.target.value)
-                      }
-                    />
+            {filterableProperties.length > 0 && (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2">
+                  {visiblePropertyFilters.map((prop) => {
+                    const opts = optionsByProperty.get(prop.id) || [];
+                    return (
+                      <div key={prop.id}>
+                        <Select
+                          label={prop.name}
+                          className="h-8 text-sm"
+                          options={[
+                            { value: "", label: `All ${prop.name}` },
+                            ...opts.map((opt) => ({
+                              value: opt.value,
+                              label: opt.value,
+                            })),
+                          ]}
+                          value={propertyFilters[prop.id] || ""}
+                          onChange={(e) =>
+                            onPropertyFilterChange(prop.id, e.target.value)
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                {shouldCollapsePropertyFilters && (
+                  <div className="flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAllPropertyFilters((prev) => !prev)}
+                    >
+                      {showAllPropertyFilters
+                        ? "Show fewer filters"
+                        : "Show all filters"}
+                    </Button>
                   </div>
-                );
-              })}
-            </div>
-            {shouldCollapsePropertyFilters && (
-              <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowAllPropertyFilters((prev) => !prev)}
-                >
-                  {showAllPropertyFilters
-                    ? "Show fewer filters"
-                    : "Show all filters"}
-                </Button>
+                )}
+              </>
+            )}
+
+            {/* Additional settings row (for display properties, etc.) */}
+            {additionalSettings && (
+              <div className="border-t border-gray-200 pt-2">
+                {additionalSettings}
               </div>
             )}
-          </div>
-        )}
-
-        {/* Additional settings row (for display properties, etc.) */}
-        {additionalSettings && (
-          <div className="border-t border-gray-200 pt-2">
-            {additionalSettings}
           </div>
         )}
       </div>
