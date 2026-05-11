@@ -119,59 +119,19 @@ export function FilterBar({
     ];
   }, [factsheetTypes, globalStatuses, typeFilter]);
 
-  const [propertyGridColumns, setPropertyGridColumns] = useState(2);
-  const [showAllPropertyFilters, setShowAllPropertyFilters] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-
-  useEffect(() => {
-    const getColumns = () => {
-      if (window.matchMedia("(min-width: 1536px)").matches) return 7;
-      if (window.matchMedia("(min-width: 1280px)").matches) return 6;
-      if (window.matchMedia("(min-width: 1024px)").matches) return 5;
-      if (window.matchMedia("(min-width: 768px)").matches) return 4;
-      if (window.matchMedia("(min-width: 640px)").matches) return 3;
-      return 2;
-    };
-
-    const updateColumns = () => setPropertyGridColumns(getColumns());
-    const mediaQueries = [
-      window.matchMedia("(min-width: 640px)"),
-      window.matchMedia("(min-width: 768px)"),
-      window.matchMedia("(min-width: 1024px)"),
-      window.matchMedia("(min-width: 1280px)"),
-      window.matchMedia("(min-width: 1536px)"),
-    ];
-
-    updateColumns();
-    mediaQueries.forEach((mq) => mq.addEventListener("change", updateColumns));
-    return () => {
-      mediaQueries.forEach((mq) =>
-        mq.removeEventListener("change", updateColumns),
-      );
-    };
-  }, []);
 
   // Filter out excluded properties
   const filterableProperties = propertyDefinitions.filter(
     (p) => !excludePropertyIds.includes(p.id),
   );
 
-  const shouldCollapsePropertyFilters =
-    filterableProperties.length > propertyGridColumns;
-  const visiblePropertyFilters = showAllPropertyFilters
-    ? filterableProperties
-    : filterableProperties.slice(0, propertyGridColumns);
+  const visiblePropertyFilters = filterableProperties;
   const hasAdvancedFilters =
     filterableProperties.length > 0 || Boolean(additionalSettings);
   const activePropertyFilterCount = Object.values(propertyFilters).filter(
     (value) => value !== "",
   ).length;
-
-  useEffect(() => {
-    if (!shouldCollapsePropertyFilters) {
-      setShowAllPropertyFilters(false);
-    }
-  }, [shouldCollapsePropertyFilters]);
 
   useEffect(() => {
     if (activePropertyFilterCount > 0) {
@@ -294,19 +254,6 @@ export function FilterBar({
                     );
                   })}
                 </div>
-                {shouldCollapsePropertyFilters && (
-                  <div className="flex justify-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAllPropertyFilters((prev) => !prev)}
-                    >
-                      {showAllPropertyFilters
-                        ? "Show fewer filters"
-                        : "Show all filters"}
-                    </Button>
-                  </div>
-                )}
               </>
             )}
 
