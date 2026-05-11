@@ -113,6 +113,14 @@ export default function ScatterPlot({
                 ? "opacity-40"
                 : "opacity-100"
             }`}
+            onMouseEnter={() => {
+              setHovered(p);
+              onPointHover?.(p);
+            }}
+            onMouseLeave={() => {
+              setHovered(null);
+              onPointHover?.(null);
+            }}
             onClick={() => onPointClick?.(p)}
           >
             <div

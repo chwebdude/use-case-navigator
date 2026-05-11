@@ -603,6 +603,8 @@ export default function SpiderPage() {
                       type="button"
                       key={point.id}
                       title={point.name}
+                      onMouseEnter={() => handlePointHover(point)}
+                      onMouseLeave={() => handlePointHover(null)}
                       onClick={() => handlePointClick(point)}
                       className={`text-left flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors hover:bg-gray-100 ${
                         highlightedFactsheet &&
