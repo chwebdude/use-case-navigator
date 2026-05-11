@@ -8,6 +8,8 @@ import {
   Focus,
   EyeOff,
   Download,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { Card, CardTitle, Button, Modal } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
@@ -35,6 +37,7 @@ import type {
 } from "../types";
 
 export default function DependenciesPage() {
+  const graphContainerRef = useRef<HTMLDivElement | null>(null);
   const {
     settings,
     loading: settingsLoading,
@@ -89,6 +92,7 @@ export default function DependenciesPage() {
   const [exportingGraphFormat, setExportingGraphFormat] = useState<
     "png" | "svg" | null
   >(null);
+  const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
 
   // Connection modal state (for creating new dependencies)
   const [connectionModal, setConnectionModal] =
@@ -113,6 +117,19 @@ export default function DependenciesPage() {
       setLayoutKey((k) => k + 1);
     }
   }, [focusedFactsheetId, unrelatedDisplayMode]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsGraphFullscreen(
+        document.fullscreenElement === graphContainerRef.current,
+      );
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   const { records: factsheets, loading: loadingFactsheets } =
     useRealtime<FactsheetExpanded>({
@@ -272,6 +289,22 @@ export default function DependenciesPage() {
 
   const handleAutoAlign = () => {
     setLayoutKey((k) => k + 1);
+  };
+
+  const handleToggleFullscreen = async () => {
+    if (!graphContainerRef.current) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === graphContainerRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await graphContainerRef.current.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Failed to toggle fullscreen for dependencies view", error);
+    }
   };
 
   const handleExportGraph = async (format: "png" | "svg") => {
@@ -679,7 +712,33 @@ export default function DependenciesPage() {
           )}
         </Card>
       ) : (
-        <div className="flex-1 min-h-[320px] border border-gray-200 bg-white overflow-hidden">
+        <div
+          ref={graphContainerRef}
+          className={`relative flex-1 min-h-[320px] border border-gray-200 bg-white overflow-hidden ${
+            isGraphFullscreen ? "p-3 bg-gray-100" : ""
+          }`}
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={
+              isGraphFullscreen ? (
+                <Minimize2 className="w-4 h-4" />
+              ) : (
+                <Maximize2 className="w-4 h-4" />
+              )
+            }
+            onClick={handleToggleFullscreen}
+            title={
+              isGraphFullscreen
+                ? "Exit fullscreen view"
+                : "Open diagram in fullscreen"
+            }
+            className="absolute top-3 right-3 z-20"
+          >
+            {isGraphFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          </Button>
+
           <DependencyGraph
             key={layoutKey}
             factsheets={filteredFactsheets}

@@ -825,10 +825,16 @@ export default function DependencyGraph({
         onConnect={handleConnect}
         nodeTypes={nodeTypes}
         fitView
+        fitViewOptions={{
+          padding: 0.25,
+          minZoom: 0.02,
+        }}
+        minZoom={0.02}
+        maxZoom={2}
         proOptions={{ hideAttribution: true }}
         connectionLineStyle={{ stroke: "#00aeef", strokeWidth: 2 }}
       >
-        <Controls />
+        <Controls fitViewOptions={{ padding: 0.25, minZoom: 0.02 }} />
         <Background color="#e5e7eb" gap={20} />
       </ReactFlow>
     </div>
