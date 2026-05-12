@@ -1257,10 +1257,12 @@ export default function SettingsPage() {
     });
   const [newMetricName, setNewMetricName] = useState("");
   const [newMetricProps, setNewMetricProps] = useState<string[]>([]);
+  const [newMetricTarget, setNewMetricTarget] = useState<string>("");
   const [savingMetric, setSavingMetric] = useState(false);
   const [editingMetric, setEditingMetric] = useState<string | null>(null);
   const [editMetricName, setEditMetricName] = useState("");
   const [editMetricProps, setEditMetricProps] = useState<string[]>([]);
+  const [editMetricTarget, setEditMetricTarget] = useState<string>("");
 
   const toggleMetricProp = (propId: string) => {
     setNewMetricProps((prev) =>
@@ -1281,14 +1283,18 @@ export default function SettingsPage() {
   const handleAddMetric = async () => {
     if (!newMetricName.trim() || newMetricProps.length === 0) return;
     setSavingMetric(true);
+    const parsedTarget = Number.parseFloat(newMetricTarget);
+    const targetValue = Number.isFinite(parsedTarget) ? parsedTarget : null;
     try {
       await pb.collection("metrics").create({
         name: newMetricName.trim(),
         properties: newMetricProps,
         order: metrics.length,
+        target_value: targetValue,
       });
       setNewMetricName("");
       setNewMetricProps([]);
+      setNewMetricTarget("");
       refreshMetrics();
     } catch (err) {
       console.error("Failed to add metric:", err);
@@ -1310,6 +1316,9 @@ export default function SettingsPage() {
   const handleStartEditMetric = (m: MetricExpanded) => {
     setEditingMetric(m.id);
     setEditMetricName(m.name);
+    setEditMetricTarget(
+      typeof m.target_value === "number" ? String(m.target_value) : "",
+    );
     const ids =
       m.properties && m.properties.length > 0
         ? m.properties
@@ -1321,16 +1330,20 @@ export default function SettingsPage() {
     setEditingMetric(null);
     setEditMetricName("");
     setEditMetricProps([]);
+    setEditMetricTarget("");
   };
 
   const handleSaveMetric = async () => {
     if (!editingMetric) return;
     if (!editMetricName.trim() || editMetricProps.length === 0) return;
     setSavingMetric(true);
+    const parsedTarget = Number.parseFloat(editMetricTarget);
+    const targetValue = Number.isFinite(parsedTarget) ? parsedTarget : null;
     try {
       await pb.collection("metrics").update(editingMetric, {
         name: editMetricName.trim(),
         properties: editMetricProps,
+        target_value: targetValue,
       });
       handleCancelEditMetric();
       refreshMetrics();
@@ -1341,8 +1354,22 @@ export default function SettingsPage() {
     }
   };
 
+  const [activeTab, setActiveTab] = useState<
+    "general" | "content" | "defaults" | "integrations"
+  >("general");
+
+  const tabs: {
+    id: "general" | "content" | "defaults" | "integrations";
+    label: string;
+  }[] = [
+    { id: "general", label: "General" },
+    { id: "content", label: "Content Model" },
+    { id: "defaults", label: "Default Filters" },
+    { id: "integrations", label: "Integrations" },
+  ];
+
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-6">
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-primary-900">Settings</h1>
@@ -1351,820 +1378,960 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Application Settings */}
-      <Card>
-        <CardTitle>Application Settings</CardTitle>
-        <p className="text-sm text-gray-500 mt-1 mb-6">
-          Customize the application title and icon.
-        </p>
-
-        <div className="space-y-6">
-          {/* App Title */}
-          <Input
-            label="Application Title"
-            placeholder="Enter application title"
-            value={appSettings.title}
-            onChange={(e) => setAppSettings({ title: e.target.value })}
-          />
-
-          <Input
-            label="Max Metric Weight"
-            type="number"
-            min={0}
-            value={appSettings.maxMetricWeight}
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              if (Number.isNaN(val)) return;
-              setAppSettings({ maxMetricWeight: val });
-            }}
-            hint="Global maximum weight used when distributing option weights."
-          />
-
-          {/* Icon Selection */}
-          <div>
-            <label className="block text-sm font-medium text-primary-900 mb-3">
-              Application Icon
-            </label>
-            <div className="grid grid-cols-6 gap-3">
-              {AVAILABLE_ICONS.map(({ id, label }) => {
-                const IconComponent = Icons[id] as React.ComponentType<{
-                  className?: string;
-                }>;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setAppSettings({ icon: id as IconId })}
-                    className={`flex flex-col items-center gap-2 p-3 border-2 transition-colors ${
-                      appSettings.icon === id
-                        ? "border-accent-500 bg-accent-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                    title={label}
-                  >
-                    <IconComponent className="w-6 h-6 text-primary-900" />
-                    <span className="text-xs text-gray-600">{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Reset Button */}
-          <div className="pt-2">
-            <Button
-              variant="secondary"
-              onClick={resetAppSettings}
-              icon={<RotateCcw className="w-4 h-4" />}
-              disabled={
-                appSettings.title === defaultSettings.title &&
-                appSettings.icon === defaultSettings.icon &&
-                appSettings.maxMetricWeight === defaultSettings.maxMetricWeight
-              }
+      {/* Tab navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? "border-accent-500 text-accent-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
             >
-              Reset to Defaults
-            </Button>
-          </div>
-        </div>
-      </Card>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-      {/* Status Configuration */}
-      <Card>
-        <CardTitle>Global Status Configuration</CardTitle>
-        <p className="text-sm text-gray-500 mt-1 mb-6">
-          Configure status IDs, labels, and colors. Factsheet records store the
-          status ID, while labels and colors can be updated at any time.
-        </p>
+      {/* ── General ── */}
+      {activeTab === "general" && (
+        <div className="max-w-3xl space-y-6">
+          {/* Application Settings */}
+          <Card>
+            <CardTitle>Application Settings</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 mb-6">
+              Customize the application title and icon.
+            </p>
 
-        <StatusConfigEditor
-          statuses={normalizeStatuses(appSettings.statuses)}
-          onChange={(statuses) => setAppSettings({ statuses })}
-          addLabel="Global statuses are used by default unless a factsheet type overrides them."
-        />
-      </Card>
-
-      {/* Default Page Filters */}
-      <Card>
-        <CardTitle>Default Page Filters</CardTitle>
-        <p className="text-sm text-gray-500 mt-1 mb-6">
-          Set default filters for each page. Users will see these filters when
-          they navigate to a page without query parameters. Configure filters on
-          each page and come back here to save them as defaults.
-        </p>
-
-        <div className="space-y-6">
-          {/* Factsheet Filters */}
-          <div className="border-b pb-6 last:border-b-0 last:pb-0">
-            <h4 className="font-semibold text-primary-900 mb-2">
-              Factsheet List Default
-            </h4>
-            <div className="text-sm text-gray-600 space-y-1 mb-4">
-              {appSettings.defaultFactsheetFilters &&
-              Object.keys(appSettings.defaultFactsheetFilters).length > 0 ? (
-                <>
-                  {appSettings.defaultFactsheetFilters.search && (
-                    <p>
-                      Search: "{appSettings.defaultFactsheetFilters.search}"
-                    </p>
-                  )}
-                  {appSettings.defaultFactsheetFilters.typeFilter?.length ? (
-                    <p>
-                      Type Filter: "
-                      {appSettings.defaultFactsheetFilters.typeFilter.join(
-                        ", ",
-                      )}
-                      "
-                    </p>
-                  ) : null}
-                  {appSettings.defaultFactsheetFilters.statusFilter && (
-                    <p>
-                      Status Filter: "
-                      {appSettings.defaultFactsheetFilters.statusFilter}"
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-gray-400 italic">No defaults set</p>
-              )}
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setAppSettings({ defaultFactsheetFilters: {} });
-              }}
-            >
-              Clear Defaults
-            </Button>
-          </div>
-
-          {/* Dependencies Filters */}
-          <div className="border-b pb-6 last:border-b-0 last:pb-0">
-            <h4 className="font-semibold text-primary-900 mb-2">
-              Dependencies Default
-            </h4>
-            <div className="text-sm text-gray-600 space-y-1 mb-4">
-              {appSettings.defaultDependenciesFilters &&
-              Object.keys(appSettings.defaultDependenciesFilters).length > 0 ? (
-                <>
-                  {appSettings.defaultDependenciesFilters.search && (
-                    <p>
-                      Search: "{appSettings.defaultDependenciesFilters.search}"
-                    </p>
-                  )}
-                  {appSettings.defaultDependenciesFilters.typeFilter?.length ? (
-                    <p>
-                      Type Filter: "
-                      {appSettings.defaultDependenciesFilters.typeFilter.join(
-                        ", ",
-                      )}
-                      "
-                    </p>
-                  ) : null}
-                  {appSettings.defaultDependenciesFilters
-                    .unrelatedDisplayMode && (
-                    <p>
-                      Unrelated Mode: "
-                      {
-                        appSettings.defaultDependenciesFilters
-                          .unrelatedDisplayMode
-                      }
-                      "
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-gray-400 italic">No defaults set</p>
-              )}
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setAppSettings({ defaultDependenciesFilters: {} });
-              }}
-            >
-              Clear Defaults
-            </Button>
-          </div>
-
-          {/* Matrix Filters */}
-          <div className="border-b pb-6 last:border-b-0 last:pb-0">
-            <h4 className="font-semibold text-primary-900 mb-2">
-              Matrix View Default
-            </h4>
-            <div className="text-sm text-gray-600 space-y-1 mb-4">
-              {appSettings.defaultMatrixFilters &&
-              Object.keys(appSettings.defaultMatrixFilters).length > 0 ? (
-                <>
-                  {appSettings.defaultMatrixFilters.search && (
-                    <p>Search: "{appSettings.defaultMatrixFilters.search}"</p>
-                  )}
-                  {appSettings.defaultMatrixFilters.xAxis && (
-                    <p>X-Axis: "{appSettings.defaultMatrixFilters.xAxis}"</p>
-                  )}
-                  {appSettings.defaultMatrixFilters.yAxis && (
-                    <p>Y-Axis: "{appSettings.defaultMatrixFilters.yAxis}"</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-gray-400 italic">No defaults set</p>
-              )}
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setAppSettings({ defaultMatrixFilters: {} });
-              }}
-            >
-              Clear Defaults
-            </Button>
-          </div>
-
-          {/* Spider Filters */}
-          <div className="border-b pb-6 last:border-b-0 last:pb-0">
-            <h4 className="font-semibold text-primary-900 mb-2">
-              Spider Diagram Default
-            </h4>
-            <div className="text-sm text-gray-600 space-y-1 mb-4">
-              {appSettings.defaultSpiderFilters &&
-              Object.keys(appSettings.defaultSpiderFilters).length > 0 ? (
-                <>
-                  {appSettings.defaultSpiderFilters.search && (
-                    <p>Search: "{appSettings.defaultSpiderFilters.search}"</p>
-                  )}
-                  {appSettings.defaultSpiderFilters.axisMode && (
-                    <p>
-                      Axis Mode: "{appSettings.defaultSpiderFilters.axisMode}"
-                    </p>
-                  )}
-                  {appSettings.defaultSpiderFilters.selectedMetrics &&
-                    (() => {
-                      try {
-                        const ids = JSON.parse(
-                          appSettings.defaultSpiderFilters.selectedMetrics!,
-                        );
-                        if (Array.isArray(ids) && ids.length > 0) {
-                          return <p>Dimensions: {ids.length} selected</p>;
-                        }
-                      } catch {
-                        /* ignore */
-                      }
-                      return null;
-                    })()}
-                </>
-              ) : (
-                <p className="text-gray-400 italic">No defaults set</p>
-              )}
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setAppSettings({ defaultSpiderFilters: {} });
-              }}
-            >
-              Clear Defaults
-            </Button>
-          </div>
-
-          {/* Scatter Plot Filters */}
-          <div className="border-b pb-6 last:border-b-0 last:pb-0">
-            <h4 className="font-semibold text-primary-900 mb-2">
-              Scatter Plot Default
-            </h4>
-            <div className="text-sm text-gray-600 space-y-1 mb-4">
-              {appSettings.defaultScatterFilters &&
-              Object.keys(appSettings.defaultScatterFilters).length > 0 ? (
-                <>
-                  {appSettings.defaultScatterFilters.search && (
-                    <p>Search: "{appSettings.defaultScatterFilters.search}"</p>
-                  )}
-                  {appSettings.defaultScatterFilters.xAxis && (
-                    <p>X-Axis: "{appSettings.defaultScatterFilters.xAxis}"</p>
-                  )}
-                  {appSettings.defaultScatterFilters.yAxis && (
-                    <p>Y-Axis: "{appSettings.defaultScatterFilters.yAxis}"</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-gray-400 italic">No defaults set</p>
-              )}
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setAppSettings({ defaultScatterFilters: {} });
-              }}
-            >
-              Clear Defaults
-            </Button>
-          </div>
-
-          {/* Impact Analysis Filters */}
-          <div>
-            <h4 className="font-semibold text-primary-900 mb-2">
-              Impact Analysis Default
-            </h4>
-            <div className="text-sm text-gray-600 space-y-1 mb-4">
-              {appSettings.defaultImpactFilters &&
-              Object.keys(appSettings.defaultImpactFilters).length > 0 ? (
-                <>
-                  {appSettings.defaultImpactFilters.search && (
-                    <p>Search: "{appSettings.defaultImpactFilters.search}"</p>
-                  )}
-                  {appSettings.defaultImpactFilters.metricFilter && (
-                    <p>
-                      Metric: "{appSettings.defaultImpactFilters.metricFilter}"
-                    </p>
-                  )}
-                  {appSettings.defaultImpactFilters.calculationMode && (
-                    <p>
-                      Calculation Mode: "
-                      {appSettings.defaultImpactFilters.calculationMode}"
-                      {appSettings.defaultImpactFilters.calculationMode ===
-                        "custom" &&
-                        appSettings.defaultImpactFilters.customDepth &&
-                        ` (${appSettings.defaultImpactFilters.customDepth} levels)`}
-                    </p>
-                  )}
-                  {appSettings.defaultImpactFilters.sortField && (
-                    <p>
-                      Sort By: "{appSettings.defaultImpactFilters.sortField}"
-                    </p>
-                  )}
-                  {appSettings.defaultImpactFilters.sortOrder && (
-                    <p>
-                      Sort Order: "{appSettings.defaultImpactFilters.sortOrder}"
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-gray-400 italic">No defaults set</p>
-              )}
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setAppSettings({ defaultImpactFilters: {} });
-              }}
-            >
-              Clear Defaults
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      {/* Factsheet Types */}
-      <Card>
-        <CardTitle>Factsheet Types</CardTitle>
-        <p className="text-sm text-gray-500 mt-1 mb-6">
-          Define the types of factsheets (e.g., Use Case, Knowledge, Data
-          Source). Each type has its own color.
-        </p>
-
-        {/* Existing types */}
-        <div className="space-y-3 mb-6">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleTypeReorder}
-          >
-            <SortableContext
-              items={factsheetTypes.map((t) => t.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {factsheetTypes.map((type) => (
-                <SortableTypeItem
-                  key={type.id}
-                  type={type}
-                  editingType={editingType}
-                  editTypeData={editTypeData}
-                  setEditTypeData={setEditTypeData}
-                  handleEditType={handleEditType}
-                  handleSaveType={handleSaveType}
-                  handleCancelEditType={handleCancelEditType}
-                  handleDeleteType={handleDeleteType}
-                  defaultColors={defaultColors}
-                  globalStatuses={normalizeStatuses(appSettings.statuses)}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-
-          {factsheetTypes.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No factsheet types defined yet. Add types like "Use Case",
-              "Knowledge", or "Data Source".
-            </div>
-          )}
-        </div>
-
-        {/* Add new type */}
-        <div className="border-t border-gray-200 pt-6">
-          <h4 className="font-medium text-primary-900 mb-4">Add New Type</h4>
-          <div className="flex gap-4 items-end">
-            <div className="flex-1">
+            <div className="space-y-6">
+              {/* App Title */}
               <Input
-                label="Type Name"
-                placeholder="e.g., Use Case"
-                value={newType.name}
-                onChange={(e) =>
-                  setNewType({ ...newType, name: e.target.value })
-                }
+                label="Application Title"
+                placeholder="Enter application title"
+                value={appSettings.title}
+                onChange={(e) => setAppSettings({ title: e.target.value })}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-primary-900 mb-1.5">
-                Color
-              </label>
-              <div className="flex gap-2">
-                {defaultColors.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setNewType({ ...newType, color })}
-                    className={`w-8 h-8 border-2 ${
-                      newType.color === color
-                        ? "border-primary-900"
-                        : "border-transparent"
-                    }`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
+
+              <Input
+                label="Max Metric Weight"
+                type="number"
+                min={0}
+                value={appSettings.maxMetricWeight}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (Number.isNaN(val)) return;
+                  setAppSettings({ maxMetricWeight: val });
+                }}
+                hint="Global maximum weight used when distributing option weights."
+              />
+
+              <Input
+                label="Metric Alert Warning Gap"
+                type="number"
+                min={0}
+                step="0.01"
+                value={appSettings.metricAlertWarningGap}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (Number.isNaN(val)) return;
+                  setAppSettings({ metricAlertWarningGap: Math.max(0, val) });
+                }}
+                hint="Warning is raised when a metric score is below target by at least this gap."
+              />
+
+              <Input
+                label="Metric Alert Critical Gap"
+                type="number"
+                min={0}
+                step="0.01"
+                value={appSettings.metricAlertCriticalGap}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (Number.isNaN(val)) return;
+                  setAppSettings({ metricAlertCriticalGap: Math.max(0, val) });
+                }}
+                hint="Critical is raised when a metric score is below target by at least this gap."
+              />
+
+              {/* Icon Selection */}
+              <div>
+                <label className="block text-sm font-medium text-primary-900 mb-3">
+                  Application Icon
+                </label>
+                <div className="grid grid-cols-6 gap-3">
+                  {AVAILABLE_ICONS.map(({ id, label }) => {
+                    const IconComponent = Icons[id] as React.ComponentType<{
+                      className?: string;
+                    }>;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setAppSettings({ icon: id as IconId })}
+                        className={`flex flex-col items-center gap-2 p-3 border-2 transition-colors ${
+                          appSettings.icon === id
+                            ? "border-accent-500 bg-accent-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                        title={label}
+                      >
+                        <IconComponent className="w-6 h-6 text-primary-900" />
+                        <span className="text-xs text-gray-600">{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Reset Button */}
+              <div className="pt-2">
+                <Button
+                  variant="secondary"
+                  onClick={resetAppSettings}
+                  icon={<RotateCcw className="w-4 h-4" />}
+                  disabled={
+                    appSettings.title === defaultSettings.title &&
+                    appSettings.icon === defaultSettings.icon &&
+                    appSettings.maxMetricWeight ===
+                      defaultSettings.maxMetricWeight &&
+                    appSettings.metricAlertWarningGap ===
+                      defaultSettings.metricAlertWarningGap &&
+                    appSettings.metricAlertCriticalGap ===
+                      defaultSettings.metricAlertCriticalGap
+                  }
+                >
+                  Reset to Defaults
+                </Button>
               </div>
             </div>
-            <Button
-              onClick={handleAddType}
-              loading={savingType}
-              disabled={!newType.name}
-              icon={<Plus className="w-4 h-4" />}
-            >
-              Add
-            </Button>
-          </div>
-        </div>
-      </Card>
+          </Card>
 
-      {/* Property Definitions */}
-      <Card>
-        <CardTitle>Property Definitions</CardTitle>
-        <p className="text-sm text-gray-500 mt-1 mb-6">
-          Define the properties that can be assigned to factsheets. Each
-          property has a list of options that can be selected.
-        </p>
+          {/* Status Configuration */}
+          <Card>
+            <CardTitle>Global Status Configuration</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 mb-6">
+              Configure status IDs, labels, and colors. Factsheet records store
+              the status ID, while labels and colors can be updated at any time.
+            </p>
 
-        {/* Existing properties */}
-        <div className="space-y-4 mb-6">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handlePropertyReorder}
-          >
-            <SortableContext
-              items={propertyDefinitions.map((p) => p.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {propertyDefinitions.map((prop) => {
-                const options = optionsByProperty.get(prop.id) || [];
-                return (
-                  <SortablePropertyItem
-                    key={prop.id}
-                    prop={prop}
-                    options={options}
-                    editingPropName={editingPropName}
-                    editPropNameValue={editPropNameValue}
-                    setEditPropNameValue={setEditPropNameValue}
-                    handleEditPropertyName={handleEditPropertyName}
-                    handleSavePropertyName={handleSavePropertyName}
-                    handleCancelEditPropertyName={handleCancelEditPropertyName}
-                    handleDeleteProperty={handleDeleteProperty}
-                    editingOption={editingOption}
-                    editOptionValue={editOptionValue}
-                    setEditOptionValue={setEditOptionValue}
-                    handleEditOption={handleEditOption}
-                    handleSaveOption={handleSaveOption}
-                    handleCancelEditOption={handleCancelEditOption}
-                    handleDeleteOption={handleDeleteOption}
-                    newOptionForProp={newOptionForProp}
-                    newOptionValue={newOptionValue}
-                    setNewOptionValue={setNewOptionValue}
-                    handleStartAddOption={handleStartAddOption}
-                    handleAddOption={handleAddOption}
-                    handleCancelAddOption={handleCancelAddOption}
-                    sensors={sensors}
-                    handleOptionReorder={handleOptionReorder}
-                    handleWeightChange={handleUpdateOptionWeight}
-                    handleDistributeWeights={handleDistributeWeights}
-                    maxMetricWeight={maxMetricWeight}
-                  />
-                );
-              })}
-            </SortableContext>
-          </DndContext>
-
-          {propertyDefinitions.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No properties defined yet
-            </div>
-          )}
-        </div>
-
-        {/* Add new property */}
-        <div className="border-t border-gray-200 pt-6">
-          <h4 className="font-medium text-primary-900 mb-4">
-            Add New Property
-          </h4>
-          <div className="space-y-4">
-            <Input
-              label="Property Name"
-              placeholder="e.g., Complexity"
-              value={newProp.name}
-              onChange={(e) => setNewProp({ ...newProp, name: e.target.value })}
+            <StatusConfigEditor
+              statuses={normalizeStatuses(appSettings.statuses)}
+              onChange={(statuses) => setAppSettings({ statuses })}
+              addLabel="Global statuses are used by default unless a factsheet type overrides them."
             />
-            <Input
-              label="Initial Options (comma-separated)"
-              placeholder="e.g., Low, Medium, High"
-              value={newProp.options}
-              onChange={(e) =>
-                setNewProp({ ...newProp, options: e.target.value })
-              }
-              hint="Enter the initial values for this property, separated by commas. You can add more options later."
-            />
-            <Button
-              onClick={handleAddProperty}
-              loading={savingProp}
-              disabled={!newProp.name || !newProp.options}
-              icon={<Plus className="w-4 h-4" />}
-            >
-              Add Property
-            </Button>
-          </div>
+          </Card>
         </div>
+      )}
 
-        <div className="border-t border-gray-200 pt-6 mt-6">
-          <h4 className="font-medium text-primary-900 mb-2">
-            Property Visibility by Factsheet Type
-          </h4>
-          <p className="text-sm text-gray-500 mb-4">
-            Leave empty to show a property for all factsheet types.
-          </p>
+      {/* ── Default Filters ── */}
+      {activeTab === "defaults" && (
+        <div className="max-w-3xl space-y-6">
+          <Card>
+            <CardTitle>Default Page Filters</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 mb-6">
+              Set default filters for each page. Users will see these filters
+              when they navigate to a page without query parameters. Configure
+              filters on each page and come back here to save them as defaults.
+            </p>
 
-          <div className="space-y-3">
-            {propertyDefinitions.map((prop) => (
-              <div
-                key={prop.id}
-                className="grid grid-cols-[220px_1fr] gap-3 items-center"
-              >
-                <div className="text-sm font-medium text-primary-900">
-                  {prop.name}
+            <div className="space-y-6">
+              {/* Factsheet Filters */}
+              <div className="border-b pb-6 last:border-b-0 last:pb-0">
+                <h4 className="font-semibold text-primary-900 mb-2">
+                  Factsheet List Default
+                </h4>
+                <div className="text-sm text-gray-600 space-y-1 mb-4">
+                  {appSettings.defaultFactsheetFilters &&
+                  Object.keys(appSettings.defaultFactsheetFilters).length >
+                    0 ? (
+                    <>
+                      {appSettings.defaultFactsheetFilters.search && (
+                        <p>
+                          Search: "{appSettings.defaultFactsheetFilters.search}"
+                        </p>
+                      )}
+                      {appSettings.defaultFactsheetFilters.typeFilter
+                        ?.length ? (
+                        <p>
+                          Type Filter: "
+                          {appSettings.defaultFactsheetFilters.typeFilter.join(
+                            ", ",
+                          )}
+                          "
+                        </p>
+                      ) : null}
+                      {appSettings.defaultFactsheetFilters.statusFilter && (
+                        <p>
+                          Status Filter: "
+                          {appSettings.defaultFactsheetFilters.statusFilter}"
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-gray-400 italic">No defaults set</p>
+                  )}
                 </div>
-                <MultiSelect
-                  placeholder="All types"
-                  options={[...factsheetTypes]
-                    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-                    .map((type) => ({ value: type.id, label: type.name }))}
-                  values={prop.factsheet_types ?? []}
-                  onChange={(values) =>
-                    handleUpdatePropertyTypes(prop.id, values)
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setAppSettings({ defaultFactsheetFilters: {} });
+                  }}
+                >
+                  Clear Defaults
+                </Button>
+              </div>
+
+              {/* Dependencies Filters */}
+              <div className="border-b pb-6 last:border-b-0 last:pb-0">
+                <h4 className="font-semibold text-primary-900 mb-2">
+                  Dependencies Default
+                </h4>
+                <div className="text-sm text-gray-600 space-y-1 mb-4">
+                  {appSettings.defaultDependenciesFilters &&
+                  Object.keys(appSettings.defaultDependenciesFilters).length >
+                    0 ? (
+                    <>
+                      {appSettings.defaultDependenciesFilters.search && (
+                        <p>
+                          Search: "
+                          {appSettings.defaultDependenciesFilters.search}"
+                        </p>
+                      )}
+                      {appSettings.defaultDependenciesFilters.typeFilter
+                        ?.length ? (
+                        <p>
+                          Type Filter: "
+                          {appSettings.defaultDependenciesFilters.typeFilter.join(
+                            ", ",
+                          )}
+                          "
+                        </p>
+                      ) : null}
+                      {appSettings.defaultDependenciesFilters
+                        .unrelatedDisplayMode && (
+                        <p>
+                          Unrelated Mode: "
+                          {
+                            appSettings.defaultDependenciesFilters
+                              .unrelatedDisplayMode
+                          }
+                          "
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-gray-400 italic">No defaults set</p>
+                  )}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setAppSettings({ defaultDependenciesFilters: {} });
+                  }}
+                >
+                  Clear Defaults
+                </Button>
+              </div>
+
+              {/* Matrix Filters */}
+              <div className="border-b pb-6 last:border-b-0 last:pb-0">
+                <h4 className="font-semibold text-primary-900 mb-2">
+                  Matrix View Default
+                </h4>
+                <div className="text-sm text-gray-600 space-y-1 mb-4">
+                  {appSettings.defaultMatrixFilters &&
+                  Object.keys(appSettings.defaultMatrixFilters).length > 0 ? (
+                    <>
+                      {appSettings.defaultMatrixFilters.search && (
+                        <p>
+                          Search: "{appSettings.defaultMatrixFilters.search}"
+                        </p>
+                      )}
+                      {appSettings.defaultMatrixFilters.xAxis && (
+                        <p>
+                          X-Axis: "{appSettings.defaultMatrixFilters.xAxis}"
+                        </p>
+                      )}
+                      {appSettings.defaultMatrixFilters.yAxis && (
+                        <p>
+                          Y-Axis: "{appSettings.defaultMatrixFilters.yAxis}"
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-gray-400 italic">No defaults set</p>
+                  )}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setAppSettings({ defaultMatrixFilters: {} });
+                  }}
+                >
+                  Clear Defaults
+                </Button>
+              </div>
+
+              {/* Spider Filters */}
+              <div className="border-b pb-6 last:border-b-0 last:pb-0">
+                <h4 className="font-semibold text-primary-900 mb-2">
+                  Spider Diagram Default
+                </h4>
+                <div className="text-sm text-gray-600 space-y-1 mb-4">
+                  {appSettings.defaultSpiderFilters &&
+                  Object.keys(appSettings.defaultSpiderFilters).length > 0 ? (
+                    <>
+                      {appSettings.defaultSpiderFilters.search && (
+                        <p>
+                          Search: "{appSettings.defaultSpiderFilters.search}"
+                        </p>
+                      )}
+                      {appSettings.defaultSpiderFilters.axisMode && (
+                        <p>
+                          Axis Mode: "
+                          {appSettings.defaultSpiderFilters.axisMode}"
+                        </p>
+                      )}
+                      {appSettings.defaultSpiderFilters.selectedMetrics &&
+                        (() => {
+                          try {
+                            const ids = JSON.parse(
+                              appSettings.defaultSpiderFilters.selectedMetrics!,
+                            );
+                            if (Array.isArray(ids) && ids.length > 0) {
+                              return <p>Dimensions: {ids.length} selected</p>;
+                            }
+                          } catch {
+                            /* ignore */
+                          }
+                          return null;
+                        })()}
+                    </>
+                  ) : (
+                    <p className="text-gray-400 italic">No defaults set</p>
+                  )}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setAppSettings({ defaultSpiderFilters: {} });
+                  }}
+                >
+                  Clear Defaults
+                </Button>
+              </div>
+
+              {/* Scatter Plot Filters */}
+              <div className="border-b pb-6 last:border-b-0 last:pb-0">
+                <h4 className="font-semibold text-primary-900 mb-2">
+                  Scatter Plot Default
+                </h4>
+                <div className="text-sm text-gray-600 space-y-1 mb-4">
+                  {appSettings.defaultScatterFilters &&
+                  Object.keys(appSettings.defaultScatterFilters).length > 0 ? (
+                    <>
+                      {appSettings.defaultScatterFilters.search && (
+                        <p>
+                          Search: "{appSettings.defaultScatterFilters.search}"
+                        </p>
+                      )}
+                      {appSettings.defaultScatterFilters.xAxis && (
+                        <p>
+                          X-Axis: "{appSettings.defaultScatterFilters.xAxis}"
+                        </p>
+                      )}
+                      {appSettings.defaultScatterFilters.yAxis && (
+                        <p>
+                          Y-Axis: "{appSettings.defaultScatterFilters.yAxis}"
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-gray-400 italic">No defaults set</p>
+                  )}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setAppSettings({ defaultScatterFilters: {} });
+                  }}
+                >
+                  Clear Defaults
+                </Button>
+              </div>
+
+              {/* Impact Analysis Filters */}
+              <div>
+                <h4 className="font-semibold text-primary-900 mb-2">
+                  Impact Analysis Default
+                </h4>
+                <div className="text-sm text-gray-600 space-y-1 mb-4">
+                  {appSettings.defaultImpactFilters &&
+                  Object.keys(appSettings.defaultImpactFilters).length > 0 ? (
+                    <>
+                      {appSettings.defaultImpactFilters.search && (
+                        <p>
+                          Search: "{appSettings.defaultImpactFilters.search}"
+                        </p>
+                      )}
+                      {appSettings.defaultImpactFilters.metricFilter && (
+                        <p>
+                          Metric: "
+                          {appSettings.defaultImpactFilters.metricFilter}"
+                        </p>
+                      )}
+                      {appSettings.defaultImpactFilters.calculationMode && (
+                        <p>
+                          Calculation Mode: "
+                          {appSettings.defaultImpactFilters.calculationMode}"
+                          {appSettings.defaultImpactFilters.calculationMode ===
+                            "custom" &&
+                            appSettings.defaultImpactFilters.customDepth &&
+                            ` (${appSettings.defaultImpactFilters.customDepth} levels)`}
+                        </p>
+                      )}
+                      {appSettings.defaultImpactFilters.sortField && (
+                        <p>
+                          Sort By: "{appSettings.defaultImpactFilters.sortField}
+                          "
+                        </p>
+                      )}
+                      {appSettings.defaultImpactFilters.sortOrder && (
+                        <p>
+                          Sort Order: "
+                          {appSettings.defaultImpactFilters.sortOrder}"
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-gray-400 italic">No defaults set</p>
+                  )}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setAppSettings({ defaultImpactFilters: {} });
+                  }}
+                >
+                  Clear Defaults
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Content Model ── */}
+      {activeTab === "content" && (
+        <div className="max-w-3xl space-y-6">
+          <Card>
+            <CardTitle>Factsheet Types</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 mb-6">
+              Define the types of factsheets (e.g., Use Case, Knowledge, Data
+              Source). Each type has its own color.
+            </p>
+
+            {/* Existing types */}
+            <div className="space-y-3 mb-6">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleTypeReorder}
+              >
+                <SortableContext
+                  items={factsheetTypes.map((t) => t.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {factsheetTypes.map((type) => (
+                    <SortableTypeItem
+                      key={type.id}
+                      type={type}
+                      editingType={editingType}
+                      editTypeData={editTypeData}
+                      setEditTypeData={setEditTypeData}
+                      handleEditType={handleEditType}
+                      handleSaveType={handleSaveType}
+                      handleCancelEditType={handleCancelEditType}
+                      handleDeleteType={handleDeleteType}
+                      defaultColors={defaultColors}
+                      globalStatuses={normalizeStatuses(appSettings.statuses)}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+
+              {factsheetTypes.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No factsheet types defined yet. Add types like "Use Case",
+                  "Knowledge", or "Data Source".
+                </div>
+              )}
+            </div>
+
+            {/* Add new type */}
+            <div className="border-t border-gray-200 pt-6">
+              <h4 className="font-medium text-primary-900 mb-4">
+                Add New Type
+              </h4>
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <Input
+                    label="Type Name"
+                    placeholder="e.g., Use Case"
+                    value={newType.name}
+                    onChange={(e) =>
+                      setNewType({ ...newType, name: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-primary-900 mb-1.5">
+                    Color
+                  </label>
+                  <div className="flex gap-2">
+                    {defaultColors.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setNewType({ ...newType, color })}
+                        className={`w-8 h-8 border-2 ${
+                          newType.color === color
+                            ? "border-primary-900"
+                            : "border-transparent"
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <Button
+                  onClick={handleAddType}
+                  loading={savingType}
+                  disabled={!newType.name}
+                  icon={<Plus className="w-4 h-4" />}
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+          </Card>
+
+          {/* Property Definitions */}
+          <Card>
+            <CardTitle>Property Definitions</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 mb-6">
+              Define the properties that can be assigned to factsheets. Each
+              property has a list of options that can be selected.
+            </p>
+
+            {/* Existing properties */}
+            <div className="space-y-4 mb-6">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handlePropertyReorder}
+              >
+                <SortableContext
+                  items={propertyDefinitions.map((p) => p.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {propertyDefinitions.map((prop) => {
+                    const options = optionsByProperty.get(prop.id) || [];
+                    return (
+                      <SortablePropertyItem
+                        key={prop.id}
+                        prop={prop}
+                        options={options}
+                        editingPropName={editingPropName}
+                        editPropNameValue={editPropNameValue}
+                        setEditPropNameValue={setEditPropNameValue}
+                        handleEditPropertyName={handleEditPropertyName}
+                        handleSavePropertyName={handleSavePropertyName}
+                        handleCancelEditPropertyName={
+                          handleCancelEditPropertyName
+                        }
+                        handleDeleteProperty={handleDeleteProperty}
+                        editingOption={editingOption}
+                        editOptionValue={editOptionValue}
+                        setEditOptionValue={setEditOptionValue}
+                        handleEditOption={handleEditOption}
+                        handleSaveOption={handleSaveOption}
+                        handleCancelEditOption={handleCancelEditOption}
+                        handleDeleteOption={handleDeleteOption}
+                        newOptionForProp={newOptionForProp}
+                        newOptionValue={newOptionValue}
+                        setNewOptionValue={setNewOptionValue}
+                        handleStartAddOption={handleStartAddOption}
+                        handleAddOption={handleAddOption}
+                        handleCancelAddOption={handleCancelAddOption}
+                        sensors={sensors}
+                        handleOptionReorder={handleOptionReorder}
+                        handleWeightChange={handleUpdateOptionWeight}
+                        handleDistributeWeights={handleDistributeWeights}
+                        maxMetricWeight={maxMetricWeight}
+                      />
+                    );
+                  })}
+                </SortableContext>
+              </DndContext>
+
+              {propertyDefinitions.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No properties defined yet
+                </div>
+              )}
+            </div>
+
+            {/* Add new property */}
+            <div className="border-t border-gray-200 pt-6">
+              <h4 className="font-medium text-primary-900 mb-4">
+                Add New Property
+              </h4>
+              <div className="space-y-4">
+                <Input
+                  label="Property Name"
+                  placeholder="e.g., Complexity"
+                  value={newProp.name}
+                  onChange={(e) =>
+                    setNewProp({ ...newProp, name: e.target.value })
                   }
                 />
+                <Input
+                  label="Initial Options (comma-separated)"
+                  placeholder="e.g., Low, Medium, High"
+                  value={newProp.options}
+                  onChange={(e) =>
+                    setNewProp({ ...newProp, options: e.target.value })
+                  }
+                  hint="Enter the initial values for this property, separated by commas. You can add more options later."
+                />
+                <Button
+                  onClick={handleAddProperty}
+                  loading={savingProp}
+                  disabled={!newProp.name || !newProp.options}
+                  icon={<Plus className="w-4 h-4" />}
+                >
+                  Add Property
+                </Button>
               </div>
-            ))}
-
-            {propertyDefinitions.length === 0 && (
-              <p className="text-sm text-gray-500">No properties available.</p>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      {/* Metrics */}
-      <Card>
-        <CardTitle>Metrics</CardTitle>
-        <p className="text-sm text-gray-500 mt-1 mb-6">
-          Create metrics composed of one or more properties. These can be used
-          to group or evaluate factsheets.
-        </p>
-
-        {/* Existing metrics */}
-        <div className="space-y-3 mb-6">
-          {metrics.map((m) => (
-            <div key={m.id} className="p-3 bg-gray-50">
-              {editingMetric === m.id ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={editMetricName}
-                      onChange={(e) => setEditMetricName(e.target.value)}
-                      className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
-                      placeholder="Metric name"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
-                      Properties
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {propertyDefinitions.map((prop) => (
-                        <label
-                          key={prop.id}
-                          className="flex items-center gap-2 text-sm"
-                        >
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4"
-                            checked={editMetricProps.includes(prop.id)}
-                            onChange={() => toggleEditMetricProp(prop.id)}
-                          />
-                          <span>{prop.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleSaveMetric}
-                      className="text-green-600 hover:text-green-700"
-                      loading={savingMetric}
-                      disabled={
-                        !editMetricName.trim() || editMetricProps.length === 0
-                      }
-                    >
-                      <Check className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleCancelEditMetric}
-                      className="text-gray-400 hover:text-gray-600"
-                      disabled={savingMetric}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="font-medium text-primary-900">{m.name}</div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      {(m.expand?.properties || [])
-                        .map((p) => p.name)
-                        .join(", ") || "No properties"}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleStartEditMetric(m)}
-                      className="text-gray-400 hover:text-accent-500"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteMetric(m.id)}
-                      className="text-gray-400 hover:text-red-500"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
-          ))}
-          {metrics.length === 0 && (
-            <div className="text-center py-8 text-gray-500">No metrics yet</div>
-          )}
-        </div>
 
-        {/* Add new metric */}
-        <div className="border-t border-gray-200 pt-6">
-          <h4 className="font-medium text-primary-900 mb-4">Add New Metric</h4>
-          <div className="space-y-4">
-            <Input
-              label="Metric Name"
-              placeholder="e.g., Priority Score"
-              value={newMetricName}
-              onChange={(e) => setNewMetricName(e.target.value)}
-            />
-            <div>
-              <label className="block text-sm font-medium text-primary-900 mb-2">
-                Properties
-              </label>
-              <div className="grid grid-cols-2 gap-2">
+            <div className="border-t border-gray-200 pt-6 mt-6">
+              <h4 className="font-medium text-primary-900 mb-2">
+                Property Visibility by Factsheet Type
+              </h4>
+              <p className="text-sm text-gray-500 mb-4">
+                Leave empty to show a property for all factsheet types.
+              </p>
+
+              <div className="space-y-3">
                 {propertyDefinitions.map((prop) => (
-                  <label
+                  <div
                     key={prop.id}
-                    className="flex items-center gap-2 text-sm"
+                    className="grid grid-cols-[220px_1fr] gap-3 items-center"
                   >
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4"
-                      checked={newMetricProps.includes(prop.id)}
-                      onChange={() => toggleMetricProp(prop.id)}
+                    <div className="text-sm font-medium text-primary-900">
+                      {prop.name}
+                    </div>
+                    <MultiSelect
+                      placeholder="All types"
+                      options={[...factsheetTypes]
+                        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                        .map((type) => ({ value: type.id, label: type.name }))}
+                      values={prop.factsheet_types ?? []}
+                      onChange={(values) =>
+                        handleUpdatePropertyTypes(prop.id, values)
+                      }
                     />
-                    <span>{prop.name}</span>
-                  </label>
+                  </div>
                 ))}
+
+                {propertyDefinitions.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    No properties available.
+                  </p>
+                )}
               </div>
-              {propertyDefinitions.length === 0 && (
-                <p className="text-sm text-gray-500">
-                  No properties available. Define properties above first.
-                </p>
+            </div>
+          </Card>
+
+          {/* Metrics */}
+          <Card>
+            <CardTitle>Metrics</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 mb-6">
+              Create metrics composed of one or more properties. These can be
+              used to group or evaluate factsheets.
+            </p>
+
+            {/* Existing metrics */}
+            <div className="space-y-3 mb-6">
+              {metrics.map((m) => (
+                <div key={m.id} className="p-3 bg-gray-50">
+                  {editingMetric === m.id ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editMetricName}
+                          onChange={(e) => setEditMetricName(e.target.value)}
+                          className="flex-1 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                          placeholder="Metric name"
+                        />
+                        <input
+                          type="number"
+                          value={editMetricTarget}
+                          onChange={(e) => setEditMetricTarget(e.target.value)}
+                          className="w-32 px-3 py-1.5 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+                          placeholder="Target"
+                          step="0.01"
+                          min={0}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+                          Properties
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {propertyDefinitions.map((prop) => (
+                            <label
+                              key={prop.id}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4"
+                                checked={editMetricProps.includes(prop.id)}
+                                onChange={() => toggleEditMetricProp(prop.id)}
+                              />
+                              <span>{prop.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleSaveMetric}
+                          className="text-green-600 hover:text-green-700"
+                          loading={savingMetric}
+                          disabled={
+                            !editMetricName.trim() ||
+                            editMetricProps.length === 0
+                          }
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleCancelEditMetric}
+                          className="text-gray-400 hover:text-gray-600"
+                          disabled={savingMetric}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="font-medium text-primary-900">
+                          {m.name}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {(m.expand?.properties || [])
+                            .map((p) => p.name)
+                            .join(", ") || "No properties"}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Target:{" "}
+                          {typeof m.target_value === "number"
+                            ? m.target_value
+                            : "Not set"}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleStartEditMetric(m)}
+                          className="text-gray-400 hover:text-accent-500"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteMetric(m.id)}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {metrics.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No metrics yet
+                </div>
               )}
             </div>
-            <Button
-              onClick={handleAddMetric}
-              loading={savingMetric}
-              disabled={!newMetricName.trim() || newMetricProps.length === 0}
-              icon={<Plus className="w-4 h-4" />}
+
+            {/* Add new metric */}
+            <div className="border-t border-gray-200 pt-6">
+              <h4 className="font-medium text-primary-900 mb-4">
+                Add New Metric
+              </h4>
+              <div className="space-y-4">
+                <Input
+                  label="Metric Name"
+                  placeholder="e.g., Priority Score"
+                  value={newMetricName}
+                  onChange={(e) => setNewMetricName(e.target.value)}
+                />
+                <Input
+                  label="Target Value"
+                  placeholder="e.g., 7.5"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={newMetricTarget}
+                  onChange={(e) => setNewMetricTarget(e.target.value)}
+                  hint="Optional value used on the dashboard to show on-track variance."
+                />
+                <div>
+                  <label className="block text-sm font-medium text-primary-900 mb-2">
+                    Properties
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {propertyDefinitions.map((prop) => (
+                      <label
+                        key={prop.id}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4"
+                          checked={newMetricProps.includes(prop.id)}
+                          onChange={() => toggleMetricProp(prop.id)}
+                        />
+                        <span>{prop.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {propertyDefinitions.length === 0 && (
+                    <p className="text-sm text-gray-500">
+                      No properties available. Define properties above first.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={handleAddMetric}
+                  loading={savingMetric}
+                  disabled={
+                    !newMetricName.trim() || newMetricProps.length === 0
+                  }
+                  icon={<Plus className="w-4 h-4" />}
+                >
+                  Add Metric
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Integrations ── */}
+      {activeTab === "integrations" && (
+        <div className="max-w-3xl space-y-6">
+          <Card>
+            <CardTitle>LLM Configuration</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 mb-6">
+              Configure the LLM backend for the &quot;Talk to Data&quot; chat
+              feature. Compatible with LiteLLM and any OpenAI-compatible
+              endpoint.
+            </p>
+            <div className="space-y-4">
+              <Input
+                label="Endpoint URL"
+                placeholder="https://your-litellm-host"
+                value={appSettings.llmEndpoint || ""}
+                onChange={(e) =>
+                  setAppSettings({ llmEndpoint: e.target.value })
+                }
+                hint="Base URL of your LiteLLM proxy. The path /v1/chat/completions is appended automatically."
+              />
+              <Input
+                label="API Key"
+                type="password"
+                placeholder="sk-..."
+                value={appSettings.llmApiKey || ""}
+                onChange={(e) => setAppSettings({ llmApiKey: e.target.value })}
+                hint="The API key for authenticating with the LLM endpoint."
+              />
+              <Input
+                label="Model"
+                placeholder="gpt-4o-mini"
+                value={appSettings.llmModel || ""}
+                onChange={(e) => setAppSettings({ llmModel: e.target.value })}
+                hint="The model identifier to use (depends on your LiteLLM configuration)."
+              />
+            </div>
+          </Card>
+
+          {/* Elastic APM Configuration */}
+          <Card>
+            <CardTitle>Elastic APM Configuration</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 mb-6">
+              Configure frontend telemetry for Elastic APM. The current username
+              is sent as an APM label named &quot;username&quot;.
+            </p>
+            <div className="space-y-4">
+              <Input
+                label="APM Server URL"
+                placeholder="https://your-apm-server:8200"
+                value={appSettings.elasticApmServerUrl || ""}
+                onChange={(e) =>
+                  setAppSettings({ elasticApmServerUrl: e.target.value })
+                }
+                hint="Elastic APM server endpoint for browser RUM events. Leave empty to disable APM."
+              />
+            </div>
+          </Card>
+
+          {/* PocketBase Admin */}
+          <Card>
+            <CardTitle>PocketBase Admin</CardTitle>
+            <p className="text-sm text-gray-500 mt-1 mb-4">
+              Access the PocketBase admin dashboard to manage collections and
+              data directly.
+            </p>
+            <a
+              href={`${import.meta.env.VITE_POCKETBASE_URL || "http://127.0.0.1:8090"}/_/`}
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              Add Metric
-            </Button>
-          </div>
+              <Button variant="secondary" showArrow>
+                Open Admin Dashboard
+              </Button>
+            </a>
+          </Card>
         </div>
-      </Card>
-
-      {/* LLM Configuration */}
-      <Card>
-        <CardTitle>LLM Configuration</CardTitle>
-        <p className="text-sm text-gray-500 mt-1 mb-6">
-          Configure the LLM backend for the &quot;Talk to Data&quot; chat
-          feature. Compatible with LiteLLM and any OpenAI-compatible endpoint.
-        </p>
-        <div className="space-y-4">
-          <Input
-            label="Endpoint URL"
-            placeholder="https://your-litellm-host"
-            value={appSettings.llmEndpoint || ""}
-            onChange={(e) => setAppSettings({ llmEndpoint: e.target.value })}
-            hint="Base URL of your LiteLLM proxy. The path /v1/chat/completions is appended automatically."
-          />
-          <Input
-            label="API Key"
-            type="password"
-            placeholder="sk-..."
-            value={appSettings.llmApiKey || ""}
-            onChange={(e) => setAppSettings({ llmApiKey: e.target.value })}
-            hint="The API key for authenticating with the LLM endpoint."
-          />
-          <Input
-            label="Model"
-            placeholder="gpt-4o-mini"
-            value={appSettings.llmModel || ""}
-            onChange={(e) => setAppSettings({ llmModel: e.target.value })}
-            hint="The model identifier to use (depends on your LiteLLM configuration)."
-          />
-        </div>
-      </Card>
-
-      {/* Elastic APM Configuration */}
-      <Card>
-        <CardTitle>Elastic APM Configuration</CardTitle>
-        <p className="text-sm text-gray-500 mt-1 mb-6">
-          Configure frontend telemetry for Elastic APM. The current username is
-          sent as an APM label named &quot;username&quot;.
-        </p>
-        <div className="space-y-4">
-          <Input
-            label="APM Server URL"
-            placeholder="https://your-apm-server:8200"
-            value={appSettings.elasticApmServerUrl || ""}
-            onChange={(e) =>
-              setAppSettings({ elasticApmServerUrl: e.target.value })
-            }
-            hint="Elastic APM server endpoint for browser RUM events. Leave empty to disable APM."
-          />
-        </div>
-      </Card>
-
-      {/* PocketBase Admin */}
-      <Card>
-        <CardTitle>PocketBase Admin</CardTitle>
-        <p className="text-sm text-gray-500 mt-1 mb-4">
-          Access the PocketBase admin dashboard to manage collections and data
-          directly.
-        </p>
-        <a
-          href={`${import.meta.env.VITE_POCKETBASE_URL || "http://127.0.0.1:8090"}/_/`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Button variant="secondary" showArrow>
-            Open Admin Dashboard
-          </Button>
-        </a>
-      </Card>
+      )}
     </div>
   );
 }
