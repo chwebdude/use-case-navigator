@@ -237,7 +237,10 @@ export default function FactsheetDetail() {
         await graphContainerRef.current.requestFullscreen();
       }
     } catch (error) {
-      console.error("Failed to toggle fullscreen for factsheet detail view", error);
+      console.error(
+        "Failed to toggle fullscreen for factsheet detail view",
+        error,
+      );
     }
   };
 
