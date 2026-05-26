@@ -6,6 +6,8 @@ import {
   History,
   ChevronDown,
   ChevronRight,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { Modal, Button, Badge, MetricBadge } from "./ui";
 import { DependencyGraph, SpiderDiagram } from "./visualizations";
@@ -89,6 +91,8 @@ export default function FactsheetDetailModal({
   const [relatedFactsheets, setRelatedFactsheets] = useState<
     FactsheetExpanded[]
   >([]);
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
 
   useEffect(() => {
     if (!activeFactsheetId) {
@@ -171,6 +175,19 @@ export default function FactsheetDetailModal({
       });
   }, [activeFactsheetId]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsGraphFullscreen(
+        document.fullscreenElement === graphContainerRef.current,
+      );
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
   // Count direct dependencies for the summary text
   const directOutgoingCount = allDependencies.filter(
     (d) => d.factsheet === activeFactsheetId,
@@ -251,6 +268,22 @@ export default function FactsheetDetailModal({
       console.error("Failed to update status:", err);
     }
     setStatusDropdownOpen(false);
+  };
+
+  const handleToggleFullscreen = async () => {
+    if (!graphContainerRef.current) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === graphContainerRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await graphContainerRef.current.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Failed to toggle fullscreen for factsheet modal view", error);
+    }
   };
 
   const propertyMap = useMemo(() => {
@@ -515,7 +548,33 @@ export default function FactsheetDetailModal({
               <h4 className="text-sm font-medium text-gray-500 mb-2">
                 Dependencies
               </h4>
-              <div className="h-[500px] border border-gray-200 rounded-lg overflow-hidden">
+              <div
+                ref={graphContainerRef}
+                className={`relative h-[500px] border border-gray-200 rounded-lg overflow-hidden bg-white ${
+                  isGraphFullscreen ? "p-3 bg-gray-100" : ""
+                }`}
+              >
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={
+                    isGraphFullscreen ? (
+                      <Minimize2 className="w-4 h-4" />
+                    ) : (
+                      <Maximize2 className="w-4 h-4" />
+                    )
+                  }
+                  onClick={handleToggleFullscreen}
+                  title={
+                    isGraphFullscreen
+                      ? "Exit fullscreen view"
+                      : "Open diagram in fullscreen"
+                  }
+                  className="absolute top-3 right-3 z-20"
+                >
+                  {isGraphFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                </Button>
+
                 <DependencyGraph
                   factsheets={relatedFactsheets}
                   dependencies={allDependencies}

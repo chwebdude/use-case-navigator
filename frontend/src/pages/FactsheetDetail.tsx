@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -9,6 +9,8 @@ import {
   Printer,
   ChevronDown,
   ChevronRight,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { Card, CardTitle, Button, Badge, MetricBadge } from "../components/ui";
 import FactsheetDetailModal from "../components/FactsheetDetailModal";
@@ -42,6 +44,8 @@ export default function FactsheetDetail() {
   const [relatedFactsheets, setRelatedFactsheets] = useState<
     FactsheetExpanded[]
   >([]);
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
   const { settings: appSettings } = useAppSettings();
 
   const { record: factsheet, loading } = useRecord<Factsheet>("factsheets", id);
@@ -143,6 +147,19 @@ export default function FactsheetDetail() {
       });
   }, [id]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsGraphFullscreen(
+        document.fullscreenElement === graphContainerRef.current,
+      );
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
   const { records: properties } = useRealtime<FactsheetPropertyExpanded>({
     collection: "factsheet_properties",
     filter: `factsheet = "${id}"`,
@@ -205,6 +222,22 @@ export default function FactsheetDetail() {
       }
     } catch (err) {
       console.error("Failed to delete dependency:", err);
+    }
+  };
+
+  const handleToggleFullscreen = async () => {
+    if (!graphContainerRef.current) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === graphContainerRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await graphContainerRef.current.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Failed to toggle fullscreen for factsheet detail view", error);
     }
   };
 
@@ -535,7 +568,33 @@ export default function FactsheetDetail() {
         <Card>
           <CardTitle>Dependencies Graph</CardTitle>
           <div className="mt-4">
-            <div className="h-[500px] border border-gray-200 rounded-lg overflow-hidden">
+            <div
+              ref={graphContainerRef}
+              className={`relative h-[500px] border border-gray-200 rounded-lg overflow-hidden bg-white ${
+                isGraphFullscreen ? "p-3 bg-gray-100" : ""
+              }`}
+            >
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={
+                  isGraphFullscreen ? (
+                    <Minimize2 className="w-4 h-4" />
+                  ) : (
+                    <Maximize2 className="w-4 h-4" />
+                  )
+                }
+                onClick={handleToggleFullscreen}
+                title={
+                  isGraphFullscreen
+                    ? "Exit fullscreen view"
+                    : "Open diagram in fullscreen"
+                }
+                className="absolute top-3 right-3 z-20"
+              >
+                {isGraphFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              </Button>
+
               <DependencyGraph
                 factsheets={relatedFactsheets}
                 dependencies={allDependencies}
