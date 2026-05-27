@@ -17,23 +17,23 @@ branches:
     is-release-branch: true
 
   feature:
-    regex: ^feature[/-]
+    regex: ^features?[/-](?<BranchName>.+)
     label: '{BranchName}'
     increment: Inherit
 
   release:
-    regex: ^release[/-]
+    regex: ^releases?[/-](?<BranchName>.+)
     label: rc
     increment: None
     is-release-branch: true
 
   hotfix:
-    regex: ^hotfix[/-]
+    regex: ^hotfix(es)?[/-](?<BranchName>.+)
     label: '{BranchName}'
     increment: Patch
 
   pull-request:
-    regex: ^(pull|pull-request|pr)[/-]
+    regex: ^(pull|pull-request|pr)[/-](?<BranchName>.+)
     label: pr.{BranchName}
     increment: Inherit
 
