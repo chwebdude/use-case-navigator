@@ -14,7 +14,11 @@ import {
 } from "lucide-react";
 import { Card, CardTitle, Button, Badge, MetricBadge } from "../components/ui";
 import FactsheetDetailModal from "../components/FactsheetDetailModal";
-import { SpiderDiagram, DependencyGraph } from "../components/visualizations";
+import {
+  SpiderDiagram,
+  DependencyGraph,
+  type DependencyGraphViewportHandlers,
+} from "../components/visualizations";
 import type { SpiderDataPoint } from "../components/visualizations/SpiderDiagram";
 import { useRecord, useRealtime } from "../hooks/useRealtime";
 import { useChangeLog } from "../hooks/useChangeLog";
@@ -45,6 +49,9 @@ export default function FactsheetDetail() {
     FactsheetExpanded[]
   >([]);
   const graphContainerRef = useRef<HTMLDivElement>(null);
+  const viewportHandlerRef = useRef<DependencyGraphViewportHandlers | null>(
+    null,
+  );
   const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
   const { settings: appSettings } = useAppSettings();
 
@@ -149,9 +156,15 @@ export default function FactsheetDetail() {
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsGraphFullscreen(
-        document.fullscreenElement === graphContainerRef.current,
-      );
+      const isFullscreen =
+        document.fullscreenElement === graphContainerRef.current;
+      setIsGraphFullscreen(isFullscreen);
+
+      if (isFullscreen) {
+        window.requestAnimationFrame(() => {
+          void viewportHandlerRef.current?.fitView();
+        });
+      }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -573,8 +586,8 @@ export default function FactsheetDetail() {
           <div className="mt-4">
             <div
               ref={graphContainerRef}
-              className={`relative h-[500px] border border-gray-200 rounded-lg overflow-hidden bg-white ${
-                isGraphFullscreen ? "p-3 bg-gray-100" : ""
+              className={`relative border border-gray-200 rounded-lg overflow-hidden bg-white ${
+                isGraphFullscreen ? "h-full bg-gray-100" : "h-[500px]"
               }`}
             >
               <Button
@@ -603,6 +616,9 @@ export default function FactsheetDetail() {
                 dependencies={allDependencies}
                 onNodeClick={setSelectedFactsheetId}
                 showComments={false}
+                onViewportHandlerChange={(handler) => {
+                  viewportHandlerRef.current = handler;
+                }}
               />
             </div>
             <p className="text-xs text-gray-400 mt-3">

@@ -10,7 +10,11 @@ import {
   Minimize2,
 } from "lucide-react";
 import { Modal, Button, Badge, MetricBadge } from "./ui";
-import { DependencyGraph, SpiderDiagram } from "./visualizations";
+import {
+  DependencyGraph,
+  SpiderDiagram,
+  type DependencyGraphViewportHandlers,
+} from "./visualizations";
 import type { SpiderDataPoint } from "./visualizations/SpiderDiagram";
 import { useRecord, useRealtime } from "../hooks/useRealtime";
 import { useAppSettings } from "../hooks/useAppSettings";
@@ -92,6 +96,9 @@ export default function FactsheetDetailModal({
     FactsheetExpanded[]
   >([]);
   const graphContainerRef = useRef<HTMLDivElement>(null);
+  const viewportHandlerRef = useRef<DependencyGraphViewportHandlers | null>(
+    null,
+  );
   const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
 
   useEffect(() => {
@@ -177,9 +184,15 @@ export default function FactsheetDetailModal({
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsGraphFullscreen(
-        document.fullscreenElement === graphContainerRef.current,
-      );
+      const isFullscreen =
+        document.fullscreenElement === graphContainerRef.current;
+      setIsGraphFullscreen(isFullscreen);
+
+      if (isFullscreen) {
+        window.requestAnimationFrame(() => {
+          void viewportHandlerRef.current?.fitView();
+        });
+      }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -553,8 +566,8 @@ export default function FactsheetDetailModal({
               </h4>
               <div
                 ref={graphContainerRef}
-                className={`relative h-[500px] border border-gray-200 rounded-lg overflow-hidden bg-white ${
-                  isGraphFullscreen ? "p-3 bg-gray-100" : ""
+                className={`relative border border-gray-200 rounded-lg overflow-hidden bg-white ${
+                  isGraphFullscreen ? "h-full bg-gray-100" : "h-[500px]"
                 }`}
               >
                 <Button
@@ -583,6 +596,9 @@ export default function FactsheetDetailModal({
                   dependencies={allDependencies}
                   onNodeClick={setActiveFactsheetId}
                   showComments={false}
+                  onViewportHandlerChange={(handler) => {
+                    viewportHandlerRef.current = handler;
+                  }}
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">

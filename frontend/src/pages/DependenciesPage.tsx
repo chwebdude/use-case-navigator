@@ -156,9 +156,15 @@ export default function DependenciesPage() {
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsGraphFullscreen(
-        document.fullscreenElement === graphContainerRef.current,
-      );
+      const isFullscreen =
+        document.fullscreenElement === graphContainerRef.current;
+      setIsGraphFullscreen(isFullscreen);
+
+      if (isFullscreen) {
+        window.requestAnimationFrame(() => {
+          void viewportHandlerRef.current?.fitView();
+        });
+      }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -761,8 +767,8 @@ export default function DependenciesPage() {
       ) : (
         <div
           ref={graphContainerRef}
-          className={`relative flex-1 min-h-[320px] border border-gray-200 bg-white overflow-hidden ${
-            isGraphFullscreen ? "p-3 bg-gray-100" : ""
+          className={`relative flex-1 border border-gray-200 bg-white overflow-hidden ${
+            isGraphFullscreen ? "bg-gray-100" : "min-h-[320px]"
           }`}
         >
           <Button

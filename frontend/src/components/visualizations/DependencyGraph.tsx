@@ -47,6 +47,7 @@ export interface GraphViewportState {
 export interface DependencyGraphViewportHandlers {
   getViewport: () => GraphViewportState | null;
   setViewport: (viewport: GraphViewportState) => Promise<void>;
+  fitView: () => Promise<void>;
 }
 
 interface DependencyGraphProps {
@@ -465,6 +466,12 @@ export default function DependencyGraph({
       viewport: GraphViewportState,
       options?: { duration?: number },
     ) => Promise<boolean>;
+    fitView: (options?: {
+      padding?: number;
+      minZoom?: number;
+      maxZoom?: number;
+      duration?: number;
+    }) => Promise<boolean>;
   } | null>(null);
 
   const {
@@ -843,6 +850,18 @@ export default function DependencyGraph({
     await reactFlowInstanceRef.current.setViewport(viewport, { duration: 0 });
   }, []);
 
+  const fitView = useCallback(async () => {
+    if (!reactFlowInstanceRef.current) {
+      return;
+    }
+
+    await reactFlowInstanceRef.current.fitView({
+      padding: 0.1,
+      minZoom: 0.02,
+      duration: 200,
+    });
+  }, []);
+
   useEffect(() => {
     if (!onViewportHandlerChange) {
       return;
@@ -851,12 +870,13 @@ export default function DependencyGraph({
     onViewportHandlerChange({
       getViewport,
       setViewport,
+      fitView,
     });
 
     return () => {
       onViewportHandlerChange(null);
     };
-  }, [getViewport, onViewportHandlerChange, setViewport]);
+  }, [fitView, getViewport, onViewportHandlerChange, setViewport]);
 
   return (
     <div
