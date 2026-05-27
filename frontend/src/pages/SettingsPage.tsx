@@ -1430,34 +1430,6 @@ export default function SettingsPage() {
                 hint="Global maximum weight used when distributing option weights."
               />
 
-              <Input
-                label="Metric Alert Warning Gap"
-                type="number"
-                min={0}
-                step="0.01"
-                value={appSettings.metricAlertWarningGap}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (Number.isNaN(val)) return;
-                  setAppSettings({ metricAlertWarningGap: Math.max(0, val) });
-                }}
-                hint="Warning is raised when a metric score is below target by at least this gap."
-              />
-
-              <Input
-                label="Metric Alert Critical Gap"
-                type="number"
-                min={0}
-                step="0.01"
-                value={appSettings.metricAlertCriticalGap}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (Number.isNaN(val)) return;
-                  setAppSettings({ metricAlertCriticalGap: Math.max(0, val) });
-                }}
-                hint="Critical is raised when a metric score is below target by at least this gap."
-              />
-
               {/* Icon Selection */}
               <div>
                 <label className="block text-sm font-medium text-primary-900 mb-3">
@@ -1498,11 +1470,7 @@ export default function SettingsPage() {
                     appSettings.title === defaultSettings.title &&
                     appSettings.icon === defaultSettings.icon &&
                     appSettings.maxMetricWeight ===
-                      defaultSettings.maxMetricWeight &&
-                    appSettings.metricAlertWarningGap ===
-                      defaultSettings.metricAlertWarningGap &&
-                    appSettings.metricAlertCriticalGap ===
-                      defaultSettings.metricAlertCriticalGap
+                      defaultSettings.maxMetricWeight
                   }
                 >
                   Reset to Defaults
