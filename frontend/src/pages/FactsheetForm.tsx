@@ -1,54 +1,203 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
-import { Card, Button, Input, Select } from '../components/ui';
-import { Textarea } from '../components/ui/Input';
-import { useRecord, useRealtime } from '../hooks/useRealtime';
-import pb from '../lib/pocketbase';
-import type { Factsheet, FactsheetType } from '../types';
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Save } from "lucide-react";
+import { Card, Button, Input, Select } from "../components/ui";
+import { Textarea } from "../components/ui/Input";
+import AiDraftPanel from "../components/AiDraftPanel";
+import { useRecord, useRealtime } from "../hooks/useRealtime";
+import { useChangeLog } from "../hooks/useChangeLog";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { useAiDraft } from "../hooks/useAiDraft";
+import type { AiDraft } from "../hooks/useAiDraft";
+import pb from "../lib/pocketbase";
+import { getStatusMeta, getStatusSelectOptions } from "../lib/statusConfig";
+import {
+  filterPropertiesForType,
+  isPropertyVisibleForType,
+} from "../lib/propertyVisibility";
+import type {
+  Factsheet,
+  FactsheetType,
+  PropertyDefinition,
+  PropertyOption,
+  FactsheetProperty,
+} from "../types";
 
-const statusOptions = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'active', label: 'Active' },
-  { value: 'archived', label: 'Archived' },
-];
+const LEGACY_STATUS_VALUES = new Set(["draft", "active", "archived"]);
 
 export default function FactsheetForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
+  const { settings: appSettings } = useAppSettings();
 
-  const { record: existingFactsheet, loading: loadingRecord } = useRecord<Factsheet>(
-    'factsheets',
-    id
-  );
+  const { record: existingFactsheet, loading: loadingRecord } =
+    useRecord<Factsheet>("factsheets", id);
 
   const { records: factsheetTypes } = useRealtime<FactsheetType>({
-    collection: 'factsheet_types',
-    sort: 'order',
+    collection: "factsheet_types",
+    sort: "order",
   });
 
-  const typeOptions = factsheetTypes.map((t) => ({ value: t.id, label: t.name }));
+  const { records: propertyDefinitions } = useRealtime<PropertyDefinition>({
+    collection: "property_definitions",
+    sort: "order",
+  });
+
+  const { records: propertyOptions } = useRealtime<PropertyOption>({
+    collection: "property_options",
+    sort: "order",
+  });
+
+  const { records: existingProperties } = useRealtime<FactsheetProperty>({
+    collection: "factsheet_properties",
+    filter: id ? `factsheet = "${id}"` : 'id = ""',
+  });
+
+  const { logFactsheetCreated, logFactsheetUpdated, logPropertyChanged } =
+    useChangeLog();
+
+  const typeOptions = factsheetTypes.map((t) => ({
+    value: t.id,
+    label: t.name,
+  }));
+
+  // Group options by property
+  const optionsByProperty = useMemo(() => {
+    const map = new Map<string, PropertyOption[]>();
+    propertyOptions.forEach((opt) => {
+      if (!map.has(opt.property)) {
+        map.set(opt.property, []);
+      }
+      map.get(opt.property)!.push(opt);
+    });
+    map.forEach((opts) => {
+      opts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    });
+    return map;
+  }, [propertyOptions]);
 
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    type: '',
-    status: 'draft',
+    name: "",
+    description: "",
+    type: "",
+    status: "",
+    responsibility: "",
+    benefits: "",
+    what_it_does: "",
+    problems_addressed: "",
+    potential_ui: "",
   });
+  const [propertyValues, setPropertyValues] = useState<Record<string, string>>(
+    {},
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const {
+    draft: aiDraft,
+    loading: aiLoading,
+    error: aiError,
+    isConfigured: aiConfigured,
+    generateDraft,
+    clearDraft,
+  } = useAiDraft({
+    factsheetTypes,
+    propertyDefinitions,
+    propertyOptions,
+    llmEndpoint: appSettings.llmEndpoint,
+    llmApiKey: appSettings.llmApiKey,
+    llmModel: appSettings.llmModel,
+  });
+
+  const triggerAiDraft = useCallback(() => {
+    if (aiConfigured && formData.name.trim()) {
+      generateDraft(formData.name, formData.description, formData.type);
+    }
+  }, [
+    aiConfigured,
+    formData.name,
+    formData.description,
+    formData.type,
+    generateDraft,
+  ]);
+
+  const applyDraft = useCallback(
+    (draft: AiDraft) => {
+      setFormData((prev) => ({
+        ...prev,
+        name: draft.name || prev.name,
+        description: draft.description || prev.description,
+        responsibility: draft.responsibility || prev.responsibility,
+        benefits: draft.benefits || prev.benefits,
+        what_it_does: draft.what_it_does || prev.what_it_does,
+        problems_addressed: draft.problems_addressed || prev.problems_addressed,
+        potential_ui: draft.potential_ui || prev.potential_ui,
+      }));
+      setPropertyValues((prev) => {
+        const updated = { ...prev };
+        for (const [propId, optId] of Object.entries(draft.properties)) {
+          if (optId) updated[propId] = optId;
+        }
+        return updated;
+      });
+      clearDraft();
+    },
+    [clearDraft],
+  );
 
   useEffect(() => {
     if (existingFactsheet) {
       setFormData({
         name: existingFactsheet.name,
-        description: existingFactsheet.description || '',
+        description: existingFactsheet.description || "",
         type: existingFactsheet.type,
-        status: existingFactsheet.status,
+        status: existingFactsheet.status_id || existingFactsheet.status,
+        responsibility: existingFactsheet.responsibility || "",
+        benefits: existingFactsheet.benefits || "",
+        what_it_does: existingFactsheet.what_it_does || "",
+        problems_addressed: existingFactsheet.problems_addressed || "",
+        potential_ui: existingFactsheet.potential_ui || "",
       });
     }
   }, [existingFactsheet]);
+
+  // Auto-trigger AI draft when editing an existing factsheet
+  useEffect(() => {
+    if (isEdit && existingFactsheet && aiConfigured) {
+      generateDraft(
+        existingFactsheet.name,
+        existingFactsheet.description || "",
+        existingFactsheet.type,
+      );
+    }
+  }, [isEdit, existingFactsheet, aiConfigured, generateDraft]);
+
+  // Load existing property values when editing
+  useEffect(() => {
+    if (isEdit && existingProperties.length > 0) {
+      const values: Record<string, string> = {};
+      existingProperties.forEach((prop) => {
+        values[prop.property] = prop.option;
+      });
+      setPropertyValues(values);
+    }
+  }, [existingProperties, isEdit]);
+
+  // Initialize property values with empty strings for new factsheets
+  useEffect(() => {
+    if (
+      !isEdit &&
+      propertyDefinitions.length > 0 &&
+      Object.keys(propertyValues).length === 0
+    ) {
+      const initialValues: Record<string, string> = {};
+      propertyDefinitions.forEach((propDef) => {
+        initialValues[propDef.id] = "";
+      });
+      setPropertyValues(initialValues);
+    }
+  }, [propertyDefinitions, isEdit, propertyValues]);
 
   // Set default type when types are loaded
   useEffect(() => {
@@ -57,26 +206,270 @@ export default function FactsheetForm() {
     }
   }, [factsheetTypes, isEdit, formData.type]);
 
+  const selectedType = factsheetTypes.find((type) => type.id === formData.type);
+  const visiblePropertyDefinitions = useMemo(
+    () => filterPropertiesForType(propertyDefinitions, formData.type),
+    [propertyDefinitions, formData.type],
+  );
+
+  const isFieldHidden = (fieldName: string): boolean => {
+    return (selectedType?.hidden_fields ?? []).includes(fieldName as any);
+  };
+
+  const statusOptions = useMemo(
+    () => getStatusSelectOptions(appSettings.statuses, selectedType),
+    [appSettings.statuses, selectedType],
+  );
+
+  useEffect(() => {
+    if (statusOptions.length === 0) return;
+    if (
+      !formData.status ||
+      !statusOptions.some((opt) => opt.value === formData.status)
+    ) {
+      setFormData((prev) => ({ ...prev, status: statusOptions[0].value }));
+    }
+  }, [statusOptions, formData.status]);
+
+  const handlePropertyChange = (propertyId: string, optionId: string) => {
+    setPropertyValues((prev) => ({ ...prev, [propertyId]: optionId }));
+  };
+
+  const getOptionsForProperty = (propDefId: string) => {
+    const opts = optionsByProperty.get(propDefId) || [];
+    return [
+      { value: "", label: "Select..." },
+      ...opts.map((opt) => ({ value: opt.id, label: opt.value })),
+    ];
+  };
+
+  // Helper to truncate long values for display
+  const truncate = (str: string, maxLen = 50) => {
+    if (!str) return "";
+    // Strip HTML tags for display
+    const plain = str.replace(/<[^>]*>/g, "");
+    return plain.length > maxLen ? plain.substring(0, maxLen) + "..." : plain;
+  };
+
+  // Helper to get option value by id
+  const getOptionValue = (optionId: string) => {
+    const option = propertyOptions.find((o) => o.id === optionId);
+    return option?.value || null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!formData.type) {
-      setError('Please select a factsheet type');
+      setError("Please select a factsheet type");
       return;
     }
 
     setSaving(true);
 
     try {
+      let factsheetId: string;
+      const selectedStatusMeta = getStatusMeta(
+        formData.status,
+        appSettings.statuses,
+        selectedType,
+      );
+      const legacyStatus = LEGACY_STATUS_VALUES.has(formData.status)
+        ? formData.status
+        : isEdit && existingFactsheet
+          ? existingFactsheet.status
+          : "draft";
+      const factsheetPayload = {
+        ...formData,
+        status_id: formData.status,
+        status: legacyStatus,
+      };
+
       if (isEdit && id) {
-        await pb.collection('factsheets').update(id, formData);
+        // Track which fields changed with old/new values
+        const fieldChanges: {
+          field: string;
+          oldValue?: string;
+          newValue?: string;
+        }[] = [];
+        if (existingFactsheet) {
+          if (formData.name !== existingFactsheet.name) {
+            fieldChanges.push({
+              field: "name",
+              oldValue: existingFactsheet.name,
+              newValue: formData.name,
+            });
+          }
+          if (formData.description !== (existingFactsheet.description || "")) {
+            fieldChanges.push({
+              field: "description",
+              oldValue: truncate(existingFactsheet.description || ""),
+              newValue: truncate(formData.description),
+            });
+          }
+          if (formData.type !== existingFactsheet.type) {
+            const oldType =
+              factsheetTypes.find((t) => t.id === existingFactsheet.type)
+                ?.name || existingFactsheet.type;
+            const newType =
+              factsheetTypes.find((t) => t.id === formData.type)?.name ||
+              formData.type;
+            fieldChanges.push({
+              field: "type",
+              oldValue: oldType,
+              newValue: newType,
+            });
+          }
+          const oldStatusId =
+            existingFactsheet.status_id || existingFactsheet.status;
+          if (formData.status !== oldStatusId) {
+            const oldStatusMeta = getStatusMeta(
+              oldStatusId,
+              appSettings.statuses,
+              factsheetTypes.find((type) => type.id === existingFactsheet.type),
+            );
+            fieldChanges.push({
+              field: "status",
+              oldValue: oldStatusMeta.label,
+              newValue: selectedStatusMeta.label,
+            });
+          }
+          if (
+            formData.responsibility !== (existingFactsheet.responsibility || "")
+          ) {
+            fieldChanges.push({
+              field: "responsibility",
+              oldValue: truncate(existingFactsheet.responsibility || ""),
+              newValue: truncate(formData.responsibility),
+            });
+          }
+          if (formData.benefits !== (existingFactsheet.benefits || "")) {
+            fieldChanges.push({
+              field: "benefits",
+              oldValue: truncate(existingFactsheet.benefits || ""),
+              newValue: truncate(formData.benefits),
+            });
+          }
+          if (
+            formData.what_it_does !== (existingFactsheet.what_it_does || "")
+          ) {
+            fieldChanges.push({
+              field: "what_it_does",
+              oldValue: truncate(existingFactsheet.what_it_does || ""),
+              newValue: truncate(formData.what_it_does),
+            });
+          }
+          if (
+            formData.problems_addressed !==
+            (existingFactsheet.problems_addressed || "")
+          ) {
+            fieldChanges.push({
+              field: "problems_addressed",
+              oldValue: truncate(existingFactsheet.problems_addressed || ""),
+              newValue: truncate(formData.problems_addressed),
+            });
+          }
+          if (
+            formData.potential_ui !== (existingFactsheet.potential_ui || "")
+          ) {
+            fieldChanges.push({
+              field: "potential_ui",
+              oldValue: truncate(existingFactsheet.potential_ui || ""),
+              newValue: truncate(formData.potential_ui),
+            });
+          }
+        }
+
+        await pb.collection("factsheets").update(id, factsheetPayload);
+        factsheetId = id;
+
+        // Log the update with field details
+        if (fieldChanges.length > 0) {
+          await logFactsheetUpdated(factsheetId, formData.name, fieldChanges);
+        }
       } else {
-        await pb.collection('factsheets').create(formData);
+        const created = await pb
+          .collection("factsheets")
+          .create(factsheetPayload);
+        factsheetId = created.id;
+
+        // Log the creation
+        await logFactsheetCreated(factsheetId, formData.name);
       }
-      navigate('/factsheets');
+
+      // Save property values and track changes
+      for (const propDef of propertyDefinitions) {
+        const isApplicable = isPropertyVisibleForType(propDef, formData.type);
+        const newOptionId = propertyValues[propDef.id];
+        const existing = isEdit
+          ? existingProperties.find((p) => p.property === propDef.id)
+          : undefined;
+        const oldOptionValue = existing
+          ? getOptionValue(existing.option)
+          : null;
+        const newOptionValue = newOptionId ? getOptionValue(newOptionId) : null;
+
+        if (!isApplicable) {
+          if (existing) {
+            await pb.collection("factsheet_properties").delete(existing.id);
+            await logPropertyChanged(
+              factsheetId,
+              propDef.name,
+              oldOptionValue,
+              null,
+            );
+          }
+          continue;
+        }
+
+        // Check if there's a valid option selected (not empty string)
+        if (newOptionId && newOptionId !== "" && newOptionId.trim()) {
+          if (existing) {
+            // Only update and log if the value actually changed
+            if (existing.option !== newOptionId) {
+              await pb.collection("factsheet_properties").update(existing.id, {
+                option: newOptionId,
+              });
+              await logPropertyChanged(
+                factsheetId,
+                propDef.name,
+                oldOptionValue,
+                newOptionValue,
+              );
+            }
+          } else {
+            // Create new property record
+            await pb.collection("factsheet_properties").create({
+              factsheet: factsheetId,
+              property: propDef.id,
+              option: newOptionId,
+            });
+            // Log property set (only for edits, not for new factsheets)
+            if (isEdit) {
+              await logPropertyChanged(
+                factsheetId,
+                propDef.name,
+                null,
+                newOptionValue,
+              );
+            }
+          }
+        } else if (existing) {
+          // Remove property if it exists but no longer has a value
+          await pb.collection("factsheet_properties").delete(existing.id);
+          await logPropertyChanged(
+            factsheetId,
+            propDef.name,
+            oldOptionValue,
+            null,
+          );
+        }
+      }
+
+      navigate(-1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save factsheet');
+      setError(err instanceof Error ? err.message : "Failed to save factsheet");
     } finally {
       setSaving(false);
     }
@@ -111,11 +504,14 @@ export default function FactsheetForm() {
           <h1 className="text-2xl font-bold text-primary-900">New Factsheet</h1>
         </div>
         <Card className="text-center py-12">
-          <h3 className="text-lg font-medium text-primary-900">No factsheet types defined</h3>
+          <h3 className="text-lg font-medium text-primary-900">
+            No factsheet types defined
+          </h3>
           <p className="text-gray-500 mt-2">
-            Please create at least one factsheet type in Settings before creating a factsheet.
+            Please create at least one factsheet type in Settings before
+            creating a factsheet.
           </p>
-          <Button className="mt-4" onClick={() => navigate('/settings')}>
+          <Button className="mt-4" onClick={() => navigate("/settings")}>
             Go to Settings
           </Button>
         </Card>
@@ -123,8 +519,16 @@ export default function FactsheetForm() {
     );
   }
 
+  const showAiPanel = aiConfigured;
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div
+      className={
+        showAiPanel
+          ? "max-w-5xl mx-auto space-y-6"
+          : "max-w-2xl mx-auto space-y-6"
+      }
+    >
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -136,69 +540,208 @@ export default function FactsheetForm() {
           Back
         </Button>
         <h1 className="text-2xl font-bold text-primary-900">
-          {isEdit ? 'Edit Factsheet' : 'New Factsheet'}
+          {isEdit ? "Edit Factsheet" : "New Factsheet"}
         </h1>
       </div>
 
-      {/* Form */}
-      <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm">
-              {error}
+      <div
+        className={
+          showAiPanel ? "grid grid-cols-[1fr_380px] gap-6 items-start" : ""
+        }
+      >
+        {/* Form */}
+        <Card>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            <Select
+              label="Type"
+              options={typeOptions}
+              value={formData.type}
+              onChange={(e) =>
+                setFormData({ ...formData, type: e.target.value })
+              }
+            />
+
+            <Input
+              label="Name"
+              placeholder="Enter factsheet name"
+              value={formData.name}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
+              onBlur={triggerAiDraft}
+              required
+            />
+
+            {!isFieldHidden("description") && (
+              <Textarea
+                label="Description"
+                placeholder="Describe the factsheet..."
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                onBlur={triggerAiDraft}
+                rows={4}
+              />
+            )}
+
+            <Select
+              label="Status"
+              options={statusOptions}
+              value={formData.status}
+              onChange={(e) =>
+                setFormData({ ...formData, status: e.target.value })
+              }
+            />
+
+            {/* Property selections */}
+            {visiblePropertyDefinitions.length > 0 && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-sm font-medium text-gray-700 mb-4">
+                  Properties
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {visiblePropertyDefinitions.map((propDef) => (
+                    <Select
+                      key={propDef.id}
+                      label={propDef.name}
+                      options={getOptionsForProperty(propDef.id)}
+                      value={propertyValues[propDef.id] || ""}
+                      onChange={(e) =>
+                        handlePropertyChange(propDef.id, e.target.value)
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(
+              [
+                "responsibility",
+                "what_it_does",
+                "benefits",
+                "problems_addressed",
+                "potential_ui",
+              ] as const
+            ).some((f) => !isFieldHidden(f)) && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-sm font-medium text-gray-700 mb-4">
+                  Additional Details
+                </h3>
+
+                <div className="space-y-6">
+                  {!isFieldHidden("responsibility") && (
+                    <Input
+                      label="Responsibility"
+                      placeholder="Who is responsible for this?"
+                      value={formData.responsibility}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          responsibility: e.target.value,
+                        })
+                      }
+                    />
+                  )}
+
+                  {!isFieldHidden("benefits") && (
+                    <Textarea
+                      label="Benefits"
+                      placeholder="What are the benefits?"
+                      value={formData.benefits}
+                      onChange={(e) =>
+                        setFormData({ ...formData, benefits: e.target.value })
+                      }
+                      rows={3}
+                    />
+                  )}
+
+                  {!isFieldHidden("what_it_does") && (
+                    <Textarea
+                      label="What it does"
+                      placeholder="Describe what this does..."
+                      value={formData.what_it_does}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          what_it_does: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  )}
+
+                  {!isFieldHidden("problems_addressed") && (
+                    <Textarea
+                      label="Problems addressed"
+                      placeholder="What problems does this address?"
+                      value={formData.problems_addressed}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          problems_addressed: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  )}
+
+                  {!isFieldHidden("potential_ui") && (
+                    <Textarea
+                      label="Potential User Interface"
+                      placeholder="Describe the potential user interface..."
+                      value={formData.potential_ui}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          potential_ui: e.target.value,
+                        })
+                      }
+                      rows={3}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-4 pt-4">
+              <Button
+                type="submit"
+                loading={saving}
+                icon={<Save className="w-4 h-4" />}
+              >
+                {isEdit ? "Save Changes" : "Create Factsheet"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate(-1)}
+              >
+                Cancel
+              </Button>
             </div>
-          )}
+          </form>
+        </Card>
 
-          <Select
-            label="Type"
-            options={typeOptions}
-            value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+        {showAiPanel && (
+          <AiDraftPanel
+            draft={aiDraft}
+            loading={aiLoading}
+            error={aiError}
+            propertyDefinitions={propertyDefinitions}
+            propertyOptions={propertyOptions}
+            hiddenFields={selectedType?.hidden_fields ?? []}
+            onApply={applyDraft}
           />
-
-          <Input
-            label="Name"
-            placeholder="Enter factsheet name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-          />
-
-          <Textarea
-            label="Description"
-            placeholder="Describe the factsheet..."
-            value={formData.description}
-            onChange={(e) =>
-              setFormData({ ...formData, description: e.target.value })
-            }
-            rows={4}
-          />
-
-          <Select
-            label="Status"
-            options={statusOptions}
-            value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-          />
-
-          <div className="flex gap-4 pt-4">
-            <Button
-              type="submit"
-              loading={saving}
-              icon={<Save className="w-4 h-4" />}
-            >
-              {isEdit ? 'Save Changes' : 'Create Factsheet'}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => navigate(-1)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </Card>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,2 +1,20 @@
-export { default as DependencyGraph, type ConnectionRequest } from './DependencyGraph';
-export { default as PropertyMatrix } from './PropertyMatrix';
+export {
+  default as DependencyGraph,
+  type ConnectionRequest,
+  type DependencyGraphExportHandlers,
+  type DependencyGraphViewportHandlers,
+  type GraphViewportState,
+} from "./DependencyGraph";
+export {
+  default as PropertyMatrix,
+  type FactsheetMoveData,
+} from "./PropertyMatrix";
+export {
+  default as SpiderDiagram,
+  type SpiderDataPoint,
+} from "./SpiderDiagram";
+export {
+  default as ScatterPlot,
+  type ScatterPoint,
+  type AxisTick,
+} from "./ScatterPlot";

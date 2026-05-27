@@ -13,14 +13,17 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@elastic/apm-rum": "^5.17.4",
     "@types/dagre": "^0.7.53",
     "@xyflow/react": "^12.10.0",
     "d3": "^7.9.0",
     "dagre": "^0.8.5",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^0.562.0",
     "pocketbase": "^0.26.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.11.0",
     "zustand": "^5.0.9"
   },
@@ -39,6 +42,6 @@
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4"
+    "vite": "^7.3.0"
   }
 }

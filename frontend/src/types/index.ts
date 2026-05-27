@@ -1,17 +1,39 @@
-import type { RecordModel } from 'pocketbase';
+import type { RecordModel } from "pocketbase";
+
+export type HiddenField =
+  | "description"
+  | "responsibility"
+  | "what_it_does"
+  | "benefits"
+  | "problems_addressed"
+  | "potential_ui";
+
+export interface StatusDefinition {
+  id: string;
+  label: string;
+  color: string;
+}
 
 export interface FactsheetType extends RecordModel {
   name: string;
   color: string;
   icon?: string;
   order?: number;
+  hidden_fields?: HiddenField[];
+  status_overrides?: StatusDefinition[];
 }
 
 export interface Factsheet extends RecordModel {
   name: string;
   description: string;
   type: string;
-  status: 'draft' | 'active' | 'archived';
+  status: string;
+  status_id?: string;
+  responsibility?: string;
+  benefits?: string;
+  what_it_does?: string;
+  problems_addressed?: string;
+  potential_ui?: string;
 }
 
 export interface Dependency extends RecordModel {
@@ -23,12 +45,14 @@ export interface Dependency extends RecordModel {
 export interface PropertyDefinition extends RecordModel {
   name: string;
   order?: number;
+  factsheet_types?: string[];
 }
 
 export interface PropertyOption extends RecordModel {
   property: string;
   value: string;
   order?: number;
+  weight?: number;
 }
 
 export interface FactsheetProperty extends RecordModel {
@@ -65,3 +89,40 @@ export interface FactsheetPropertyExpanded extends FactsheetProperty {
   };
 }
 
+// Metrics
+export interface Metric extends RecordModel {
+  name: string;
+  properties: string[]; // Relation to PropertyDefinition (multi)
+  order?: number;
+  description?: string;
+}
+
+export interface MetricExpanded extends Metric {
+  expand?: {
+    properties?: PropertyDefinition[];
+  };
+}
+
+export type ChangeAction =
+  | "created"
+  | "updated"
+  | "deleted"
+  | "dependency_added"
+  | "dependency_removed"
+  | "dependency_updated";
+
+export interface ChangeLog extends RecordModel {
+  factsheet: string;
+  username: string;
+  action: ChangeAction;
+  description: string;
+  related_factsheet?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ChangeLogExpanded extends ChangeLog {
+  expand?: {
+    factsheet?: Factsheet;
+    related_factsheet?: Factsheet;
+  };
+}

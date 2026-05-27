@@ -1,84 +1,483 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardTitle, Select } from '../components/ui';
-import { PropertyMatrix } from '../components/visualizations';
-import { useRealtime } from '../hooks/useRealtime';
-import type { FactsheetExpanded, PropertyDefinition, FactsheetPropertyExpanded } from '../types';
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { Eye, ChevronDown, Check, Printer } from "lucide-react";
+import { Card, CardTitle, Select, Button } from "../components/ui";
+import { FilterBar } from "../components/FilterBar";
+import {
+  PropertyMatrix,
+  type FactsheetMoveData,
+} from "../components/visualizations";
+import FactsheetDetailModal from "../components/FactsheetDetailModal";
+import FactsheetMoveModal from "../components/FactsheetMoveModal";
+import { useRealtime } from "../hooks/useRealtime";
+import { useChangeLog } from "../hooks/useChangeLog";
+import { useQueryStates } from "../hooks/useQueryState";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
+import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
+import pb from "../lib/pocketbase";
+import type {
+  FactsheetExpanded,
+  PropertyDefinition,
+  FactsheetPropertyExpanded,
+  FactsheetType,
+  PropertyOption,
+  FactsheetProperty,
+} from "../types";
 
 export default function MatrixPage() {
-  const navigate = useNavigate();
-  const [xAxis, setXAxis] = useState('');
-  const [yAxis, setYAxis] = useState('');
+  const location = useLocation();
 
-  const { records: factsheets, loading: loadingFactsheets } = useRealtime<FactsheetExpanded>({
-    collection: 'factsheets',
-    expand: 'type',
+  const {
+    settings,
+    loading: settingsLoading,
+    setSettings: setAppSettings,
+  } = useAppSettings();
+
+  const [state, setState] = useQueryStates({
+    search: "",
+    xAxis: "",
+    yAxis: "",
+    typeFilter: [] as string[],
+    statusFilter: "",
+    propertyFilters: {} as Record<string, string>,
+    displayProperties: [] as string[],
   });
 
-  const { records: propertyDefinitions, loading: loadingDefs } = useRealtime<PropertyDefinition>({
-    collection: 'property_definitions',
-    sort: 'order',
+  const {
+    search,
+    xAxis,
+    yAxis,
+    typeFilter,
+    statusFilter,
+    propertyFilters,
+    displayProperties,
+  } = state;
+  const setSearch = (v: string) => setState("search", v);
+  const setXAxis = (v: string) => setState("xAxis", v);
+  const setYAxis = (v: string) => setState("yAxis", v);
+  const setTypeFilter = (v: string[]) => setState("typeFilter", v);
+  const setStatusFilter = (v: string) => setState("statusFilter", v);
+  const setPropertyFilters = (v: Record<string, string>) =>
+    setState("propertyFilters", v);
+  const setDisplayProperties = (v: string[]) =>
+    setState("displayProperties", v);
+
+  useApplyPageDefaults(
+    settings.defaultMatrixFilters,
+    setState,
+    settingsLoading,
+  );
+
+  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
+    null,
+  );
+
+  // Move modal state
+  const [pendingMove, setPendingMove] = useState<FactsheetMoveData | null>(
+    null,
+  );
+  const [moveLoading, setMoveLoading] = useState(false);
+  const { logPropertyChanged } = useChangeLog();
+
+  // Display properties state for dropdown visibility
+  const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const { records: factsheets, loading: loadingFactsheets } =
+    useRealtime<FactsheetExpanded>({
+      collection: "factsheets",
+      expand: "type",
+    });
+
+  const { records: propertyDefinitions, loading: loadingDefs } =
+    useRealtime<PropertyDefinition>({
+      collection: "property_definitions",
+      sort: "order",
+    });
+
+  const {
+    records: properties,
+    loading: loadingProps,
+    refresh: refreshProperties,
+  } = useRealtime<FactsheetPropertyExpanded>({
+    collection: "factsheet_properties",
+    expand: "property,option",
   });
 
-  const { records: properties, loading: loadingProps } = useRealtime<FactsheetPropertyExpanded>({
-    collection: 'factsheet_properties',
-    expand: 'property,option',
+  const { records: factsheetTypes } = useRealtime<FactsheetType>({
+    collection: "factsheet_types",
+    sort: "order",
   });
+
+  const { records: propertyOptions } = useRealtime<PropertyOption>({
+    collection: "property_options",
+    sort: "order",
+  });
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowPropertyDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleFactsheetClick = (factsheetId: string) => {
-    navigate(`/factsheets/${factsheetId}`);
+    setSelectedFactsheetId(factsheetId);
   };
+
+  const togglePropertyDisplay = (propId: string) => {
+    setDisplayProperties(
+      displayProperties.includes(propId)
+        ? displayProperties.filter((id) => id !== propId)
+        : [...displayProperties, propId],
+    );
+  };
+
+  const clearAllFilters = () => {
+    setSearch("");
+    setTypeFilter([]);
+    setStatusFilter("");
+    setPropertyFilters({});
+  };
+
+  const handleFactsheetMove = (moveData: FactsheetMoveData) => {
+    setPendingMove(moveData);
+  };
+
+  const confirmMove = async () => {
+    if (!pendingMove) return;
+
+    setMoveLoading(true);
+    try {
+      const factsheetId = pendingMove.factsheet.id;
+
+      // Get existing properties for this factsheet
+      const existingProps = await pb
+        .collection("factsheet_properties")
+        .getFullList<FactsheetProperty>({
+          filter: `factsheet = "${factsheetId}"`,
+        });
+
+      // Helper to find option ID by property ID and value
+      const findOptionId = (propertyId: string, value: string) => {
+        if (value === "Unknown") return null;
+        return (
+          propertyOptions.find(
+            (opt) => opt.property === propertyId && opt.value === value,
+          )?.id || null
+        );
+      };
+
+      // Helper to get property name
+      const getPropertyName = (propId: string) => {
+        return propertyDefinitions.find((p) => p.id === propId)?.name || propId;
+      };
+
+      // Update X axis property if changed
+      if (pendingMove.fromX !== pendingMove.toX) {
+        const newOptionId = findOptionId(xAxis, pendingMove.toX);
+        const existingProp = existingProps.find((p) => p.property === xAxis);
+
+        if (newOptionId) {
+          if (existingProp) {
+            await pb
+              .collection("factsheet_properties")
+              .update(existingProp.id, { option: newOptionId });
+          } else {
+            await pb.collection("factsheet_properties").create({
+              factsheet: factsheetId,
+              property: xAxis,
+              option: newOptionId,
+            });
+          }
+          await logPropertyChanged(
+            factsheetId,
+            getPropertyName(xAxis),
+            pendingMove.fromX === "Unknown" ? null : pendingMove.fromX,
+            pendingMove.toX,
+          );
+        } else if (existingProp && pendingMove.toX === "Unknown") {
+          // Moving to Unknown = delete the property
+          await pb.collection("factsheet_properties").delete(existingProp.id);
+          await logPropertyChanged(
+            factsheetId,
+            getPropertyName(xAxis),
+            pendingMove.fromX,
+            null,
+          );
+        }
+      }
+
+      // Update Y axis property if changed
+      if (pendingMove.fromY !== pendingMove.toY) {
+        const newOptionId = findOptionId(yAxis, pendingMove.toY);
+        const existingProp = existingProps.find((p) => p.property === yAxis);
+
+        if (newOptionId) {
+          if (existingProp) {
+            await pb
+              .collection("factsheet_properties")
+              .update(existingProp.id, { option: newOptionId });
+          } else {
+            await pb.collection("factsheet_properties").create({
+              factsheet: factsheetId,
+              property: yAxis,
+              option: newOptionId,
+            });
+          }
+          await logPropertyChanged(
+            factsheetId,
+            getPropertyName(yAxis),
+            pendingMove.fromY === "Unknown" ? null : pendingMove.fromY,
+            pendingMove.toY,
+          );
+        } else if (existingProp && pendingMove.toY === "Unknown") {
+          // Moving to Unknown = delete the property
+          await pb.collection("factsheet_properties").delete(existingProp.id);
+          await logPropertyChanged(
+            factsheetId,
+            getPropertyName(yAxis),
+            pendingMove.fromY,
+            null,
+          );
+        }
+      }
+
+      // Refresh properties to get expanded data (realtime events don't include expand)
+      await refreshProperties();
+      setPendingMove(null);
+    } catch (err) {
+      console.error("Failed to move factsheet:", err);
+    } finally {
+      setMoveLoading(false);
+    }
+  };
+
+  // Build property lookup: factsheetId -> { propertyId -> optionValue }
+  const propertyLookup = useMemo(() => {
+    const lookup = new Map<string, Map<string, string>>();
+    properties.forEach((fp) => {
+      if (!lookup.has(fp.factsheet)) {
+        lookup.set(fp.factsheet, new Map());
+      }
+      const optionValue = fp.expand?.option?.value || "";
+      if (optionValue) {
+        lookup.get(fp.factsheet)!.set(fp.property, optionValue);
+      }
+    });
+    return lookup;
+  }, [properties]);
+
+  // Filter factsheets
+  const filteredFactsheets = useMemo(() => {
+    return factsheets.filter((fs) => {
+      const matchesSearch =
+        search === "" ||
+        fs.name.toLowerCase().includes(search.toLowerCase()) ||
+        fs.description?.toLowerCase().includes(search.toLowerCase());
+      const matchesType =
+        typeFilter.length === 0 || typeFilter.includes(fs.type);
+      const matchesStatus =
+        statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
+
+      // Check property filters
+      const matchesProperties = Object.entries(propertyFilters).every(
+        ([propId, value]) => {
+          if (value === "") return true;
+          const fsProps = propertyLookup.get(fs.id);
+          return fsProps?.get(propId) === value;
+        },
+      );
+
+      return matchesSearch && matchesType && matchesStatus && matchesProperties;
+    });
+  }, [
+    factsheets,
+    search,
+    typeFilter,
+    statusFilter,
+    propertyFilters,
+    propertyLookup,
+  ]);
 
   const loading = loadingFactsheets || loadingDefs || loadingProps;
 
-  // All properties are now enum type
-  const propertyOptions = propertyDefinitions.map((p) => ({
+  // All properties for axis selection
+  const axisOptions = propertyDefinitions.map((p) => ({
     value: p.id,
     label: p.name,
   }));
 
+  const hasFilters =
+    search !== "" ||
+    typeFilter.length > 0 ||
+    statusFilter !== "" ||
+    Object.values(propertyFilters).some((v) => v !== "");
+  const printLink = `/matrix/print${location.search}`;
+
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-primary-900">Matrix View</h1>
-        <p className="text-gray-500 mt-1">
-          Plot factsheets on a matrix based on their properties
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-primary-900">Matrix View</h1>
+          <p className="text-gray-500 mt-1">
+            Plot factsheets on a matrix based on their properties
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link to={printLink} target="_blank" rel="noreferrer">
+            <Button variant="secondary" icon={<Printer className="w-4 h-4" />}>
+              Print View
+            </Button>
+          </Link>
+          <SaveDefaultsButton
+            type="matrix"
+            filters={state}
+            onSave={(filters) =>
+              setAppSettings({ defaultMatrixFilters: filters })
+            }
+          />
+        </div>
       </div>
+
+      {/* Filters and Additional Settings */}
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        typeFilter={typeFilter}
+        onTypeChange={setTypeFilter}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        propertyFilters={propertyFilters}
+        onPropertyFilterChange={(propId, value) =>
+          setPropertyFilters({ ...propertyFilters, [propId]: value })
+        }
+        propertyDefinitions={propertyDefinitions}
+        propertyOptions={propertyOptions}
+        factsheetTypes={factsheetTypes}
+        hasFilters={hasFilters}
+        onClearFilters={clearAllFilters}
+        filteredCount={filteredFactsheets.length}
+        totalCount={factsheets.length}
+        excludePropertyIds={[xAxis, yAxis].filter(Boolean)}
+        additionalSettings={
+          propertyDefinitions.length > 0 ? (
+            <div className="relative" ref={dropdownRef}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Eye className="w-4 h-4" />}
+                onClick={() => setShowPropertyDropdown(!showPropertyDropdown)}
+              >
+                Show Properties
+                {displayProperties.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-accent-500 text-white rounded-full">
+                    {displayProperties.length}
+                  </span>
+                )}
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+
+              {showPropertyDropdown && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 shadow-lg z-50 min-w-[200px]">
+                  <div className="p-2 border-b border-gray-100">
+                    <span className="text-xs font-medium text-gray-500 uppercase">
+                      Display on cards
+                    </span>
+                  </div>
+                  {propertyDefinitions.map((prop) => (
+                    <button
+                      key={prop.id}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                      onClick={() => togglePropertyDisplay(prop.id)}
+                    >
+                      <div
+                        className={`w-4 h-4 border flex items-center justify-center ${
+                          displayProperties.includes(prop.id)
+                            ? "bg-accent-500 border-accent-500"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        {displayProperties.includes(prop.id) && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                      {prop.name}
+                    </button>
+                  ))}
+                  {displayProperties.length > 0 && (
+                    <div className="p-2 border-t border-gray-100">
+                      <button
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                        onClick={() => setDisplayProperties([])}
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* Axis selectors */}
       <Card padding="sm">
         <div className="flex gap-6 items-end">
-          <div className="w-64">
+          <div className="w-56">
             <Select
               label="X Axis (Horizontal)"
-              options={propertyOptions}
+              options={axisOptions}
               value={xAxis}
               onChange={(e) => setXAxis(e.target.value)}
               placeholder="Select property..."
             />
           </div>
-          <div className="w-64">
+          <div className="w-56">
             <Select
               label="Y Axis (Vertical)"
-              options={propertyOptions}
+              options={axisOptions}
               value={yAxis}
               onChange={(e) => setYAxis(e.target.value)}
               placeholder="Select property..."
             />
           </div>
-          {xAxis && yAxis && (
-            <div className="text-sm text-gray-500">
-              Showing {factsheets.length} factsheets
-            </div>
-          )}
         </div>
       </Card>
 
+      {/* Legend */}
+      {xAxis && yAxis && factsheetTypes.length > 0 && (
+        <Card padding="sm">
+          <div className="flex flex-wrap gap-6 text-sm">
+            <div className="flex items-center gap-2 mr-4">
+              <span className="font-medium text-primary-900">Types:</span>
+            </div>
+            {factsheetTypes.map((type) => (
+              <div key={type.id} className="flex items-center gap-2">
+                <div
+                  className="w-4 h-4"
+                  style={{ backgroundColor: type.color }}
+                />
+                <span>{type.name}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Matrix */}
       {loading ? (
-        <Card className="h-[500px] flex items-center justify-center">
+        <Card className="h-[600px] flex items-center justify-center">
           <div className="animate-pulse text-gray-400">Loading matrix...</div>
         </Card>
       ) : propertyDefinitions.length === 0 ? (
@@ -95,16 +494,61 @@ export default function MatrixPage() {
             Choose properties for the X and Y axes to view the matrix
           </p>
         </Card>
+      ) : filteredFactsheets.length === 0 ? (
+        <Card className="text-center py-16">
+          <CardTitle>
+            {hasFilters ? "No matching factsheets" : "No factsheets yet"}
+          </CardTitle>
+          <p className="text-gray-500 mt-2">
+            {hasFilters
+              ? "Try adjusting your filters to see more factsheets"
+              : "Create some factsheets to see the matrix"}
+          </p>
+          {hasFilters && (
+            <Button
+              variant="secondary"
+              className="mt-4"
+              onClick={clearAllFilters}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </Card>
       ) : (
         <PropertyMatrix
-          factsheets={factsheets}
+          factsheets={filteredFactsheets}
           properties={properties}
           propertyDefinitions={propertyDefinitions}
+          propertyOptions={propertyOptions}
           xAxisProperty={xAxis}
           yAxisProperty={yAxis}
           onFactsheetClick={handleFactsheetClick}
+          onFactsheetMove={handleFactsheetMove}
+          displayProperties={displayProperties}
+          factsheetPropertyValues={propertyLookup}
         />
       )}
+
+      {/* Factsheet Detail Modal */}
+      <FactsheetDetailModal
+        factsheetId={selectedFactsheetId}
+        onClose={() => setSelectedFactsheetId(null)}
+      />
+
+      {/* Factsheet Move Modal */}
+      <FactsheetMoveModal
+        isOpen={pendingMove !== null}
+        moveData={pendingMove}
+        xAxisPropertyName={
+          propertyDefinitions.find((p) => p.id === xAxis)?.name || xAxis
+        }
+        yAxisPropertyName={
+          propertyDefinitions.find((p) => p.id === yAxis)?.name || yAxis
+        }
+        onConfirm={confirmMove}
+        onCancel={() => setPendingMove(null)}
+        loading={moveLoading}
+      />
     </div>
   );
 }

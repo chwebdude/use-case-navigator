@@ -1,87 +1,212 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, Eye, ChevronDown, Check, MessageSquare } from 'lucide-react';
-import { Card, CardTitle, Select, Button, Modal } from '../components/ui';
-import { Textarea } from '../components/ui/Input';
-import { DependencyGraph, type ConnectionRequest } from '../components/visualizations';
-import { useRealtime } from '../hooks/useRealtime';
-import pb from '../lib/pocketbase';
-import type { FactsheetExpanded, Dependency, FactsheetType, PropertyDefinition, PropertyOption, FactsheetPropertyExpanded } from '../types';
-
-const statusOptions = [
-  { value: '', label: 'All Statuses' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'active', label: 'Active' },
-  { value: 'archived', label: 'Archived' },
-];
+import { useState, useMemo, useRef, useEffect } from "react";
+import {
+  LayoutGrid,
+  Eye,
+  ChevronDown,
+  Check,
+  MessageSquare,
+  Focus,
+  EyeOff,
+  Download,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
+import { Card, CardTitle, Button, Modal } from "../components/ui";
+import { FilterBar } from "../components/FilterBar";
+import { Textarea } from "../components/ui/Input";
+import {
+  DependencyGraph,
+  type ConnectionRequest,
+  type DependencyGraphExportHandlers,
+  type DependencyGraphViewportHandlers,
+  type GraphViewportState,
+} from "../components/visualizations";
+import FactsheetDetailModal from "../components/FactsheetDetailModal";
+import { useRealtime } from "../hooks/useRealtime";
+import { useChangeLog } from "../hooks/useChangeLog";
+import { useQueryStates } from "../hooks/useQueryState";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { useApplyPageDefaults } from "../hooks/useApplyPageDefaults";
+import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
+import pb from "../lib/pocketbase";
+import type {
+  FactsheetExpanded,
+  Dependency,
+  FactsheetType,
+  PropertyDefinition,
+  PropertyOption,
+  FactsheetPropertyExpanded,
+} from "../types";
 
 export default function DependenciesPage() {
-  const navigate = useNavigate();
-  const [typeFilter, setTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [propertyFilters, setPropertyFilters] = useState<Record<string, string>>({});
+  const graphContainerRef = useRef<HTMLDivElement | null>(null);
+  const {
+    settings,
+    loading: settingsLoading,
+    setSettings: setAppSettings,
+  } = useAppSettings();
+
+  const [state, setState] = useQueryStates({
+    search: "",
+    typeFilter: [] as string[],
+    statusFilter: "",
+    propertyFilters: {} as Record<string, string>,
+    displayProperties: [] as string[],
+    showComments: true,
+    focusedFactsheetId: null as string | null,
+    unrelatedDisplayMode: "dim" as "dim" | "hide",
+  });
+
+  const {
+    search,
+    typeFilter,
+    statusFilter,
+    propertyFilters,
+    displayProperties,
+    showComments,
+    focusedFactsheetId,
+    unrelatedDisplayMode,
+  } = state;
+  const setSearch = (v: string) => setState("search", v);
+  const setTypeFilter = (v: string[]) => setState("typeFilter", v);
+  const setStatusFilter = (v: string) => setState("statusFilter", v);
+  const setPropertyFilters = (v: Record<string, string>) =>
+    setState("propertyFilters", v);
+  const setDisplayProperties = (v: string[]) =>
+    setState("displayProperties", v);
+  const setShowComments = (v: boolean) => setState("showComments", v);
+  const setFocusedFactsheetId = (v: string | null) =>
+    setState("focusedFactsheetId", v);
+  const setUnrelatedDisplayMode = (v: "dim" | "hide") =>
+    setState("unrelatedDisplayMode", v);
+
+  useApplyPageDefaults(
+    settings.defaultDependenciesFilters,
+    setState,
+    settingsLoading,
+  );
+
   const [layoutKey, setLayoutKey] = useState(0);
-  const [displayProperties, setDisplayProperties] = useState<string[]>([]);
-  const [showComments, setShowComments] = useState(true);
+  const isFirstRender = useRef(true);
+  const exportGraphHandlerRef = useRef<DependencyGraphExportHandlers | null>(
+    null,
+  );
+  const [exportingGraphFormat, setExportingGraphFormat] = useState<
+    "png" | "svg" | null
+  >(null);
+  const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
+  const viewportHandlerRef = useRef<DependencyGraphViewportHandlers | null>(
+    null,
+  );
+  const viewportBeforeHideFocusRef = useRef<GraphViewportState | null>(null);
+  const shouldRestoreViewportRef = useRef(false);
 
   // Connection modal state (for creating new dependencies)
-  const [connectionModal, setConnectionModal] = useState<ConnectionRequest | null>(null);
-  const [connectionDescription, setConnectionDescription] = useState('');
+  const [connectionModal, setConnectionModal] =
+    useState<ConnectionRequest | null>(null);
+  const [connectionDescription, setConnectionDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Edit modal state (for editing existing dependencies)
-  const [editingDependency, setEditingDependency] = useState<Dependency | null>(null);
-  const [editDescription, setEditDescription] = useState('');
+  const [editingDependency, setEditingDependency] = useState<Dependency | null>(
+    null,
+  );
+  const [editDescription, setEditDescription] = useState("");
 
-  const { records: factsheets, loading: loadingFactsheets } = useRealtime<FactsheetExpanded>({
-    collection: 'factsheets',
-    expand: 'type',
-  });
+  // Factsheet detail modal state
+  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(
+    null,
+  );
 
-  const { records: dependencies, loading: loadingDeps } = useRealtime<Dependency>({
-    collection: 'dependencies',
-  });
+  // Auto-align when focus changes in hide mode (since nodes are removed/added)
+  useEffect(() => {
+    if (unrelatedDisplayMode === "hide") {
+      if (!focusedFactsheetId && shouldRestoreViewportRef.current) {
+        return;
+      }
+      setLayoutKey((k) => k + 1);
+    }
+  }, [focusedFactsheetId, unrelatedDisplayMode]);
+
+  useEffect(() => {
+    if (unrelatedDisplayMode !== "hide") {
+      return;
+    }
+
+    if (focusedFactsheetId !== null || !shouldRestoreViewportRef.current) {
+      return;
+    }
+
+    const savedViewport = viewportBeforeHideFocusRef.current;
+    if (!savedViewport) {
+      shouldRestoreViewportRef.current = false;
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      void viewportHandlerRef.current?.setViewport(savedViewport);
+      shouldRestoreViewportRef.current = false;
+      viewportBeforeHideFocusRef.current = null;
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [focusedFactsheetId, unrelatedDisplayMode]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isFullscreen =
+        document.fullscreenElement === graphContainerRef.current;
+      setIsGraphFullscreen(isFullscreen);
+
+      if (isFullscreen) {
+        window.requestAnimationFrame(() => {
+          void viewportHandlerRef.current?.fitView();
+        });
+      }
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  const { records: factsheets, loading: loadingFactsheets } =
+    useRealtime<FactsheetExpanded>({
+      collection: "factsheets",
+      expand: "type",
+    });
+
+  const { records: dependencies, loading: loadingDeps } =
+    useRealtime<Dependency>({
+      collection: "dependencies",
+    });
 
   const { records: factsheetTypes } = useRealtime<FactsheetType>({
-    collection: 'factsheet_types',
-    sort: 'order',
+    collection: "factsheet_types",
+    sort: "order",
   });
 
   const { records: propertyDefinitions } = useRealtime<PropertyDefinition>({
-    collection: 'property_definitions',
-    sort: 'order',
+    collection: "property_definitions",
+    sort: "order",
   });
 
   const { records: propertyOptions } = useRealtime<PropertyOption>({
-    collection: 'property_options',
-    sort: 'order',
+    collection: "property_options",
+    sort: "order",
   });
 
-  const { records: factsheetProperties } = useRealtime<FactsheetPropertyExpanded>({
-    collection: 'factsheet_properties',
-    expand: 'property,option',
-  });
-
-  const typeOptions = [
-    { value: '', label: 'All Types' },
-    ...factsheetTypes.map((t) => ({ value: t.id, label: t.name })),
-  ];
-
-  // Group options by property for filter dropdowns
-  const optionsByProperty = useMemo(() => {
-    const map = new Map<string, PropertyOption[]>();
-    propertyOptions.forEach((opt) => {
-      if (!map.has(opt.property)) {
-        map.set(opt.property, []);
-      }
-      map.get(opt.property)!.push(opt);
+  const { records: factsheetProperties } =
+    useRealtime<FactsheetPropertyExpanded>({
+      collection: "factsheet_properties",
+      expand: "property,option",
     });
-    // Sort options within each property by order
-    map.forEach((opts) => {
-      opts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    });
-    return map;
-  }, [propertyOptions]);
+
+  const { logDependencyAdded, logDependencyRemoved, logDependencyUpdated } =
+    useChangeLog();
 
   // Build property lookup: factsheetId -> { propertyId -> optionValue }
   const propertyLookup = useMemo(() => {
@@ -91,7 +216,7 @@ export default function DependenciesPage() {
         lookup.set(fp.factsheet, new Map());
       }
       // Use the expanded option value
-      const optionValue = fp.expand?.option?.value || '';
+      const optionValue = fp.expand?.option?.value || "";
       if (optionValue) {
         lookup.get(fp.factsheet)!.set(fp.property, optionValue);
       }
@@ -102,51 +227,114 @@ export default function DependenciesPage() {
   // Filter factsheets
   const filteredFactsheets = useMemo(() => {
     return factsheets.filter((fs) => {
-      const matchesType = typeFilter === '' || fs.type === typeFilter;
-      const matchesStatus = statusFilter === '' || fs.status === statusFilter;
+      const matchesSearch =
+        search === "" ||
+        fs.name.toLowerCase().includes(search.toLowerCase()) ||
+        fs.description?.toLowerCase().includes(search.toLowerCase());
+      const matchesType =
+        typeFilter.length === 0 || typeFilter.includes(fs.type);
+      const matchesStatus =
+        statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
 
       // Check property filters
-      const matchesProperties = Object.entries(propertyFilters).every(([propId, value]) => {
-        if (value === '') return true;
-        const fsProps = propertyLookup.get(fs.id);
-        return fsProps?.get(propId) === value;
-      });
+      const matchesProperties = Object.entries(propertyFilters).every(
+        ([propId, value]) => {
+          if (value === "") return true;
+          const fsProps = propertyLookup.get(fs.id);
+          return fsProps?.get(propId) === value;
+        },
+      );
 
-      return matchesType && matchesStatus && matchesProperties;
+      return matchesSearch && matchesType && matchesStatus && matchesProperties;
     });
-  }, [factsheets, typeFilter, statusFilter, propertyFilters, propertyLookup]);
+  }, [
+    factsheets,
+    search,
+    typeFilter,
+    statusFilter,
+    propertyFilters,
+    propertyLookup,
+  ]);
 
   // Filter dependencies to only include those where both factsheets are visible
   const filteredDependencies = useMemo(() => {
     const visibleIds = new Set(filteredFactsheets.map((fs) => fs.id));
     return dependencies.filter(
-      (dep) => visibleIds.has(dep.factsheet) && visibleIds.has(dep.depends_on)
+      (dep) => visibleIds.has(dep.factsheet) && visibleIds.has(dep.depends_on),
     );
   }, [dependencies, filteredFactsheets]);
 
+  // Auto-align whenever the set of filtered factsheets changes due to filtering
+  const filteredFactsheetIds = useMemo(
+    () =>
+      filteredFactsheets
+        .map((fs) => fs.id)
+        .sort()
+        .join(","),
+    [filteredFactsheets],
+  );
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setLayoutKey((k) => k + 1);
+  }, [filteredFactsheetIds]);
+
   const handleNodeClick = (factsheetId: string) => {
-    navigate(`/factsheets/${factsheetId}`);
+    setSelectedFactsheetId(factsheetId);
+  };
+
+  const handleNodeRightClick = (factsheetId: string) => {
+    // Toggle focus: if already focused on this node, clear focus
+    const isClearingFocus = focusedFactsheetId === factsheetId;
+
+    if (unrelatedDisplayMode === "hide") {
+      if (isClearingFocus) {
+        shouldRestoreViewportRef.current =
+          viewportBeforeHideFocusRef.current !== null;
+      } else {
+        viewportBeforeHideFocusRef.current =
+          viewportHandlerRef.current?.getViewport() || null;
+        shouldRestoreViewportRef.current = false;
+      }
+    }
+
+    setFocusedFactsheetId(isClearingFocus ? null : factsheetId);
   };
 
   const handleConnect = (connection: ConnectionRequest) => {
     setConnectionModal(connection);
-    setConnectionDescription('');
+    setConnectionDescription("");
   };
 
   const handleCreateDependency = async () => {
     if (!connectionModal) return;
 
+    const descriptionTrimmed = connectionDescription.trim() || undefined;
+
     setSaving(true);
     try {
-      await pb.collection('dependencies').create({
+      await pb.collection("dependencies").create({
         factsheet: connectionModal.sourceId,
         depends_on: connectionModal.targetId,
-        description: connectionDescription.trim() || null,
+        description: descriptionTrimmed || null,
       });
+
+      // Log the change for both factsheets
+      await logDependencyAdded(
+        connectionModal.sourceId,
+        connectionModal.sourceName,
+        connectionModal.targetId,
+        connectionModal.targetName,
+        descriptionTrimmed,
+      );
+
       setConnectionModal(null);
-      setConnectionDescription('');
+      setConnectionDescription("");
     } catch (err) {
-      console.error('Failed to create dependency:', err);
+      console.error("Failed to create dependency:", err);
     } finally {
       setSaving(false);
     }
@@ -156,26 +344,90 @@ export default function DependenciesPage() {
     setLayoutKey((k) => k + 1);
   };
 
+  const handleToggleFullscreen = async () => {
+    if (!graphContainerRef.current) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === graphContainerRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await graphContainerRef.current.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Failed to toggle fullscreen for dependencies view", error);
+    }
+  };
+
+  const handleExportGraph = async (format: "png" | "svg") => {
+    if (!exportGraphHandlerRef.current || exportingGraphFormat) {
+      return;
+    }
+
+    setShowExportDropdown(false);
+    setExportingGraphFormat(format);
+    try {
+      await exportGraphHandlerRef.current[format]();
+    } catch (error) {
+      console.error(
+        `Failed to export dependency graph as ${format.toUpperCase()}`,
+        error,
+      );
+    } finally {
+      setExportingGraphFormat(null);
+    }
+  };
+
   const handleEdgeClick = (dependencyId: string) => {
     const dep = dependencies.find((d) => d.id === dependencyId);
     if (dep) {
       setEditingDependency(dep);
-      setEditDescription(dep.description || '');
+      setEditDescription(dep.description || "");
     }
   };
 
   const handleUpdateDependency = async () => {
     if (!editingDependency) return;
 
+    const sourceFactsheet = factsheets.find(
+      (f) => f.id === editingDependency.factsheet,
+    );
+    const targetFactsheet = factsheets.find(
+      (f) => f.id === editingDependency.depends_on,
+    );
+    const oldDescription = editingDependency.description || null;
+    const newDescription = editDescription.trim() || null;
+
+    // Only update if description actually changed
+    if (oldDescription === newDescription) {
+      setEditingDependency(null);
+      setEditDescription("");
+      return;
+    }
+
     setSaving(true);
     try {
-      await pb.collection('dependencies').update(editingDependency.id, {
-        description: editDescription.trim() || null,
+      await pb.collection("dependencies").update(editingDependency.id, {
+        description: newDescription,
       });
+
+      // Log the change for both factsheets
+      if (sourceFactsheet && targetFactsheet) {
+        await logDependencyUpdated(
+          editingDependency.factsheet,
+          sourceFactsheet.name,
+          editingDependency.depends_on,
+          targetFactsheet.name,
+          oldDescription,
+          newDescription,
+        );
+      }
+
       setEditingDependency(null);
-      setEditDescription('');
+      setEditDescription("");
     } catch (err) {
-      console.error('Failed to update dependency:', err);
+      console.error("Failed to update dependency:", err);
     } finally {
       setSaving(false);
     }
@@ -183,23 +435,42 @@ export default function DependenciesPage() {
 
   const handleDeleteDependency = async () => {
     if (!editingDependency) return;
-    if (!confirm('Are you sure you want to delete this dependency?')) return;
+    if (!confirm("Are you sure you want to delete this dependency?")) return;
+
+    const sourceFactsheet = factsheets.find(
+      (f) => f.id === editingDependency.factsheet,
+    );
+    const targetFactsheet = factsheets.find(
+      (f) => f.id === editingDependency.depends_on,
+    );
 
     setSaving(true);
     try {
-      await pb.collection('dependencies').delete(editingDependency.id);
+      await pb.collection("dependencies").delete(editingDependency.id);
+
+      // Log the change for both factsheets
+      if (sourceFactsheet && targetFactsheet) {
+        await logDependencyRemoved(
+          editingDependency.factsheet,
+          sourceFactsheet.name,
+          editingDependency.depends_on,
+          targetFactsheet.name,
+        );
+      }
+
       setEditingDependency(null);
-      setEditDescription('');
+      setEditDescription("");
     } catch (err) {
-      console.error('Failed to delete dependency:', err);
+      console.error("Failed to delete dependency:", err);
     } finally {
       setSaving(false);
     }
   };
 
   const clearAllFilters = () => {
-    setTypeFilter('');
-    setStatusFilter('');
+    setSearch("");
+    setTypeFilter([]);
+    setStatusFilter("");
     setPropertyFilters({});
   };
 
@@ -210,7 +481,7 @@ export default function DependenciesPage() {
       if (!map.has(fp.factsheet)) {
         map.set(fp.factsheet, new Map());
       }
-      const optionValue = fp.expand?.option?.value || '';
+      const optionValue = fp.expand?.option?.value || "";
       if (optionValue) {
         map.get(fp.factsheet)!.set(fp.property, optionValue);
       }
@@ -220,94 +491,88 @@ export default function DependenciesPage() {
 
   // Property display dropdown state
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowPropertyDropdown(false);
       }
+
+      if (
+        exportDropdownRef.current &&
+        !exportDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowExportDropdown(false);
+      }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const togglePropertyDisplay = (propId: string) => {
-    setDisplayProperties((prev) =>
-      prev.includes(propId) ? prev.filter((id) => id !== propId) : [...prev, propId]
+    setDisplayProperties(
+      displayProperties.includes(propId)
+        ? displayProperties.filter((id) => id !== propId)
+        : [...displayProperties, propId],
     );
   };
 
   const loading = loadingFactsheets || loadingDeps;
-  const hasFilters = typeFilter !== '' || statusFilter !== '' || Object.values(propertyFilters).some((v) => v !== '');
+
+  const hasFilters =
+    search !== "" ||
+    typeFilter.length > 0 ||
+    statusFilter !== "" ||
+    Object.values(propertyFilters).some((v) => v !== "");
 
   return (
-    <div className="space-y-6">
+    <div className="h-full min-h-0 flex flex-col gap-4">
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-primary-900">Dependencies</h1>
           <p className="text-gray-500 mt-1">
-            Visualize the relationships between factsheets. Drag from one node to another to create a dependency.
+            Visualize the relationships between factsheets. Drag from one node
+            to another to create a dependency.
           </p>
         </div>
+        <SaveDefaultsButton
+          type="dependencies"
+          filters={state}
+          onSave={(filters) =>
+            setAppSettings({ defaultDependenciesFilters: filters })
+          }
+        />
       </div>
 
-      {/* Filters */}
-      <Card padding="sm">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="w-40">
-            <Select
-              label="Type"
-              options={typeOptions}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            />
-          </div>
-          <div className="w-40">
-            <Select
-              label="Status"
-              options={statusOptions}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            />
-          </div>
-          {propertyDefinitions.map((prop) => {
-            const opts = optionsByProperty.get(prop.id) || [];
-            return (
-              <div key={prop.id} className="w-40">
-                <Select
-                  label={prop.name}
-                  options={[
-                    { value: '', label: `All ${prop.name}` },
-                    ...opts.map((opt) => ({ value: opt.value, label: opt.value })),
-                  ]}
-                  value={propertyFilters[prop.id] || ''}
-                  onChange={(e) =>
-                    setPropertyFilters((prev) => ({
-                      ...prev,
-                      [prop.id]: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            );
-          })}
-          {hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
-            >
-              Clear Filters
-            </Button>
-          )}
-          <div className="ml-auto flex items-center gap-4">
-            <span className="text-sm text-gray-500">
-              {filteredFactsheets.length} of {factsheets.length} factsheets
-            </span>
-
+      {/* Filters and Additional Settings */}
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        typeFilter={typeFilter}
+        onTypeChange={setTypeFilter}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        propertyFilters={propertyFilters}
+        onPropertyFilterChange={(propId, value) =>
+          setPropertyFilters({ ...propertyFilters, [propId]: value })
+        }
+        propertyDefinitions={propertyDefinitions}
+        propertyOptions={propertyOptions}
+        factsheetTypes={factsheetTypes}
+        hasFilters={hasFilters}
+        onClearFilters={clearAllFilters}
+        filteredCount={filteredFactsheets.length}
+        totalCount={factsheets.length}
+        additionalSettings={
+          <div className="flex items-center gap-4">
             {/* Property display dropdown */}
             {propertyDefinitions.length > 0 && (
               <div className="relative" ref={dropdownRef}>
@@ -329,7 +594,9 @@ export default function DependenciesPage() {
                 {showPropertyDropdown && (
                   <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 shadow-lg z-50 min-w-[200px]">
                     <div className="p-2 border-b border-gray-100">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Display on nodes</span>
+                      <span className="text-xs font-medium text-gray-500 uppercase">
+                        Display on nodes
+                      </span>
                     </div>
                     {propertyDefinitions.map((prop) => (
                       <button
@@ -337,11 +604,13 @@ export default function DependenciesPage() {
                         className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                         onClick={() => togglePropertyDisplay(prop.id)}
                       >
-                        <div className={`w-4 h-4 border flex items-center justify-center ${
-                          displayProperties.includes(prop.id)
-                            ? 'bg-accent-500 border-accent-500'
-                            : 'border-gray-300'
-                        }`}>
+                        <div
+                          className={`w-4 h-4 border flex items-center justify-center ${
+                            displayProperties.includes(prop.id)
+                              ? "bg-accent-500 border-accent-500"
+                              : "border-gray-300"
+                          }`}
+                        >
                           {displayProperties.includes(prop.id) && (
                             <Check className="w-3 h-3 text-white" />
                           )}
@@ -364,15 +633,61 @@ export default function DependenciesPage() {
               </div>
             )}
 
-            <Button
-              variant={showComments ? 'secondary' : 'ghost'}
-              size="sm"
-              icon={<MessageSquare className="w-4 h-4" />}
+            <button
+              type="button"
               onClick={() => setShowComments(!showComments)}
-              title={showComments ? 'Hide edge comments' : 'Show edge comments'}
+              title={showComments ? "Hide edge comments" : "Show edge comments"}
+              className={`h-8 px-3 text-sm font-medium flex items-center gap-1.5 transition-colors rounded border ${
+                showComments
+                  ? "bg-accent-500 text-white border-accent-500"
+                  : "bg-white text-primary-700 border-gray-200 hover:bg-gray-50"
+              }`}
             >
+              <MessageSquare className="w-4 h-4" />
               Comments
-            </Button>
+            </button>
+
+            {/* Focus mode toggle */}
+            <div className="flex items-center border border-gray-200 rounded overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setUnrelatedDisplayMode("dim")}
+                title="Dim unrelated factsheets when focused"
+                className={`h-8 px-3 text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  unrelatedDisplayMode === "dim"
+                    ? "bg-accent-500 text-white"
+                    : "bg-white text-primary-700 hover:bg-gray-50"
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+                Dim
+              </button>
+              <button
+                type="button"
+                onClick={() => setUnrelatedDisplayMode("hide")}
+                title="Hide unrelated factsheets when focused"
+                className={`h-8 px-3 text-sm font-medium flex items-center gap-1.5 transition-colors border-l border-gray-200 ${
+                  unrelatedDisplayMode === "hide"
+                    ? "bg-accent-500 text-white"
+                    : "bg-white text-primary-700 hover:bg-gray-50"
+                }`}
+              >
+                <EyeOff className="w-4 h-4" />
+                Hide
+              </button>
+            </div>
+
+            {focusedFactsheetId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Focus className="w-4 h-4" />}
+                onClick={() => setFocusedFactsheetId(null)}
+                title="Clear focus"
+              >
+                Clear Focus
+              </Button>
+            )}
 
             <Button
               variant="secondary"
@@ -382,61 +697,62 @@ export default function DependenciesPage() {
             >
               Auto Align
             </Button>
-          </div>
-        </div>
-      </Card>
 
-      {/* Legend */}
-      <Card padding="sm">
-        <div className="flex flex-wrap gap-6 text-sm">
-          <div className="flex items-center gap-2 mr-4">
-            <span className="font-medium text-primary-900">Status:</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-green-500 bg-white"></div>
-            <span>Active</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-gray-300 bg-white"></div>
-            <span>Draft</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-amber-500 bg-white"></div>
-            <span>Archived</span>
-          </div>
-          {factsheetTypes.length > 0 && (
-            <>
-              <div className="border-l border-gray-300 pl-4 ml-2 flex items-center gap-2">
-                <span className="font-medium text-primary-900">Types:</span>
-              </div>
-              {factsheetTypes.map((type) => (
-                <div key={type.id} className="flex items-center gap-2">
-                  <div
-                    className="w-4 h-4"
-                    style={{ backgroundColor: type.color }}
-                  />
-                  <span>{type.name}</span>
+            <div className="relative" ref={exportDropdownRef}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Download className="w-4 h-4" />}
+                onClick={() => setShowExportDropdown((open) => !open)}
+                disabled={
+                  loading ||
+                  filteredFactsheets.length === 0 ||
+                  exportingGraphFormat !== null
+                }
+              >
+                {exportingGraphFormat
+                  ? `Exporting ${exportingGraphFormat.toUpperCase()}...`
+                  : "Export Graph"}
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+
+              {showExportDropdown && (
+                <div className="absolute right-0 top-full mt-1 min-w-[180px] bg-white border border-gray-200 shadow-lg z-50">
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    onClick={() => handleExportGraph("png")}
+                  >
+                    Export PNG
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 border-t border-gray-100"
+                    onClick={() => handleExportGraph("svg")}
+                  >
+                    Export SVG
+                  </button>
                 </div>
-              ))}
-            </>
-          )}
-        </div>
-      </Card>
+              )}
+            </div>
+          </div>
+        }
+      />
 
       {/* Graph */}
       {loading ? (
-        <Card className="h-[600px] flex items-center justify-center">
+        <Card className="flex-1 min-h-[320px] flex items-center justify-center">
           <div className="animate-pulse text-gray-400">Loading graph...</div>
         </Card>
       ) : filteredFactsheets.length === 0 ? (
-        <Card className="text-center py-16">
+        <Card className="flex-1 min-h-[320px] text-center py-16">
           <CardTitle>
-            {hasFilters ? 'No matching factsheets' : 'No factsheets yet'}
+            {hasFilters ? "No matching factsheets" : "No factsheets yet"}
           </CardTitle>
           <p className="text-gray-500 mt-2">
             {hasFilters
-              ? 'Try adjusting your filters to see more factsheets'
-              : 'Create some factsheets to see the dependency graph'}
+              ? "Try adjusting your filters to see more factsheets"
+              : "Create some factsheets to see the dependency graph"}
           </p>
           {hasFilters && (
             <Button
@@ -449,18 +765,55 @@ export default function DependenciesPage() {
           )}
         </Card>
       ) : (
-        <DependencyGraph
-          key={layoutKey}
-          factsheets={filteredFactsheets}
-          dependencies={filteredDependencies}
-          onNodeClick={handleNodeClick}
-          onConnect={handleConnect}
-          onEdgeClick={handleEdgeClick}
-          displayProperties={displayProperties}
-          propertyDefinitions={propertyDefinitions}
-          factsheetPropertyValues={factsheetPropertyValues}
-          showComments={showComments}
-        />
+        <div
+          ref={graphContainerRef}
+          className={`relative flex-1 border border-gray-200 bg-white overflow-hidden ${
+            isGraphFullscreen ? "bg-gray-100" : "min-h-[320px]"
+          }`}
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={
+              isGraphFullscreen ? (
+                <Minimize2 className="w-4 h-4" />
+              ) : (
+                <Maximize2 className="w-4 h-4" />
+              )
+            }
+            onClick={handleToggleFullscreen}
+            title={
+              isGraphFullscreen
+                ? "Exit fullscreen view"
+                : "Open diagram in fullscreen"
+            }
+            className="absolute top-3 right-3 z-20"
+          >
+            {isGraphFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          </Button>
+
+          <DependencyGraph
+            key={layoutKey}
+            factsheets={filteredFactsheets}
+            dependencies={filteredDependencies}
+            onNodeClick={handleNodeClick}
+            onNodeRightClick={handleNodeRightClick}
+            onConnect={handleConnect}
+            onEdgeClick={handleEdgeClick}
+            displayProperties={displayProperties}
+            propertyDefinitions={propertyDefinitions}
+            factsheetPropertyValues={factsheetPropertyValues}
+            showComments={showComments}
+            focusedFactsheetId={focusedFactsheetId}
+            unrelatedDisplayMode={unrelatedDisplayMode}
+            onExportHandlerChange={(handler) => {
+              exportGraphHandlerRef.current = handler;
+            }}
+            onViewportHandlerChange={(handler) => {
+              viewportHandlerRef.current = handler;
+            }}
+          />
+        </div>
       )}
 
       {/* Connection Modal */}
@@ -498,7 +851,7 @@ export default function DependenciesPage() {
 
             <div className="flex gap-3 pt-2">
               <Button onClick={handleCreateDependency} disabled={saving}>
-                {saving ? 'Creating...' : 'Create Dependency'}
+                {saving ? "Creating..." : "Create Dependency"}
               </Button>
               <Button
                 variant="secondary"
@@ -524,13 +877,17 @@ export default function DependenciesPage() {
               <div className="bg-gray-50 p-3 space-y-2">
                 <div>
                   <span className="font-medium text-primary-900">
-                    {factsheets.find((f) => f.id === editingDependency.factsheet)?.name || 'Unknown'}
+                    {factsheets.find(
+                      (f) => f.id === editingDependency.factsheet,
+                    )?.name || "Unknown"}
                   </span>
                 </div>
                 <div className="text-center text-gray-400">depends on</div>
                 <div>
                   <span className="font-medium text-primary-900">
-                    {factsheets.find((f) => f.id === editingDependency.depends_on)?.name || 'Unknown'}
+                    {factsheets.find(
+                      (f) => f.id === editingDependency.depends_on,
+                    )?.name || "Unknown"}
                   </span>
                 </div>
               </div>
@@ -546,7 +903,7 @@ export default function DependenciesPage() {
 
             <div className="flex gap-3 pt-2">
               <Button onClick={handleUpdateDependency} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? "Saving..." : "Save Changes"}
               </Button>
               <Button
                 variant="secondary"
@@ -566,6 +923,12 @@ export default function DependenciesPage() {
           </div>
         )}
       </Modal>
+
+      {/* Factsheet Detail Modal */}
+      <FactsheetDetailModal
+        factsheetId={selectedFactsheetId}
+        onClose={() => setSelectedFactsheetId(null)}
+      />
     </div>
   );
 }
