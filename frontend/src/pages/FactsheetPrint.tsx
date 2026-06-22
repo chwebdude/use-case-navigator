@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Printer } from "lucide-react";
+import CopyPermalinkButton from "../components/CopyPermalinkButton";
 import { Button } from "../components/ui";
 import { useRecord } from "../hooks/useRealtime";
 import type { Factsheet, FactsheetType } from "../types";
@@ -49,6 +50,7 @@ export default function FactsheetPrint() {
             Back
           </Button>
         </Link>
+        <CopyPermalinkButton factsheetId={factsheet.id} variant="secondary" />
         <Button
           icon={<Printer className="w-4 h-4" />}
           onClick={() => window.print()}

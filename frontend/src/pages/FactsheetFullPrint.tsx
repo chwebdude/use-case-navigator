@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Download, Printer } from "lucide-react";
+import CopyPermalinkButton from "../components/CopyPermalinkButton";
 import { Badge, Button, MetricBadge } from "../components/ui";
 import { exportElementToPng } from "../lib/pngExport";
 import { DependencyGraph, SpiderDiagram } from "../components/visualizations";
@@ -282,6 +283,7 @@ export default function FactsheetFullPrint() {
               Back
             </Button>
           </Link>
+          <CopyPermalinkButton factsheetId={factsheet.id} variant="secondary" />
           <Button
             icon={<Printer className="w-4 h-4" />}
             onClick={() => window.print()}

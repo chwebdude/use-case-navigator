@@ -10,6 +10,7 @@ import {
   Minimize2,
 } from "lucide-react";
 import { Modal, Button, Badge, MetricBadge, VerifiedCheck } from "./ui";
+import CopyPermalinkButton from "./CopyPermalinkButton";
 import {
   DependencyGraph,
   SpiderDiagram,
@@ -382,49 +383,81 @@ export default function FactsheetDetailModal({
       ) : factsheet ? (
         <div className="space-y-6">
           {/* Header info */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {factsheetType && (
-              <span
-                className="px-2 py-0.5 text-xs font-medium text-white"
-                style={{ backgroundColor: typeColor }}
-              >
-                {factsheetType.name}
-              </span>
-            )}
-            <div className="relative" ref={statusDropdownRef}>
-              <Badge
-                className="rounded-full cursor-pointer hover:opacity-80 transition-opacity"
-                style={{
-                  backgroundColor: statusMeta.color,
-                  color: getStatusTextColor(statusMeta.color),
-                }}
-                onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
-              >
-                {statusMeta.label}
-                <ChevronDown className="w-3 h-3 ml-1 inline" />
-              </Badge>
-              {statusDropdownOpen && (
-                <div className="absolute z-50 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
-                  {availableStatuses.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => handleStatusChange(s.id)}
-                      className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-gray-100 ${
-                        s.id === statusId ? "font-semibold" : ""
-                      }`}
-                    >
-                      <span
-                        className="w-3 h-3 rounded-full inline-block flex-shrink-0"
-                        style={{ backgroundColor: s.color }}
-                      />
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              {factsheetType && (
+                <span
+                  className="px-2 py-0.5 text-xs font-medium text-white"
+                  style={{ backgroundColor: typeColor }}
+                >
+                  {factsheetType.name}
+                </span>
               )}
+              <div className="relative" ref={statusDropdownRef}>
+                <Badge
+                  className="rounded-full cursor-pointer hover:opacity-80 transition-opacity"
+                  style={{
+                    backgroundColor: statusMeta.color,
+                    color: getStatusTextColor(statusMeta.color),
+                  }}
+                  onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+                >
+                  {statusMeta.label}
+                  <ChevronDown className="w-3 h-3 ml-1 inline" />
+                </Badge>
+                {statusDropdownOpen && (
+                  <div className="absolute z-50 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                    {availableStatuses.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => handleStatusChange(s.id)}
+                        className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-gray-100 ${
+                          s.id === statusId ? "font-semibold" : ""
+                        }`}
+                      >
+                        <span
+                          className="w-3 h-3 rounded-full inline-block flex-shrink-0"
+                          style={{ backgroundColor: s.color }}
+                        />
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {factsheet.reviewed && <VerifiedCheck />}
             </div>
-            {factsheet.reviewed && <VerifiedCheck />}
+            {activeFactsheetId && (
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <Link
+                  to={`/factsheets/${activeFactsheetId}/edit`}
+                  onClick={onClose}
+                >
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Edit className="w-4 h-4" />}
+                  >
+                    Edit
+                  </Button>
+                </Link>
+                <Link to={`/factsheets/${activeFactsheetId}`} onClick={onClose}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<ExternalLink className="w-4 h-4" />}
+                  >
+                    Open Full Page
+                  </Button>
+                </Link>
+                <CopyPermalinkButton
+                  factsheetId={activeFactsheetId}
+                  size="sm"
+                  variant="secondary"
+                />
+              </div>
+            )}
           </div>
 
           {/* Description */}
@@ -648,30 +681,6 @@ export default function FactsheetDetailModal({
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
-            <Link
-              to={`/factsheets/${activeFactsheetId}/edit`}
-              onClick={onClose}
-            >
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<Edit className="w-4 h-4" />}
-              >
-                Edit
-              </Button>
-            </Link>
-            <Link to={`/factsheets/${activeFactsheetId}`} onClick={onClose}>
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<ExternalLink className="w-4 h-4" />}
-              >
-                Open Full Page
-              </Button>
-            </Link>
-          </div>
         </div>
       ) : (
         <div className="text-center py-8 text-gray-500">

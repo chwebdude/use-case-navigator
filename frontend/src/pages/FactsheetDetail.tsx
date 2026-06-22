@@ -23,6 +23,7 @@ import {
   Textarea,
   VerifiedCheck,
 } from "../components/ui";
+import CopyPermalinkButton from "../components/CopyPermalinkButton";
 import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import {
   SpiderDiagram,
@@ -68,6 +69,8 @@ export default function FactsheetDetail() {
   const [reviewCommentDraft, setReviewCommentDraft] = useState("");
   const [reviewSaving, setReviewSaving] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  const printMenuRef = useRef<HTMLDivElement>(null);
   const { settings: appSettings } = useAppSettings();
   const { isPowerUser, username } = useUser();
 
@@ -188,6 +191,26 @@ export default function FactsheetDetail() {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (!printMenuOpen) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        printMenuRef.current &&
+        !printMenuRef.current.contains(event.target as Node)
+      ) {
+        setPrintMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [printMenuOpen]);
 
   const { records: properties } = useRealtime<FactsheetPropertyExpanded>({
     collection: "factsheet_properties",
@@ -486,20 +509,61 @@ export default function FactsheetDetail() {
               {isReviewed ? "Update Review" : "Verify Factsheet"}
             </Button>
           )}
-          <Link to={`/factsheets/${id}/print`} target="_blank" rel="noreferrer">
-            <Button variant="secondary" icon={<Printer className="w-4 h-4" />}>
-              Print Card
+          <div className="relative" ref={printMenuRef}>
+            <Button
+              variant="secondary"
+              icon={<Printer className="w-4 h-4" />}
+              onClick={() => setPrintMenuOpen((open) => !open)}
+            >
+              Print
+              <ChevronDown className="w-4 h-4" />
             </Button>
-          </Link>
-          <Link
-            to={`/factsheets/${id}/print-full`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Button variant="secondary" icon={<Printer className="w-4 h-4" />}>
-              Print Full
-            </Button>
-          </Link>
+            {printMenuOpen && (
+              <div className="absolute right-0 z-30 mt-1 min-w-[220px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                <Link
+                  to={`/factsheets/${id}/print`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setPrintMenuOpen(false)}
+                  className="block px-3 py-2 text-sm text-primary-900 hover:bg-gray-50"
+                >
+                  Print Card
+                </Link>
+                <Link
+                  to={`/factsheets/${id}/print-full`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setPrintMenuOpen(false)}
+                  className="block px-3 py-2 text-sm text-primary-900 hover:bg-gray-50"
+                >
+                  Print Full
+                </Link>
+                <Link
+                  to={`/factsheets/${id}/dependencies/print`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setPrintMenuOpen(false)}
+                  className="block px-3 py-2 text-sm text-primary-900 hover:bg-gray-50"
+                >
+                  Print Dependencies
+                </Link>
+                <Link
+                  to={`/factsheets/${id}/dependencies/print-chain`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setPrintMenuOpen(false)}
+                  className="block px-3 py-2 text-sm text-primary-900 hover:bg-gray-50"
+                >
+                  Print Dependency Chain
+                </Link>
+              </div>
+            )}
+          </div>
+          <CopyPermalinkButton
+            factsheetId={factsheet.id}
+            variant="secondary"
+            size="md"
+          />
           <Link to={`/factsheets/${id}/edit`}>
             <Button variant="secondary" icon={<Edit className="w-4 h-4" />}>
               Edit
@@ -611,34 +675,6 @@ export default function FactsheetDetail() {
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Dependencies</CardTitle>
           <div className="flex gap-2">
-            <Link
-              to={`/factsheets/${id}/dependencies/print`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<Printer className="w-4 h-4" />}
-                title="Print direct dependencies only"
-              >
-                Print
-              </Button>
-            </Link>
-            <Link
-              to={`/factsheets/${id}/dependencies/print-chain`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<Printer className="w-4 h-4" />}
-                title="Print full dependency chain"
-              >
-                Print All
-              </Button>
-            </Link>
             <Link to={`/factsheets/${id}/dependencies/new`}>
               <Button
                 size="sm"
