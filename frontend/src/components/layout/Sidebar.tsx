@@ -10,6 +10,7 @@ import {
   TrendingUp,
   MessageSquare,
 } from "lucide-react";
+import { useUser } from "../../hooks/useUser";
 
 interface NavItem {
   to: string;
@@ -110,6 +111,8 @@ function NavSection({ title, items, isCollapsed }: NavSectionProps) {
 }
 
 export default function Sidebar({ isCollapsed }: SidebarProps) {
+  const { isPowerUser } = useUser();
+
   return (
     <aside
       className={`bg-white border-r border-gray-200 flex flex-col shrink-0 transition-[width] duration-200 ${
@@ -118,11 +121,13 @@ export default function Sidebar({ isCollapsed }: SidebarProps) {
     >
       <div className="flex-1 py-6 overflow-y-auto">
         <NavSection items={mainNavItems} isCollapsed={isCollapsed} />
-        <NavSection
-          title="System"
-          items={settingsNavItems}
-          isCollapsed={isCollapsed}
-        />
+        {isPowerUser && (
+          <NavSection
+            title="System"
+            items={settingsNavItems}
+            isCollapsed={isCollapsed}
+          />
+        )}
       </div>
     </aside>
   );

@@ -16,3 +16,4 @@ export { default as SpiderPage } from "./SpiderPage";
 export { default as ScatterPage } from "./ScatterPage";
 export { default as ImpactAnalysisPage } from "./ImpactAnalysisPage";
 export { default as ChatPage } from "./ChatPage";
+export { default as AdminPowerPage } from "./AdminPowerPage";

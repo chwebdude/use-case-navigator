@@ -1,7 +1,13 @@
 import { FileText, GitBranch, Grid3X3, TrendingUp } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardTitle, Button, MetricBadge } from "../components/ui";
+import {
+  Card,
+  CardTitle,
+  Button,
+  MetricBadge,
+  VerifiedCheck,
+} from "../components/ui";
 import { useRealtime } from "../hooks/useRealtime";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
@@ -228,9 +234,14 @@ export default function Dashboard() {
                         style={{ backgroundColor: typeColor }}
                       />
                       <div>
-                        <h3 className="font-medium text-primary-900">
-                          {factsheet.name}
-                        </h3>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-medium text-primary-900">
+                            {factsheet.name}
+                          </h3>
+                          {factsheet.reviewed && (
+                            <VerifiedCheck className="h-4 w-4" />
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500 mt-1 line-clamp-1">
                           {factsheet.description || "No description"}
                         </p>

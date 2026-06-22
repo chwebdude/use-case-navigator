@@ -11,8 +11,18 @@ import {
   ChevronRight,
   Maximize2,
   Minimize2,
+  ShieldCheck,
 } from "lucide-react";
-import { Card, CardTitle, Button, Badge, MetricBadge } from "../components/ui";
+import {
+  Card,
+  CardTitle,
+  Button,
+  Badge,
+  MetricBadge,
+  Modal,
+  Textarea,
+  VerifiedCheck,
+} from "../components/ui";
 import FactsheetDetailModal from "../components/FactsheetDetailModal";
 import {
   SpiderDiagram,
@@ -23,6 +33,7 @@ import type { SpiderDataPoint } from "../components/visualizations/SpiderDiagram
 import { useRecord, useRealtime } from "../hooks/useRealtime";
 import { useChangeLog } from "../hooks/useChangeLog";
 import { useAppSettings } from "../hooks/useAppSettings";
+import { useUser } from "../hooks/useUser";
 import pb from "../lib/pocketbase";
 import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
 import { isPropertyVisibleForType } from "../lib/propertyVisibility";
@@ -53,7 +64,12 @@ export default function FactsheetDetail() {
     null,
   );
   const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewCommentDraft, setReviewCommentDraft] = useState("");
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const { settings: appSettings } = useAppSettings();
+  const { isPowerUser, username } = useUser();
 
   const { record: factsheet, loading } = useRecord<Factsheet>("factsheets", id);
   const { record: factsheetType } = useRecord<FactsheetType>(
@@ -202,7 +218,7 @@ export default function FactsheetDetail() {
     expand: "related_factsheet",
   });
 
-  const { logDependencyRemoved } = useChangeLog();
+  const { logDependencyRemoved, logChange } = useChangeLog();
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this factsheet?")) return;
@@ -257,6 +273,64 @@ export default function FactsheetDetail() {
     }
   };
 
+  const openReviewModal = () => {
+    setReviewError(null);
+    setReviewCommentDraft(factsheet?.review_comment || "");
+    setIsReviewModalOpen(true);
+  };
+
+  const handleSetReviewStatus = async (reviewed: boolean) => {
+    if (!id || !factsheet || !username) return;
+
+    setReviewSaving(true);
+    setReviewError(null);
+    const previousReviewState = {
+      reviewed: Boolean(factsheet.reviewed),
+      review_comment: factsheet.review_comment || null,
+      reviewed_by: factsheet.reviewed_by || null,
+      reviewed_at: factsheet.reviewed_at || null,
+    };
+    const normalizedComment = reviewCommentDraft.trim();
+
+    try {
+      const payload = reviewed
+        ? {
+            reviewed: true,
+            review_comment: normalizedComment || null,
+            reviewed_by: username,
+            reviewed_at: new Date().toISOString(),
+          }
+        : {
+            reviewed: false,
+            review_comment: null,
+            reviewed_by: null,
+            reviewed_at: null,
+          };
+
+      await pb.collection("factsheets").update(id, payload);
+
+      await logChange({
+        factsheetId: id,
+        action: "updated",
+        description: reviewed
+          ? `Marked factsheet as verified${normalizedComment ? ` with comment: "${normalizedComment}"` : ""}`
+          : "Removed factsheet verification",
+        details: {
+          oldReviewState: previousReviewState,
+          newReviewState: payload,
+        },
+      });
+
+      setIsReviewModalOpen(false);
+    } catch (err) {
+      setReviewError(
+        err instanceof Error ? err.message : "Failed to update review status",
+      );
+    } finally {
+      setReviewSaving(false);
+    }
+  };
+
   const propertyMap = useMemo(() => {
     const map = new Map<string, FactsheetPropertyExpanded>();
     visibleProperties.forEach((fp) => {
@@ -289,6 +363,7 @@ export default function FactsheetDetail() {
 
   const typeColor = factsheetType?.color || "#6b7280";
   const statusId = factsheet?.status_id || factsheet?.status || "";
+  const isReviewed = Boolean(factsheet?.reviewed);
   const statusMeta = getStatusMeta(
     statusId,
     appSettings.statuses,
@@ -395,10 +470,22 @@ export default function FactsheetDetail() {
               >
                 {statusMeta.label}
               </Badge>
+              {isReviewed && (
+                <VerifiedCheck />
+              )}
             </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
+          {isPowerUser && (
+            <Button
+              variant={isReviewed ? "secondary" : "primary"}
+              icon={<ShieldCheck className="w-4 h-4" />}
+              onClick={openReviewModal}
+            >
+              {isReviewed ? "Update Review" : "Verify Factsheet"}
+            </Button>
+          )}
           <Link to={`/factsheets/${id}/print`} target="_blank" rel="noreferrer">
             <Button variant="secondary" icon={<Printer className="w-4 h-4" />}>
               Print Card
@@ -435,6 +522,29 @@ export default function FactsheetDetail() {
           <p className="text-gray-600 mt-2 whitespace-pre-wrap">
             {factsheet.description || "No description provided"}
           </p>
+        </Card>
+      )}
+
+      {(isReviewed || Boolean(factsheet.review_comment) || isPowerUser) && (
+        <Card>
+          <CardTitle>Review</CardTitle>
+          <div className="mt-3 space-y-2 text-sm">
+            {isReviewed && factsheet.reviewed_by && (
+              <p className="text-gray-700">
+                <span className="font-medium">Reviewed by:</span>{" "}
+                {factsheet.reviewed_by}
+                {factsheet.reviewed_at
+                  ? ` on ${new Date(factsheet.reviewed_at).toLocaleDateString()}`
+                  : ""}
+              </p>
+            )}
+            {factsheet.review_comment && (
+              <p className="text-gray-700 whitespace-pre-wrap">
+                <span className="font-medium">Comment:</span>{" "}
+                {factsheet.review_comment}
+              </p>
+            )}
+          </div>
         </Card>
       )}
 
@@ -778,6 +888,40 @@ export default function FactsheetDetail() {
         factsheetId={selectedFactsheetId}
         onClose={() => setSelectedFactsheetId(null)}
       />
+      <Modal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        title={isReviewed ? "Update review" : "Verify factsheet"}
+        size="md"
+      >
+        <div className="space-y-4">
+          <Textarea
+            label="Review comment"
+            value={reviewCommentDraft}
+            onChange={(e) => setReviewCommentDraft(e.target.value)}
+            placeholder="Optional comment for this review"
+          />
+          {reviewError && <p className="text-sm text-error">{reviewError}</p>}
+          <div className="flex flex-wrap justify-end gap-2">
+            {isReviewed && (
+              <Button
+                variant="danger"
+                onClick={() => void handleSetReviewStatus(false)}
+                loading={reviewSaving}
+              >
+                Remove Verification
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              onClick={() => void handleSetReviewStatus(true)}
+              loading={reviewSaving}
+            >
+              Save as Verified
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

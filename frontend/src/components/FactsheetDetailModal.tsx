@@ -9,7 +9,7 @@ import {
   Maximize2,
   Minimize2,
 } from "lucide-react";
-import { Modal, Button, Badge, MetricBadge } from "./ui";
+import { Modal, Button, Badge, MetricBadge, VerifiedCheck } from "./ui";
 import {
   DependencyGraph,
   SpiderDiagram,
@@ -424,6 +424,7 @@ export default function FactsheetDetailModal({
                 </div>
               )}
             </div>
+            {factsheet.reviewed && <VerifiedCheck />}
           </div>
 
           {/* Description */}

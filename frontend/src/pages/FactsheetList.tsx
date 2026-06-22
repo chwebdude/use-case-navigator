@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Filter } from "lucide-react";
-import { Card, Button, Badge, MetricBadge } from "../components/ui";
+import { Card, Button, Badge, MetricBadge, VerifiedCheck } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
 import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import { useRealtime } from "../hooks/useRealtime";
@@ -264,6 +264,7 @@ export default function FactsheetList() {
             const typeColor = factsheet.expand?.type?.color || "#6b7280";
             const typeName = factsheet.expand?.type?.name || "Unknown";
             const statusId = factsheet.status_id || factsheet.status;
+            const isReviewed = Boolean(factsheet.reviewed);
             const statusMeta = getStatusMeta(
               statusId,
               settings.statuses,
@@ -303,6 +304,9 @@ export default function FactsheetList() {
                         >
                           {statusMeta.label}
                         </Badge>
+                        {isReviewed && (
+                          <VerifiedCheck />
+                        )}
                       </div>
                       <p className="text-gray-500 mt-2 line-clamp-2">
                         {factsheet.description || "No description provided"}

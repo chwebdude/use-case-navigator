@@ -24,6 +24,7 @@ import {
   ScatterPage,
   ImpactAnalysisPage,
   ChatPage,
+  AdminPowerPage,
 } from "./pages";
 
 function App() {
@@ -68,6 +69,7 @@ function App() {
           element={<FactsheetDependenciesChainPrint />}
         />
         <Route path="matrix/print" element={<MatrixPrint />} />
+        <Route path="i-have-the-power" element={<AdminPowerPage />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="factsheets" element={<FactsheetList />} />

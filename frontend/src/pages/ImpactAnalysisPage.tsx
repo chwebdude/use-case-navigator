@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { TrendingUp, ArrowUpDown } from "lucide-react";
-import { Card, CardTitle, Badge, Select } from "../components/ui";
+import { Card, CardTitle, Badge, Select, VerifiedCheck } from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
 import {
   type FactsheetExpanded,
@@ -620,8 +620,9 @@ export default function ImpactAnalysisPage() {
                         onClick={() => setSelectedFactsheetId(fs.id)}
                       >
                         <td className="p-3">
-                          <div className="font-medium text-gray-900">
-                            {fs.name}
+                          <div className="flex items-center gap-1.5 font-medium text-gray-900">
+                            <span>{fs.name}</span>
+                            {fs.reviewed && <VerifiedCheck className="h-4 w-4" />}
                           </div>
                           {fs.description && (
                             <div className="text-sm text-gray-500 line-clamp-1">

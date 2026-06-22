@@ -5,6 +5,7 @@ import type {
   FactsheetPropertyExpanded,
   PropertyOption,
 } from "../../types";
+import { VerifiedCheck } from "../ui";
 import { useAppSettings } from "../../hooks/useAppSettings";
 import { getStatusMeta, getStatusTextColor } from "../../lib/statusConfig";
 
@@ -356,14 +357,23 @@ export default function PropertyMatrix({
 
                           {/* Card content */}
                           <div className={printable ? "p-1" : "p-3"}>
-                            <div
-                              className={`text-primary-900 leading-tight ${
-                                printable
-                                  ? "text-[9px] font-normal matrix-print-card-title"
-                                  : "text-sm font-normal"
-                              }`}
-                            >
-                              {fs.name}
+                            <div className="flex items-center gap-1.5">
+                              <div
+                                className={`text-primary-900 leading-tight ${
+                                  printable
+                                    ? "text-[9px] font-normal matrix-print-card-title"
+                                    : "text-sm font-normal"
+                                }`}
+                              >
+                                {fs.name}
+                              </div>
+                              {fs.reviewed && (
+                                <VerifiedCheck
+                                  className={
+                                    printable ? "h-3.5 w-3.5" : "h-4 w-4"
+                                  }
+                                />
+                              )}
                             </div>
 
                             {/* Status badge */}

@@ -13,3 +13,4 @@ export { MultiSelect } from "./MultiSelect";
 export { default as Badge } from "./Badge";
 export { MetricBadge } from "./MetricBadge";
 export { default as Modal } from "./Modal";
+export { default as VerifiedCheck } from "./VerifiedCheck";

@@ -29,6 +29,10 @@ export interface Factsheet extends RecordModel {
   type: string;
   status: string;
   status_id?: string;
+  reviewed?: boolean;
+  review_comment?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
   responsibility?: string;
   benefits?: string;
   what_it_does?: string;

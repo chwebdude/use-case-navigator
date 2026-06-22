@@ -25,6 +25,7 @@ import type {
 } from "../../types";
 import { useAppSettings } from "../../hooks/useAppSettings";
 import { getStatusMeta, getStatusTextColor } from "../../lib/statusConfig";
+import { VerifiedCheck } from "../ui";
 
 export interface ConnectionRequest {
   sourceId: string;
@@ -86,6 +87,7 @@ interface FactsheetNodeProps {
     factsheetId: string;
     properties?: PropertyDisplay[];
     dimmed?: boolean;
+    reviewed?: boolean;
   };
 }
 
@@ -400,10 +402,15 @@ function FactsheetNode({ data }: FactsheetNodeProps) {
           {data.typeName}
         </span>
       </div>
-      <div
-        className={`font-medium text-sm ${isDimmed ? "text-gray-400" : "text-primary-900"}`}
-      >
-        {data.label}
+      <div className="flex items-center gap-1.5">
+        <div
+          className={`font-medium text-sm ${isDimmed ? "text-gray-400" : "text-primary-900"}`}
+        >
+          {data.label}
+        </div>
+        {data.reviewed && (
+          <VerifiedCheck className={isDimmed ? "opacity-70" : ""} />
+        )}
       </div>
       <div className="mt-1">
         <span
@@ -593,6 +600,7 @@ export default function DependencyGraph({
           factsheetId: fs.id,
           properties,
           dimmed: isDimmed,
+          reviewed: Boolean(fs.reviewed),
         },
       });
     });
@@ -680,10 +688,11 @@ export default function DependencyGraph({
           properties?: PropertyDisplay[];
           statusLabel?: string;
           statusColor?: string;
+          reviewed?: boolean;
         };
         const propsStr =
           data.properties?.map((p) => `${p.name}:${p.value}`).join("|") || "";
-        return `${n.id}:${data.dimmed}:${propsStr}:${data.statusLabel}:${data.statusColor}`;
+        return `${n.id}:${data.dimmed}:${propsStr}:${data.statusLabel}:${data.statusColor}:${data.reviewed}`;
       })
       .sort()
       .join(",");
