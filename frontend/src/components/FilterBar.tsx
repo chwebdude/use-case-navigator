@@ -153,7 +153,7 @@ export function FilterBar({
                 placeholder="Search factsheets..."
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="w-full h-8 pl-9 pr-3 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                className="w-full h-10 pl-9 pr-3 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -162,7 +162,6 @@ export function FilterBar({
           <div className="w-32 sm:w-36 lg:w-40">
             <MultiSelect
               label="Type"
-              className="h-8"
               placeholder="All Types"
               options={factsheetTypes
                 .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -179,7 +178,7 @@ export function FilterBar({
           <div className="w-32 sm:w-36 lg:w-40">
             <Select
               label="Status"
-              className="h-8 text-sm"
+              className="text-sm"
               options={statusOptions}
               value={statusFilter}
               onChange={(e) => onStatusChange(e.target.value)}
@@ -190,7 +189,7 @@ export function FilterBar({
           {hasAdvancedFilters && (
             <Button
               variant="secondary"
-              size="sm"
+              size="md"
               onClick={() => setShowAdvancedFilters((prev) => !prev)}
               icon={<SlidersHorizontal className="w-4 h-4" />}
             >
@@ -210,7 +209,7 @@ export function FilterBar({
 
           {/* Clear filters button */}
           {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={onClearFilters}>
+            <Button variant="ghost" size="md" onClick={onClearFilters}>
               Clear Filters
             </Button>
           )}
@@ -237,7 +236,7 @@ export function FilterBar({
                       <div key={prop.id}>
                         <Select
                           label={prop.name}
-                          className="h-8 text-sm"
+                          className="text-sm"
                           options={[
                             { value: "", label: `All ${prop.name}` },
                             ...opts.map((opt) => ({

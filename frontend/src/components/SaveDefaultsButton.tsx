@@ -83,7 +83,7 @@ export function SaveDefaultsButton({
   return (
     <Button
       variant={saved ? "primary" : "secondary"}
-      size="sm"
+      size="md"
       onClick={handleSave}
       disabled={disabled}
       icon={
