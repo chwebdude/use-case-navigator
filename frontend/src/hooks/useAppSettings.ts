@@ -26,12 +26,14 @@ export interface FactsheetFilters {
   search?: string;
   statusFilter?: string;
   typeFilter?: string[];
+  verifiedOnly?: string;
 }
 
 export interface DependenciesFilters {
   search?: string;
   typeFilter?: string[];
   statusFilter?: string;
+  verifiedOnly?: string;
   displayProperties?: string[];
   showComments?: boolean;
   unrelatedDisplayMode?: "dim" | "hide";
@@ -43,6 +45,7 @@ export interface MatrixFilters {
   yAxis?: string;
   typeFilter?: string[];
   statusFilter?: string;
+  verifiedOnly?: string;
   displayProperties?: string[];
 }
 
@@ -50,6 +53,7 @@ export interface SpiderFilters {
   search?: string;
   statusFilter?: string;
   typeFilter?: string[];
+  verifiedOnly?: string;
   selectedMetrics?: string;
   axisMode?: "properties" | "metrics";
 }
@@ -58,6 +62,7 @@ export interface ScatterFilters {
   search?: string;
   statusFilter?: string;
   typeFilter?: string[];
+  verifiedOnly?: string;
   xAxis?: string;
   yAxis?: string;
   bubbleSizeBy?: string;
@@ -68,6 +73,7 @@ export interface ImpactFilters {
   search?: string;
   statusFilter?: string;
   typeFilter?: string[];
+  verifiedOnly?: string;
   propertyFilters?: Record<string, string>;
   metricFilter?: string;
   sortField?: "name" | "dependentCount" | "averageImpact" | "totalImpact";

@@ -35,6 +35,7 @@ export default function FactsheetList() {
     search: "",
     statusFilter: "",
     typeFilter: [] as string[],
+    verifiedOnly: "",
     propertyFilters: {} as Record<string, string>,
   });
 
@@ -44,10 +45,13 @@ export default function FactsheetList() {
     settingsLoading,
   );
 
-  const { search, statusFilter, typeFilter, propertyFilters } = state;
+  const { search, statusFilter, typeFilter, verifiedOnly, propertyFilters } =
+    state;
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
   const setTypeFilter = (v: string[]) => setState("typeFilter", v);
+  const setVerifiedOnly = (v: boolean) =>
+    setState("verifiedOnly", v ? "true" : "");
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
 
@@ -107,6 +111,7 @@ export default function FactsheetList() {
     const matchesStatus =
       statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
     const matchesType = typeFilter.length === 0 || typeFilter.includes(fs.type);
+    const matchesVerified = verifiedOnly !== "true" || Boolean(fs.reviewed);
 
     // Check property filters
     const matchesProperties = Object.entries(propertyFilters).every(
@@ -117,7 +122,13 @@ export default function FactsheetList() {
       },
     );
 
-    return matchesSearch && matchesStatus && matchesType && matchesProperties;
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesType &&
+      matchesVerified &&
+      matchesProperties
+    );
   });
 
   const factsheetPropertyLookup = useMemo(() => {
@@ -160,6 +171,7 @@ export default function FactsheetList() {
     setSearch("");
     setTypeFilter([]);
     setStatusFilter("");
+    setVerifiedOnly(false);
     setPropertyFilters({});
   };
 
@@ -167,6 +179,7 @@ export default function FactsheetList() {
     search !== "" ||
     typeFilter.length > 0 ||
     statusFilter !== "" ||
+    verifiedOnly === "true" ||
     Object.values(propertyFilters).some((v) => v !== "");
 
   return (
@@ -199,6 +212,8 @@ export default function FactsheetList() {
         onTypeChange={setTypeFilter}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
+        verifiedOnly={verifiedOnly === "true"}
+        onVerifiedOnlyChange={setVerifiedOnly}
         propertyFilters={propertyFilters}
         onPropertyFilterChange={(propId, value) =>
           setPropertyFilters({ ...propertyFilters, [propId]: value })
@@ -242,6 +257,7 @@ export default function FactsheetList() {
                   setSearch("");
                   setStatusFilter("");
                   setTypeFilter([]);
+                  setVerifiedOnly(false);
                 }}
               >
                 Clear Filters

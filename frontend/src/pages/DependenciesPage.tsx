@@ -50,6 +50,7 @@ export default function DependenciesPage() {
     search: "",
     typeFilter: [] as string[],
     statusFilter: "",
+    verifiedOnly: "",
     propertyFilters: {} as Record<string, string>,
     displayProperties: [] as string[],
     showComments: true,
@@ -61,6 +62,7 @@ export default function DependenciesPage() {
     search,
     typeFilter,
     statusFilter,
+    verifiedOnly,
     propertyFilters,
     displayProperties,
     showComments,
@@ -70,6 +72,8 @@ export default function DependenciesPage() {
   const setSearch = (v: string) => setState("search", v);
   const setTypeFilter = (v: string[]) => setState("typeFilter", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
+  const setVerifiedOnly = (v: boolean) =>
+    setState("verifiedOnly", v ? "true" : "");
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
   const setDisplayProperties = (v: string[]) =>
@@ -236,6 +240,7 @@ export default function DependenciesPage() {
         typeFilter.length === 0 || typeFilter.includes(fs.type);
       const matchesStatus =
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
+      const matchesVerified = verifiedOnly !== "true" || Boolean(fs.reviewed);
 
       // Check property filters
       const matchesProperties = Object.entries(propertyFilters).every(
@@ -246,13 +251,20 @@ export default function DependenciesPage() {
         },
       );
 
-      return matchesSearch && matchesType && matchesStatus && matchesProperties;
+      return (
+        matchesSearch &&
+        matchesType &&
+        matchesStatus &&
+        matchesVerified &&
+        matchesProperties
+      );
     });
   }, [
     factsheets,
     search,
     typeFilter,
     statusFilter,
+    verifiedOnly,
     propertyFilters,
     propertyLookup,
   ]);
@@ -472,6 +484,7 @@ export default function DependenciesPage() {
     setSearch("");
     setTypeFilter([]);
     setStatusFilter("");
+    setVerifiedOnly(false);
     setPropertyFilters({});
   };
 
@@ -531,6 +544,7 @@ export default function DependenciesPage() {
     search !== "" ||
     typeFilter.length > 0 ||
     statusFilter !== "" ||
+    verifiedOnly === "true" ||
     Object.values(propertyFilters).some((v) => v !== "");
 
   useEffect(() => {
@@ -587,6 +601,8 @@ export default function DependenciesPage() {
         onTypeChange={setTypeFilter}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
+        verifiedOnly={verifiedOnly === "true"}
+        onVerifiedOnlyChange={setVerifiedOnly}
         propertyFilters={propertyFilters}
         onPropertyFilterChange={(propId, value) =>
           setPropertyFilters({ ...propertyFilters, [propId]: value })

@@ -40,6 +40,7 @@ export default function MatrixPage() {
     yAxis: "",
     typeFilter: [] as string[],
     statusFilter: "",
+    verifiedOnly: "",
     propertyFilters: {} as Record<string, string>,
     displayProperties: [] as string[],
   });
@@ -50,6 +51,7 @@ export default function MatrixPage() {
     yAxis,
     typeFilter,
     statusFilter,
+    verifiedOnly,
     propertyFilters,
     displayProperties,
   } = state;
@@ -58,6 +60,8 @@ export default function MatrixPage() {
   const setYAxis = (v: string) => setState("yAxis", v);
   const setTypeFilter = (v: string[]) => setState("typeFilter", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
+  const setVerifiedOnly = (v: boolean) =>
+    setState("verifiedOnly", v ? "true" : "");
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
   const setDisplayProperties = (v: string[]) =>
@@ -145,6 +149,7 @@ export default function MatrixPage() {
     setSearch("");
     setTypeFilter([]);
     setStatusFilter("");
+    setVerifiedOnly(false);
     setPropertyFilters({});
   };
 
@@ -287,6 +292,7 @@ export default function MatrixPage() {
         typeFilter.length === 0 || typeFilter.includes(fs.type);
       const matchesStatus =
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
+      const matchesVerified = verifiedOnly !== "true" || Boolean(fs.reviewed);
 
       // Check property filters
       const matchesProperties = Object.entries(propertyFilters).every(
@@ -297,13 +303,20 @@ export default function MatrixPage() {
         },
       );
 
-      return matchesSearch && matchesType && matchesStatus && matchesProperties;
+      return (
+        matchesSearch &&
+        matchesType &&
+        matchesStatus &&
+        matchesVerified &&
+        matchesProperties
+      );
     });
   }, [
     factsheets,
     search,
     typeFilter,
     statusFilter,
+    verifiedOnly,
     propertyFilters,
     propertyLookup,
   ]);
@@ -320,6 +333,7 @@ export default function MatrixPage() {
     search !== "" ||
     typeFilter.length > 0 ||
     statusFilter !== "" ||
+    verifiedOnly === "true" ||
     Object.values(propertyFilters).some((v) => v !== "");
   const printLink = `/matrix/print${location.search}`;
 
@@ -357,6 +371,8 @@ export default function MatrixPage() {
         onTypeChange={setTypeFilter}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
+        verifiedOnly={verifiedOnly === "true"}
+        onVerifiedOnlyChange={setVerifiedOnly}
         propertyFilters={propertyFilters}
         onPropertyFilterChange={(propId, value) =>
           setPropertyFilters({ ...propertyFilters, [propId]: value })

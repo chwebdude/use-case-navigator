@@ -49,6 +49,7 @@ export default function ScatterPage() {
     search: "",
     statusFilter: "",
     typeFilter: [] as string[],
+    verifiedOnly: "",
     propertyFilters: {} as Record<string, string>,
     xAxis: "",
     yAxis: "",
@@ -60,6 +61,7 @@ export default function ScatterPage() {
     search,
     statusFilter,
     typeFilter,
+    verifiedOnly,
     propertyFilters,
     xAxis,
     yAxis,
@@ -69,6 +71,8 @@ export default function ScatterPage() {
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
   const setTypeFilter = (v: string[]) => setState("typeFilter", v);
+  const setVerifiedOnly = (v: boolean) =>
+    setState("verifiedOnly", v ? "true" : "");
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
   const setXAxis = (v: string) => setState("xAxis", v);
@@ -161,6 +165,7 @@ export default function ScatterPage() {
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
       const matchesType =
         typeFilter.length === 0 || typeFilter.includes(fs.type);
+      const matchesVerified = verifiedOnly !== "true" || Boolean(fs.reviewed);
       const matchesProperties = Object.entries(propertyFilters).every(
         ([propId, value]) => {
           if (value === "") return true;
@@ -169,13 +174,20 @@ export default function ScatterPage() {
           return v === value;
         },
       );
-      return matchesSearch && matchesStatus && matchesType && matchesProperties;
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesType &&
+        matchesVerified &&
+        matchesProperties
+      );
     });
   }, [
     factsheets,
     search,
     statusFilter,
     typeFilter,
+    verifiedOnly,
     propertyFilters,
     propertyLookup,
   ]);
@@ -339,6 +351,7 @@ export default function ScatterPage() {
     setSearch("");
     setTypeFilter([]);
     setStatusFilter("");
+    setVerifiedOnly(false);
     setPropertyFilters({});
   };
 
@@ -346,6 +359,7 @@ export default function ScatterPage() {
     search !== "" ||
     typeFilter.length > 0 ||
     statusFilter !== "" ||
+    verifiedOnly === "true" ||
     Object.values(propertyFilters).some((v) => v !== "");
 
   return (
@@ -378,6 +392,8 @@ export default function ScatterPage() {
         onTypeChange={setTypeFilter}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
+        verifiedOnly={verifiedOnly === "true"}
+        onVerifiedOnlyChange={setVerifiedOnly}
         propertyFilters={propertyFilters}
         onPropertyFilterChange={(propId, value) =>
           setPropertyFilters({ ...propertyFilters, [propId]: value })

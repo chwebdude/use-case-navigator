@@ -48,6 +48,7 @@ export default function SpiderPage() {
     search: "",
     statusFilter: "",
     typeFilter: [] as string[],
+    verifiedOnly: "",
     propertyFilters: {} as Record<string, string>,
     selectedMetrics: "", // Start empty to detect URL presence
     axisMode: "metrics" as AxisMode,
@@ -57,6 +58,7 @@ export default function SpiderPage() {
     search,
     statusFilter,
     typeFilter,
+    verifiedOnly,
     propertyFilters,
     selectedMetrics: selectedMetricsStr,
     axisMode,
@@ -64,6 +66,8 @@ export default function SpiderPage() {
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
   const setTypeFilter = (v: string[]) => setState("typeFilter", v);
+  const setVerifiedOnly = (v: boolean) =>
+    setState("verifiedOnly", v ? "true" : "");
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
   const setAxisMode = (v: AxisMode) => setState("axisMode", v);
@@ -216,6 +220,7 @@ export default function SpiderPage() {
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
       const matchesType =
         typeFilter.length === 0 || typeFilter.includes(fs.type);
+      const matchesVerified = verifiedOnly !== "true" || Boolean(fs.reviewed);
 
       const matchesProperties = Object.entries(propertyFilters).every(
         ([propId, value]) => {
@@ -225,13 +230,20 @@ export default function SpiderPage() {
         },
       );
 
-      return matchesSearch && matchesStatus && matchesType && matchesProperties;
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesType &&
+        matchesVerified &&
+        matchesProperties
+      );
     });
   }, [
     factsheets,
     search,
     statusFilter,
     typeFilter,
+    verifiedOnly,
     propertyFilters,
     propertyLookup,
   ]);
@@ -385,6 +397,7 @@ export default function SpiderPage() {
     setSearch("");
     setTypeFilter([]);
     setStatusFilter("");
+    setVerifiedOnly(false);
     setPropertyFilters({});
   };
 
@@ -392,6 +405,7 @@ export default function SpiderPage() {
     search !== "" ||
     typeFilter.length > 0 ||
     statusFilter !== "" ||
+    verifiedOnly === "true" ||
     Object.values(propertyFilters).some((v) => v !== "");
 
   const handlePointClick = (point: SpiderDataPoint) => {
@@ -450,6 +464,8 @@ export default function SpiderPage() {
         onTypeChange={setTypeFilter}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
+        verifiedOnly={verifiedOnly === "true"}
+        onVerifiedOnlyChange={setVerifiedOnly}
         propertyFilters={propertyFilters}
         onPropertyFilterChange={(propId, value) =>
           setPropertyFilters({ ...propertyFilters, [propId]: value })

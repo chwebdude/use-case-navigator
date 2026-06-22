@@ -5,7 +5,7 @@ import type {
   PropertyOption,
   FactsheetType,
 } from "../types";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { getStatusesForType } from "../lib/statusConfig";
 
@@ -15,6 +15,8 @@ interface FilterBarProps {
 
   statusFilter: string;
   onStatusChange: (value: string) => void;
+  verifiedOnly?: boolean;
+  onVerifiedOnlyChange?: (value: boolean) => void;
 
   typeFilter: string[];
   onTypeChange: (values: string[]) => void;
@@ -42,6 +44,8 @@ export function FilterBar({
   onSearchChange,
   statusFilter,
   onStatusChange,
+  verifiedOnly = false,
+  onVerifiedOnlyChange,
   typeFilter,
   onTypeChange,
   propertyFilters,
@@ -57,6 +61,7 @@ export function FilterBar({
   additionalSettings,
   showPropertyCount = true,
 }: FilterBarProps) {
+  const verifiedOnlyId = useId();
   const {
     settings: { statuses: globalStatuses },
   } = useAppSettings();
@@ -184,6 +189,24 @@ export function FilterBar({
               onChange={(e) => onStatusChange(e.target.value)}
             />
           </div>
+
+          {onVerifiedOnlyChange && (
+            <div className="h-10 px-3 border border-gray-300 rounded bg-white flex items-center gap-2">
+              <input
+                id={verifiedOnlyId}
+                type="checkbox"
+                checked={verifiedOnly}
+                onChange={(e) => onVerifiedOnlyChange(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-accent-500 focus:ring-accent-500"
+              />
+              <label
+                htmlFor={verifiedOnlyId}
+                className="text-sm text-gray-700 whitespace-nowrap select-none"
+              >
+                Verified only
+              </label>
+            </div>
+          )}
 
           {/* Advanced filters toggle */}
           {hasAdvancedFilters && (

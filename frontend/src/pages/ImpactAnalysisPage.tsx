@@ -53,6 +53,7 @@ export default function ImpactAnalysisPage() {
     search: "",
     statusFilter: "",
     typeFilter: [] as string[],
+    verifiedOnly: "",
     propertyFilters: {} as Record<string, string>,
     metricFilter: "",
     sortField: "averageImpact" as SortField,
@@ -65,6 +66,7 @@ export default function ImpactAnalysisPage() {
     search,
     statusFilter,
     typeFilter,
+    verifiedOnly,
     propertyFilters,
     metricFilter,
     sortField,
@@ -75,6 +77,8 @@ export default function ImpactAnalysisPage() {
   const setSearch = (v: string) => setState("search", v);
   const setStatusFilter = (v: string) => setState("statusFilter", v);
   const setTypeFilter = (v: string[]) => setState("typeFilter", v);
+  const setVerifiedOnly = (v: boolean) =>
+    setState("verifiedOnly", v ? "true" : "");
   const setPropertyFilters = (v: Record<string, string>) =>
     setState("propertyFilters", v);
   const setMetricFilter = (v: string) => setState("metricFilter", v);
@@ -340,6 +344,7 @@ export default function ImpactAnalysisPage() {
         statusFilter === "" || (fs.status_id || fs.status) === statusFilter;
       const matchesType =
         typeFilter.length === 0 || typeFilter.includes(fs.type);
+      const matchesVerified = verifiedOnly !== "true" || Boolean(fs.reviewed);
 
       const matchesProperties = Object.entries(propertyFilters).every(
         ([propId, value]) => {
@@ -350,13 +355,20 @@ export default function ImpactAnalysisPage() {
         },
       );
 
-      return matchesSearch && matchesStatus && matchesType && matchesProperties;
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesType &&
+        matchesVerified &&
+        matchesProperties
+      );
     });
   }, [
     impactData,
     search,
     statusFilter,
     typeFilter,
+    verifiedOnly,
     propertyFilters,
     propertyLookup,
   ]);
@@ -400,6 +412,7 @@ export default function ImpactAnalysisPage() {
     search !== "" ||
     typeFilter.length > 0 ||
     statusFilter !== "" ||
+    verifiedOnly === "true" ||
     Object.keys(propertyFilters).some((k) => propertyFilters[k] !== "") ||
     metricFilter !== "";
 
@@ -407,6 +420,7 @@ export default function ImpactAnalysisPage() {
     setSearch("");
     setTypeFilter([]);
     setStatusFilter("");
+    setVerifiedOnly(false);
     setPropertyFilters({});
     setMetricFilter("");
   };
@@ -467,6 +481,8 @@ export default function ImpactAnalysisPage() {
             onStatusChange={setStatusFilter}
             typeFilter={typeFilter}
             onTypeChange={setTypeFilter}
+            verifiedOnly={verifiedOnly === "true"}
+            onVerifiedOnlyChange={setVerifiedOnly}
             propertyFilters={propertyFilters}
             onPropertyFilterChange={(propId, value) =>
               setPropertyFilters({ ...propertyFilters, [propId]: value })

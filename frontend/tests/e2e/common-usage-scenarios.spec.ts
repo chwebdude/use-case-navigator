@@ -58,10 +58,13 @@ test.describe("common app scenarios", () => {
     await page.goto("/factsheets");
 
     await page.getByPlaceholder("Search factsheets...").fill("alpha");
+    await page.getByLabel("Verified only").check();
     await expect(page).toHaveURL(/search=alpha/);
+    await expect(page).toHaveURL(/verifiedOnly=true/);
 
     await page.reload();
     await expect(page.getByPlaceholder("Search factsheets...")).toHaveValue("alpha");
+    await expect(page.getByLabel("Verified only")).toBeChecked();
   });
 
   test("persists dependencies display preferences in URL", async ({ page }) => {

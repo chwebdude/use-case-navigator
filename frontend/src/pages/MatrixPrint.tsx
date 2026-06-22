@@ -19,6 +19,7 @@ interface MatrixPrintQueryState {
   yAxis: string;
   typeFilter: string[];
   statusFilter: string;
+  verifiedOnly: string;
   propertyFilters: Record<string, string>;
   displayProperties: string[];
 }
@@ -59,6 +60,7 @@ export default function MatrixPrint() {
       yAxis: params.get("yAxis") ?? "",
       typeFilter: parseTypeFilterParam(params.get("typeFilter")),
       statusFilter: params.get("statusFilter") ?? "",
+      verifiedOnly: params.get("verifiedOnly") ?? "",
       propertyFilters: parseJsonParam<Record<string, string>>(
         params.get("propertyFilters"),
         {},
@@ -124,6 +126,8 @@ export default function MatrixPrint() {
       const matchesStatus =
         queryState.statusFilter === "" ||
         (fs.status_id || fs.status) === queryState.statusFilter;
+      const matchesVerified =
+        queryState.verifiedOnly !== "true" || Boolean(fs.reviewed);
       const matchesProperties = Object.entries(
         queryState.propertyFilters,
       ).every(([propId, value]) => {
@@ -132,7 +136,13 @@ export default function MatrixPrint() {
         return fsProps?.get(propId) === value;
       });
 
-      return matchesSearch && matchesType && matchesStatus && matchesProperties;
+      return (
+        matchesSearch &&
+        matchesType &&
+        matchesStatus &&
+        matchesVerified &&
+        matchesProperties
+      );
     });
   }, [factsheets, propertyLookup, queryState]);
 
@@ -147,6 +157,7 @@ export default function MatrixPrint() {
     (queryState.search ? 1 : 0) +
     (queryState.typeFilter.length > 0 ? 1 : 0) +
     (queryState.statusFilter ? 1 : 0) +
+    (queryState.verifiedOnly === "true" ? 1 : 0) +
     Object.values(queryState.propertyFilters).filter(Boolean).length;
 
   const handleExportPng = async () => {
