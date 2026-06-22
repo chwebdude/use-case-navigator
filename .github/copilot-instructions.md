@@ -278,6 +278,9 @@ export function FactsheetList({ onSelect }: FactsheetListProps) {
 - Test user interactions and state changes
 - Use descriptive test names
 - Focus on behavior, not implementation details
+- For every new feature or bug fix, automatically add or update Playwright end-to-end tests as part of the same change
+- Do not treat a feature/fix task as complete until matching Playwright coverage is included
+- This is enforced by the workspace hook at `.github/hooks/enforce-playwright-tests.json`
 
 ---
 

@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node .github/hooks/enforce-playwright-tests.mjs",
+        "timeout": 20
+      }
+    ]
+  }
+}
