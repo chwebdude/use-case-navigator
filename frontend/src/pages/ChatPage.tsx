@@ -122,6 +122,7 @@ async function loadDataContext(): Promise<{
   const statusCounts: Record<string, number> = {};
   const typeCounts: Record<string, number> = {};
   const typeStatusCounts: Record<string, Record<string, number>> = {};
+  let verifiedCount = 0;
   for (const f of factsheets) {
     const label = resolveStatusLabel(f, globalStatuses, typeObjMap[f.type]);
     statusCounts[label] = (statusCounts[label] || 0) + 1;
@@ -130,6 +131,7 @@ async function loadDataContext(): Promise<{
     if (!typeStatusCounts[typeName]) typeStatusCounts[typeName] = {};
     typeStatusCounts[typeName][label] =
       (typeStatusCounts[typeName][label] || 0) + 1;
+    if (f.reviewed) verifiedCount += 1;
   }
 
   lines.push(
@@ -140,6 +142,8 @@ async function loadDataContext(): Promise<{
   lines.push(`- Total dependencies: ${dependencies.length}`);
   lines.push(`- Total metrics: ${metrics.length}`);
   lines.push(`- Total property definitions: ${properties.length}`);
+  lines.push(`- Verified factsheets: ${verifiedCount}`);
+  lines.push(`- Unverified factsheets: ${factsheets.length - verifiedCount}`);
   lines.push(
     `- Factsheets by status: ${Object.entries(statusCounts)
       .map(([s, c]) => `${s}: ${c}`)
@@ -172,6 +176,11 @@ async function loadDataContext(): Promise<{
       typeObjMap[f.type],
     );
     lines.push(`- "${f.name}" (type: ${typeName}, status: ${statusLabel})`);
+    lines.push(`  Verified: ${f.reviewed ? "yes" : "no"}`);
+    if (f.review_comment)
+      lines.push(`  Verification comment: ${f.review_comment}`);
+    if (f.reviewed_by) lines.push(`  Verified by: ${f.reviewed_by}`);
+    if (f.reviewed_at) lines.push(`  Verified at: ${f.reviewed_at}`);
     if (f.description) lines.push(`  Description: ${f.description}`);
     if (f.responsibility) lines.push(`  Responsibility: ${f.responsibility}`);
     if (f.what_it_does) lines.push(`  What it does: ${f.what_it_does}`);
@@ -250,6 +259,8 @@ ${dataContext}
 
 IMPORTANT: The "Summary" section at the top contains pre-computed exact counts. Always use those numbers for counting questions (e.g. "how many factsheets", "how many dependencies"). Do NOT try to count items yourself from the lists below — use the summary numbers. The "Factsheets by type and status" subsection has exact cross-tabulated counts for each type-status combination.
 
+Use the factsheet "Verified" field for verification logic. Treat "verified" and "reviewed" as the same concept when users ask filtering/counting questions.
+
 When listing items that match a filter (e.g. "Data Foundations with Unknown status"), first check the summary for the exact count, then carefully list ALL matching items from the data. Verify your list has the correct number of items before responding.
 
 When a user asks about a specific factsheet, include its calculated metric values (if available) in the answer.
@@ -274,7 +285,7 @@ Answer questions based on this data. Be concise and specific. If asked about dep
       { role: "system", content: systemPrompt },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
     ],
-    temperature: 0.7,
+    temperature: 0,
   };
 
   const baseUrl = endpoint.replace(/\/+$/, "");

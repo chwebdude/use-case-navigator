@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const USERNAME_KEY = "ai-use-case-navigator-username";
 const POWER_KEY = "ai-use-case-navigator-has-power";
@@ -143,5 +145,19 @@ test.describe("common app scenarios", () => {
     await expect(
       page.getByPlaceholder("Ask a question about your data…"),
     ).toBeVisible();
+  });
+
+  test("includes verified logic in chat prompt template", async () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/pages/ChatPage.tsx"),
+      "utf-8",
+    );
+
+    expect(source).toContain("Verified factsheets");
+    expect(source).toContain('Verified: ${f.reviewed ? "yes" : "no"}');
+    expect(source).toContain(
+      'Treat "verified" and "reviewed" as the same concept',
+    );
+    expect(source).toContain("temperature: 0");
   });
 });
