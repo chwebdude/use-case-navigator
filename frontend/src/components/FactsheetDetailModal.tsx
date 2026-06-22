@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Edit,
   ExternalLink,
@@ -26,6 +26,7 @@ import {
   getStatusTextColor,
   getStatusesForType,
 } from "../lib/statusConfig";
+import { buildDocumentTitle, getPageTitleForPath } from "../lib/documentTitle";
 import { isPropertyVisibleForType } from "../lib/propertyVisibility";
 import type {
   Factsheet,
@@ -46,6 +47,7 @@ export default function FactsheetDetailModal({
   factsheetId,
   onClose,
 }: FactsheetDetailModalProps) {
+  const { pathname } = useLocation();
   const [activeFactsheetId, setActiveFactsheetId] = useState<string | null>(
     factsheetId,
   );
@@ -85,6 +87,23 @@ export default function FactsheetDetailModal({
     "factsheet_types",
     factsheet?.type,
   );
+
+  useEffect(() => {
+    if (!activeFactsheetId || !factsheet?.name) {
+      return;
+    }
+
+    const previousTitle = document.title;
+    document.title = buildDocumentTitle({
+      appTitle: appSettings.title,
+      pageTitle: getPageTitleForPath(pathname),
+      factsheetName: factsheet.name,
+    });
+
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [activeFactsheetId, appSettings.title, factsheet?.name, pathname]);
 
   // Helper function to check if a field should be hidden
   const isFieldHidden = (fieldName: string): boolean => {

@@ -197,11 +197,6 @@ export function useAppSettings() {
     };
   }, [fetchSettings]);
 
-  // Update document title when settings change
-  useEffect(() => {
-    document.title = settings.title;
-  }, [settings.title]);
-
   // Update favicon when icon changes
   useEffect(() => {
     updateFavicon(settings.icon);

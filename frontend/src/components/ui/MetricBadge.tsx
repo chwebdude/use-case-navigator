@@ -1,6 +1,9 @@
+import { MetricDescription } from "./MetricDescription";
+
 interface MetricBadgeProps {
   name: string;
   score: number;
+  description?: string;
   maxScore?: number;
   variant?: "default" | "compact" | "detailed";
 }
@@ -8,6 +11,7 @@ interface MetricBadgeProps {
 export function MetricBadge({
   name,
   score,
+  description,
   maxScore = 10,
   variant = "default",
 }: MetricBadgeProps) {
@@ -63,10 +67,17 @@ export function MetricBadge({
   if (variant === "compact") {
     return (
       <div
-        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${colors.bg} ${colors.border} ${colors.text}`}
+        className={`inline-flex max-w-[280px] flex-col gap-0.5 px-3 py-1.5 rounded-lg border ${colors.bg} ${colors.border} ${colors.text}`}
       >
-        <span className="text-sm font-medium">{name}</span>
-        <span className="text-xs font-bold">{score.toFixed(1)}</span>
+        <div className="inline-flex items-center gap-2">
+          <span className="text-sm font-medium">{name}</span>
+          <span className="text-xs font-bold">{score.toFixed(1)}</span>
+        </div>
+        <MetricDescription
+          description={description}
+          className="text-[11px] leading-tight text-gray-600 line-clamp-1"
+          maxLength={90}
+        />
       </div>
     );
   }
@@ -83,6 +94,11 @@ export function MetricBadge({
             <span className="text-sm font-normal opacity-60">/{maxScore}</span>
           </span>
         </div>
+        <MetricDescription
+          description={description}
+          className="text-xs text-gray-600 line-clamp-2"
+          maxLength={140}
+        />
         <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
           <div
             className={`absolute inset-y-0 left-0 ${colors.fill} rounded-full transition-all duration-500 ease-out`}
@@ -107,6 +123,11 @@ export function MetricBadge({
           {score.toFixed(1)}
         </span>
       </div>
+      <MetricDescription
+        description={description}
+        className="text-xs text-gray-600 line-clamp-1"
+        maxLength={110}
+      />
       <div className="relative h-1.5 bg-white/50 rounded-full overflow-hidden">
         <div
           className={`absolute inset-y-0 left-0 ${colors.fill} rounded-full transition-all duration-500 ease-out`}

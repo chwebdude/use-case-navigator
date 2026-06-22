@@ -26,7 +26,15 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, CardTitle, Button, Input, MultiSelect } from "../components/ui";
+import {
+  Card,
+  CardTitle,
+  Button,
+  Input,
+  Textarea,
+  MultiSelect,
+  MetricDescription,
+} from "../components/ui";
 import { useRealtime } from "../hooks/useRealtime";
 import {
   useAppSettings,
@@ -1256,11 +1264,13 @@ export default function SettingsPage() {
       expand: "properties",
     });
   const [newMetricName, setNewMetricName] = useState("");
+  const [newMetricDescription, setNewMetricDescription] = useState("");
   const [newMetricProps, setNewMetricProps] = useState<string[]>([]);
   const [newMetricTarget, setNewMetricTarget] = useState<string>("");
   const [savingMetric, setSavingMetric] = useState(false);
   const [editingMetric, setEditingMetric] = useState<string | null>(null);
   const [editMetricName, setEditMetricName] = useState("");
+  const [editMetricDescription, setEditMetricDescription] = useState("");
   const [editMetricProps, setEditMetricProps] = useState<string[]>([]);
   const [editMetricTarget, setEditMetricTarget] = useState<string>("");
 
@@ -1288,11 +1298,13 @@ export default function SettingsPage() {
     try {
       await pb.collection("metrics").create({
         name: newMetricName.trim(),
+        description: newMetricDescription.trim(),
         properties: newMetricProps,
         order: metrics.length,
         target_value: targetValue,
       });
       setNewMetricName("");
+      setNewMetricDescription("");
       setNewMetricProps([]);
       setNewMetricTarget("");
       refreshMetrics();
@@ -1316,6 +1328,7 @@ export default function SettingsPage() {
   const handleStartEditMetric = (m: MetricExpanded) => {
     setEditingMetric(m.id);
     setEditMetricName(m.name);
+    setEditMetricDescription(m.description ?? "");
     setEditMetricTarget(
       typeof m.target_value === "number" ? String(m.target_value) : "",
     );
@@ -1329,6 +1342,7 @@ export default function SettingsPage() {
   const handleCancelEditMetric = () => {
     setEditingMetric(null);
     setEditMetricName("");
+    setEditMetricDescription("");
     setEditMetricProps([]);
     setEditMetricTarget("");
   };
@@ -1342,6 +1356,7 @@ export default function SettingsPage() {
     try {
       await pb.collection("metrics").update(editingMetric, {
         name: editMetricName.trim(),
+        description: editMetricDescription.trim(),
         properties: editMetricProps,
         target_value: targetValue,
       });
@@ -2066,6 +2081,15 @@ export default function SettingsPage() {
                           min={0}
                         />
                       </div>
+                      <Textarea
+                        value={editMetricDescription}
+                        onChange={(e) =>
+                          setEditMetricDescription(e.target.value)
+                        }
+                        className="w-full"
+                        placeholder="Metric description"
+                        rows={2}
+                      />
                       <div>
                         <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
                           Properties
@@ -2118,6 +2142,11 @@ export default function SettingsPage() {
                         <div className="font-medium text-primary-900">
                           {m.name}
                         </div>
+                        <MetricDescription
+                          description={m.description}
+                          className="text-sm text-gray-600 mt-1 line-clamp-1 max-w-2xl"
+                          maxLength={140}
+                        />
                         <div className="text-sm text-gray-600 mt-1">
                           {(m.expand?.properties || [])
                             .map((p) => p.name)
@@ -2170,6 +2199,13 @@ export default function SettingsPage() {
                   placeholder="e.g., Priority Score"
                   value={newMetricName}
                   onChange={(e) => setNewMetricName(e.target.value)}
+                />
+                <Textarea
+                  label="Metric Description"
+                  placeholder="Describe what this metric measures"
+                  value={newMetricDescription}
+                  onChange={(e) => setNewMetricDescription(e.target.value)}
+                  rows={2}
                 />
                 <Input
                   label="Target Value"

@@ -12,5 +12,6 @@ export { default as Select } from "./Select";
 export { MultiSelect } from "./MultiSelect";
 export { default as Badge } from "./Badge";
 export { MetricBadge } from "./MetricBadge";
+export { MetricDescription } from "./MetricDescription";
 export { default as Modal } from "./Modal";
 export { default as VerifiedCheck } from "./VerifiedCheck";

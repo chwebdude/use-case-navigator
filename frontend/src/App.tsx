@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Layout } from "./components/layout";
+import { Layout, PageTitleManager } from "./components/layout";
 import UsernamePrompt from "./components/UsernamePrompt";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { useUser } from "./hooks/useUser";
@@ -54,6 +54,7 @@ function App() {
   return (
     <BrowserRouter>
       <UsernamePrompt isOpen={!isLoggedIn} onSubmit={setUsername} />
+      <PageTitleManager appTitle={appSettings.title} />
       <Routes>
         <Route path="factsheets/:id/print" element={<FactsheetPrint />} />
         <Route

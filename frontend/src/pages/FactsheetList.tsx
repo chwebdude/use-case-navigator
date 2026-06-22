@@ -1,7 +1,13 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Filter } from "lucide-react";
-import { Card, Button, Badge, MetricBadge, VerifiedCheck } from "../components/ui";
+import {
+  Card,
+  Button,
+  Badge,
+  MetricBadge,
+  VerifiedCheck,
+} from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
 import { SaveDefaultsButton } from "../components/SaveDefaultsButton";
 import { useRealtime } from "../hooks/useRealtime";
@@ -304,9 +310,7 @@ export default function FactsheetList() {
                         >
                           {statusMeta.label}
                         </Badge>
-                        {isReviewed && (
-                          <VerifiedCheck />
-                        )}
+                        {isReviewed && <VerifiedCheck />}
                       </div>
                       <p className="text-gray-500 mt-2 line-clamp-2">
                         {factsheet.description || "No description provided"}
@@ -321,6 +325,7 @@ export default function FactsheetList() {
                           <MetricBadge
                             key={metric.id}
                             name={metric.name}
+                            description={metric.description}
                             score={score}
                             variant="compact"
                           />
