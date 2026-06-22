@@ -1,5 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Bot, User, AlertCircle, Loader2, Trash2, Wrench } from "lucide-react";
+import {
+  Send,
+  Bot,
+  User,
+  AlertCircle,
+  Loader2,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import { Button } from "../components/ui";
 import { Card, CardTitle } from "../components/ui";
@@ -135,8 +143,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_dependencies",
-      description:
-        "Get dependency relationships between factsheets",
+      description: "Get dependency relationships between factsheets",
       parameters: {
         type: "object",
         properties: {
@@ -152,8 +159,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_metric_scores",
-      description:
-        "Get calculated metric scores for factsheets",
+      description: "Get calculated metric scores for factsheets",
       parameters: {
         type: "object",
         properties: {
@@ -221,7 +227,13 @@ async function executeSearchFactsheets(args: {
   limit?: number;
 }): Promise<string> {
   const limit = Math.min(args.limit || 10, 50);
-  const [factsheets, types, propertyDefs, propertyOptions, factsheetProperties] = await Promise.all([
+  const [
+    factsheets,
+    types,
+    propertyDefs,
+    propertyOptions,
+    factsheetProperties,
+  ] = await Promise.all([
     pb.collection("factsheets").getFullList<Factsheet>(),
     pb.collection("factsheet_types").getFullList<FactsheetType>(),
     pb.collection("property_definitions").getFullList<PropertyDefinition>(),
@@ -230,11 +242,19 @@ async function executeSearchFactsheets(args: {
   ]);
 
   const typeMap = Object.fromEntries(types.map((t) => [t.id, t.name]));
-  const propNameById = Object.fromEntries(propertyDefs.map((p) => [p.id, p.name]));
-  const optionById = Object.fromEntries(
-    propertyOptions.map((o) => [o.id, o as { id: string; value?: string; weight?: number }]),
+  const propNameById = Object.fromEntries(
+    propertyDefs.map((p) => [p.id, p.name]),
   );
-  const propsByFactsheet = new Map<string, Array<{ property: string; value: string; weight?: number }>>();
+  const optionById = Object.fromEntries(
+    propertyOptions.map((o) => [
+      o.id,
+      o as { id: string; value?: string; weight?: number },
+    ]),
+  );
+  const propsByFactsheet = new Map<
+    string,
+    Array<{ property: string; value: string; weight?: number }>
+  >();
   for (const fp of factsheetProperties) {
     const propName = propNameById[fp.property] || fp.property;
     const opt = optionById[fp.option];
@@ -247,9 +267,8 @@ async function executeSearchFactsheets(args: {
   const statusQuery = args.status?.toLowerCase().trim();
   const phraseQuery = args.query?.toLowerCase().trim() || "";
   const wantsVerified = /\bverified\b|\breviewed\b/.test(phraseQuery);
-  const wantsUnverified = /\bunverified\b|\bnot verified\b|\bnot reviewed\b/.test(
-    phraseQuery,
-  );
+  const wantsUnverified =
+    /\bunverified\b|\bnot verified\b|\bnot reviewed\b/.test(phraseQuery);
   const stopwords = new Set([
     "where",
     "what",
@@ -333,11 +352,14 @@ async function executeSearchFactsheets(args: {
     if (haystack.includes(phraseQuery)) return true;
 
     // Fall back to token matching for natural-language queries.
-    const tokensToMatch = contentTokens.length > 0 ? contentTokens : queryTokens;
+    const tokensToMatch =
+      contentTokens.length > 0 ? contentTokens : queryTokens;
     return tokensToMatch.some((token) => haystack.includes(token));
   });
 
-  const sorted = filtered.sort((a, b) => a.name.localeCompare(b.name)).slice(0, limit);
+  const sorted = filtered
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, limit);
 
   return JSON.stringify(
     sorted.map((f) => ({
@@ -368,8 +390,17 @@ async function executeSearchFactsheets(args: {
 async function executeGetFactsheetDetails(args: {
   factsheet_id: string;
 }): Promise<string> {
-  const fs = await pb.collection("factsheets").getOne<Factsheet>(args.factsheet_id);
-  const [typeObj, deps, allFactsheets, propertyDefs, propertyOptions, factsheetProps] = await Promise.all([
+  const fs = await pb
+    .collection("factsheets")
+    .getOne<Factsheet>(args.factsheet_id);
+  const [
+    typeObj,
+    deps,
+    allFactsheets,
+    propertyDefs,
+    propertyOptions,
+    factsheetProps,
+  ] = await Promise.all([
     pb.collection("factsheet_types").getOne<FactsheetType>(fs.type, {
       fields: "id,name",
     }),
@@ -384,16 +415,23 @@ async function executeGetFactsheetDetails(args: {
     }),
   ]);
 
-  const involvedIds = [...new Set(deps.flatMap((d) => [d.factsheet, d.depends_on]))];
+  const involvedIds = [
+    ...new Set(deps.flatMap((d) => [d.factsheet, d.depends_on])),
+  ];
   const involvedFactsheets = allFactsheets.filter((f) =>
     involvedIds.includes(f.id),
   );
   const factsheetNameById = Object.fromEntries(
     involvedFactsheets.map((f) => [f.id, f.name]),
   );
-  const propNameById = Object.fromEntries(propertyDefs.map((p) => [p.id, p.name]));
+  const propNameById = Object.fromEntries(
+    propertyDefs.map((p) => [p.id, p.name]),
+  );
   const optionById = Object.fromEntries(
-    propertyOptions.map((o) => [o.id, o as { id: string; value?: string; weight?: number }]),
+    propertyOptions.map((o) => [
+      o.id,
+      o as { id: string; value?: string; weight?: number },
+    ]),
   );
   const properties = factsheetProps.map((fp) => ({
     property: propNameById[fp.property] || fp.property,
@@ -432,14 +470,18 @@ async function executeGetFactsheetDetails(args: {
 async function executeGetDependencies(args: {
   factsheet_id?: string;
 }): Promise<string> {
-  let filter = '';
+  let filter = "";
   if (args.factsheet_id) {
     filter = `factsheet = "${args.factsheet_id}" || depends_on = "${args.factsheet_id}"`;
   }
 
-  const deps = await pb.collection("dependencies").getFullList<Dependency>({ filter: filter || undefined, limit: 100 });
+  const deps = await pb
+    .collection("dependencies")
+    .getFullList<Dependency>({ filter: filter || undefined, limit: 100 });
 
-  const involvedIds = [...new Set(deps.flatMap((d) => [d.factsheet, d.depends_on]))];
+  const involvedIds = [
+    ...new Set(deps.flatMap((d) => [d.factsheet, d.depends_on])),
+  ];
   const allFactsheets = await pb
     .collection("factsheets")
     .getFullList<Factsheet>({ fields: "id,name" });
@@ -490,8 +532,9 @@ async function executeGetMetricScores(args: {
     metrics.forEach((m) => {
       const metricProperties = m.properties?.length
         ? m.properties
-        : ((m as Metric & { expand?: { properties?: PropertyDefinition[] } })
-            .expand?.properties?.map((p) => p.id) ?? []);
+        : ((
+            m as Metric & { expand?: { properties?: PropertyDefinition[] } }
+          ).expand?.properties?.map((p) => p.id) ?? []);
 
       if (metricProperties.length === 0) {
         metricScores[m.name] = null;
@@ -519,7 +562,10 @@ async function executeGetMetricScores(args: {
 
       const totalWeight = weights.reduce((a, b) => a + b, 0);
       const maxMetric = m.max_metric ?? 1;
-      const score = (values.reduce((a, b, i) => a + b * weights[i], 0) / totalWeight) / maxMetric;
+      const score =
+        values.reduce((a, b, i) => a + b * weights[i], 0) /
+        totalWeight /
+        maxMetric;
       metricScores[m.name] = Math.min(1, Math.max(0, score));
     });
 
@@ -530,30 +576,48 @@ async function executeGetMetricScores(args: {
 }
 
 async function executeGetAllDataContext(): Promise<string> {
-  const [factsheets, types, dependencies, statistics, metricScores, propertyDefs, propertyOptions, factsheetProperties] =
-    await Promise.all([
-      pb.collection("factsheets").getFullList<Factsheet>({
-        fields:
-          "id,name,type,status,status_id,reviewed,review_comment,reviewed_by,reviewed_at,responsibility,description,what_it_does,benefits,problems_addressed,potential_ui",
-      }),
-      pb.collection("factsheet_types").getFullList<FactsheetType>({
-        fields: "id,name",
-      }),
-      pb.collection("dependencies").getFullList<Dependency>(),
-      executeGetStatistics(),
-      executeGetMetricScores({}),
-      pb.collection("property_definitions").getFullList<PropertyDefinition>(),
-      pb.collection("property_options").getFullList(),
-      pb.collection("factsheet_properties").getFullList<FactsheetProperty>(),
-    ]);
+  const [
+    factsheets,
+    types,
+    dependencies,
+    statistics,
+    metricScores,
+    propertyDefs,
+    propertyOptions,
+    factsheetProperties,
+  ] = await Promise.all([
+    pb.collection("factsheets").getFullList<Factsheet>({
+      fields:
+        "id,name,type,status,status_id,reviewed,review_comment,reviewed_by,reviewed_at,responsibility,description,what_it_does,benefits,problems_addressed,potential_ui",
+    }),
+    pb.collection("factsheet_types").getFullList<FactsheetType>({
+      fields: "id,name",
+    }),
+    pb.collection("dependencies").getFullList<Dependency>(),
+    executeGetStatistics(),
+    executeGetMetricScores({}),
+    pb.collection("property_definitions").getFullList<PropertyDefinition>(),
+    pb.collection("property_options").getFullList(),
+    pb.collection("factsheet_properties").getFullList<FactsheetProperty>(),
+  ]);
 
   const typeMap = Object.fromEntries(types.map((t) => [t.id, t.name]));
-  const factsheetNameById = Object.fromEntries(factsheets.map((f) => [f.id, f.name]));
-  const propNameById = Object.fromEntries(propertyDefs.map((p) => [p.id, p.name]));
-  const optionById = Object.fromEntries(
-    propertyOptions.map((o) => [o.id, o as { id: string; value?: string; weight?: number }]),
+  const factsheetNameById = Object.fromEntries(
+    factsheets.map((f) => [f.id, f.name]),
   );
-  const propsByFactsheet = new Map<string, Array<{ property: string; value: string; weight?: number }>>();
+  const propNameById = Object.fromEntries(
+    propertyDefs.map((p) => [p.id, p.name]),
+  );
+  const optionById = Object.fromEntries(
+    propertyOptions.map((o) => [
+      o.id,
+      o as { id: string; value?: string; weight?: number },
+    ]),
+  );
+  const propsByFactsheet = new Map<
+    string,
+    Array<{ property: string; value: string; weight?: number }>
+  >();
   for (const fp of factsheetProperties) {
     const propName = propNameById[fp.property] || fp.property;
     const opt = optionById[fp.option];
@@ -724,12 +788,15 @@ async function runAgenticLoop(
     });
   }
 
-  const latestUserMessage = [...apiMessages]
-    .reverse()
-    .find((m) => m.role === "user")?.content.toLowerCase() || "";
+  const latestUserMessage =
+    [...apiMessages]
+      .reverse()
+      .find((m) => m.role === "user")
+      ?.content.toLowerCase() || "";
   const shouldForceSearchTool =
     /\bverified\b|\breviewed\b/.test(latestUserMessage) ||
-    (/\bmaturity\b/.test(latestUserMessage) && /\bprescriptive\b/.test(latestUserMessage));
+    (/\bmaturity\b/.test(latestUserMessage) &&
+      /\bprescriptive\b/.test(latestUserMessage));
 
   if (shouldForceSearchTool) {
     const forcedToolCall = {
@@ -870,7 +937,8 @@ async function runAgenticLoop(
   onToolsActive([]);
   return {
     answer:
-      finalPhase.content || "I could not produce a final answer from tool data.",
+      finalPhase.content ||
+      "I could not produce a final answer from tool data.",
     toolCalls: toolNames,
   };
 }
@@ -1007,14 +1075,11 @@ function hideRecordIdsInMarkdown(content: string): string {
   // 1) Protect markdown links so link targets (factsheet:<id>) are never modified.
   // 2) Remove only explicit ID labels/parenthetical artifacts.
   const linkPlaceholders: string[] = [];
-  let sanitized = content.replace(
-    /\[[^\]]+\]\([^\)]+\)/g,
-    (match) => {
-      const idx = linkPlaceholders.length;
-      linkPlaceholders.push(match);
-      return `\u0000LINK${idx}\u0000`;
-    },
-  );
+  let sanitized = content.replace(/\[[^\]]+\]\([^\)]+\)/g, (match) => {
+    const idx = linkPlaceholders.length;
+    linkPlaceholders.push(match);
+    return `\u0000LINK${idx}\u0000`;
+  });
 
   // Remove inline-code IDs, e.g. `y010z53xd4te5np`
   sanitized = sanitized.replace(/`[a-z0-9]{15}`/g, "");
@@ -1026,7 +1091,10 @@ function hideRecordIdsInMarkdown(content: string): string {
   sanitized = sanitized.replace(/\bid\s*:?\s*[a-z0-9]{15}\b/gi, "");
 
   // Remove explicit "ID: <id>" list labels, e.g. "- ID: y010..."
-  sanitized = sanitized.replace(/(^|\n)(\s*[-*]?\s*id\s*:\s*)[a-z0-9]{15}(?=\s|$)/gi, "$1$2");
+  sanitized = sanitized.replace(
+    /(^|\n)(\s*[-*]?\s*id\s*:\s*)[a-z0-9]{15}(?=\s|$)/gi,
+    "$1$2",
+  );
 
   // Remove parenthetical leading IDs, e.g. "(y010..., status: in_use)"
   sanitized = sanitized.replace(/\(\s*[a-z0-9]{15}\s*,/g, "(");
@@ -1358,10 +1426,7 @@ export default function ChatPage() {
             disabled={loading}
             className="flex-1 h-10 px-3 border border-gray-300 bg-white text-primary-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
           />
-          <Button
-            onClick={handleSend}
-            disabled={!input.trim() || loading}
-          >
+          <Button onClick={handleSend} disabled={!input.trim() || loading}>
             <Send className="w-4 h-4" />
           </Button>
         </div>

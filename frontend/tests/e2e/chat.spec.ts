@@ -80,7 +80,9 @@ test.describe("Chat page — tool calling architecture", () => {
     await page.reload();
 
     await expect(page.getByText("Start a conversation")).toBeVisible();
-    await expect(page.getByPlaceholder("Ask a question about your data…")).toBeVisible();
+    await expect(
+      page.getByPlaceholder("Ask a question about your data…"),
+    ).toBeVisible();
   });
 
   test("shows suggestion chips on empty chat state", async ({ page }) => {
@@ -174,9 +176,9 @@ test.describe("Chat page — tool calling architecture", () => {
     await page
       .getByRole("button", { name: "How many factsheets are there?" })
       .click();
-    await expect(page.getByPlaceholder("Ask a question about your data…")).toHaveValue(
-      "How many factsheets are there?",
-    );
+    await expect(
+      page.getByPlaceholder("Ask a question about your data…"),
+    ).toHaveValue("How many factsheets are there?");
   });
 
   test("sends a message and shows assistant response via tool calling", async ({
@@ -225,22 +227,34 @@ test.describe("Chat page — tool calling architecture", () => {
     });
 
     // Mock all other PocketBase collections used by tool functions
-    await page.route("**/api/collections/factsheet_types/records**", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          page: 1, perPage: 200, totalItems: 1, totalPages: 1,
-          items: [{ id: "t1", name: "Use Case", color: "#000" }],
-        }),
-      });
-    });
+    await page.route(
+      "**/api/collections/factsheet_types/records**",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            page: 1,
+            perPage: 200,
+            totalItems: 1,
+            totalPages: 1,
+            items: [{ id: "t1", name: "Use Case", color: "#000" }],
+          }),
+        });
+      },
+    );
 
     await page.route("**/api/collections/dependencies/records**", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ page: 1, perPage: 200, totalItems: 0, totalPages: 1, items: [] }),
+        body: JSON.stringify({
+          page: 1,
+          perPage: 200,
+          totalItems: 0,
+          totalPages: 1,
+          items: [],
+        }),
       });
     });
 
@@ -303,12 +317,14 @@ test.describe("Chat page — tool calling architecture", () => {
     await page.getByRole("button").filter({ hasText: "" }).last().click();
 
     // Should show the user message
-    await expect(page.getByText("How many factsheets are there?")).toBeVisible();
+    await expect(
+      page.getByText("How many factsheets are there?"),
+    ).toBeVisible();
 
     // Should show the assistant response
-    await expect(
-      page.getByText("There are", { exact: false }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("There are", { exact: false })).toBeVisible({
+      timeout: 10000,
+    });
 
     // LLM should have been called twice (once for tool call, once for final answer)
     expect(llmCallCount).toBe(2);
@@ -322,7 +338,10 @@ test.describe("Chat page — tool calling architecture", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          page: 1, perPage: 30, totalItems: 1, totalPages: 1,
+          page: 1,
+          perPage: 30,
+          totalItems: 1,
+          totalPages: 1,
           items: [
             {
               id: "test_settings",
@@ -342,24 +361,43 @@ test.describe("Chat page — tool calling architecture", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          page: 1, perPage: 500, totalItems: 0, totalPages: 1, items: [],
+          page: 1,
+          perPage: 500,
+          totalItems: 0,
+          totalPages: 1,
+          items: [],
         }),
       });
     });
 
-    await page.route("**/api/collections/factsheet_types/records**", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ page: 1, perPage: 200, totalItems: 0, totalPages: 1, items: [] }),
-      });
-    });
+    await page.route(
+      "**/api/collections/factsheet_types/records**",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            page: 1,
+            perPage: 200,
+            totalItems: 0,
+            totalPages: 1,
+            items: [],
+          }),
+        });
+      },
+    );
 
     await page.route("**/api/collections/dependencies/records**", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ page: 1, perPage: 200, totalItems: 0, totalPages: 1, items: [] }),
+        body: JSON.stringify({
+          page: 1,
+          perPage: 200,
+          totalItems: 0,
+          totalPages: 1,
+          items: [],
+        }),
       });
     });
 
@@ -416,7 +454,9 @@ test.describe("Chat page — tool calling architecture", () => {
 
     // The tool activity indicator text should appear at some point during the request
     // (It may flash briefly; we use a generous timeout)
-    await expect(page.getByText("Counting factsheets…")).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText("Counting factsheets…")).toBeVisible({
+      timeout: 8000,
+    });
   });
 
   test("clear button resets conversation and API history", async ({ page }) => {
@@ -425,7 +465,10 @@ test.describe("Chat page — tool calling architecture", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          page: 1, perPage: 30, totalItems: 1, totalPages: 1,
+          page: 1,
+          perPage: 30,
+          totalItems: 1,
+          totalPages: 1,
           items: [
             {
               id: "test_settings",
@@ -445,24 +488,43 @@ test.describe("Chat page — tool calling architecture", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          page: 1, perPage: 500, totalItems: 0, totalPages: 1, items: [],
+          page: 1,
+          perPage: 500,
+          totalItems: 0,
+          totalPages: 1,
+          items: [],
         }),
       });
     });
 
-    await page.route("**/api/collections/factsheet_types/records**", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ page: 1, perPage: 200, totalItems: 0, totalPages: 1, items: [] }),
-      });
-    });
+    await page.route(
+      "**/api/collections/factsheet_types/records**",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            page: 1,
+            perPage: 200,
+            totalItems: 0,
+            totalPages: 1,
+            items: [],
+          }),
+        });
+      },
+    );
 
     await page.route("**/api/collections/dependencies/records**", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ page: 1, perPage: 200, totalItems: 0, totalPages: 1, items: [] }),
+        body: JSON.stringify({
+          page: 1,
+          perPage: 200,
+          totalItems: 0,
+          totalPages: 1,
+          items: [],
+        }),
       });
     });
 
@@ -474,7 +536,10 @@ test.describe("Chat page — tool calling architecture", () => {
           choices: [
             {
               finish_reason: "stop",
-              message: { role: "assistant", content: "Hello from the assistant." },
+              message: {
+                role: "assistant",
+                content: "Hello from the assistant.",
+              },
             },
           ],
         }),
@@ -508,7 +573,10 @@ test.describe("Chat page — tool calling architecture", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          page: 1, perPage: 30, totalItems: 1, totalPages: 1,
+          page: 1,
+          perPage: 30,
+          totalItems: 1,
+          totalPages: 1,
           items: [
             {
               id: "test_settings",
@@ -528,7 +596,11 @@ test.describe("Chat page — tool calling architecture", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          page: 1, perPage: 500, totalItems: 0, totalPages: 1, items: [],
+          page: 1,
+          perPage: 500,
+          totalItems: 0,
+          totalPages: 1,
+          items: [],
         }),
       });
     });
@@ -563,7 +635,10 @@ test.describe("Chat page — tool calling architecture", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          page: 1, perPage: 30, totalItems: 1, totalPages: 1,
+          page: 1,
+          perPage: 30,
+          totalItems: 1,
+          totalPages: 1,
           items: [
             {
               id: "test_settings",
@@ -582,7 +657,13 @@ test.describe("Chat page — tool calling architecture", () => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ page: 1, perPage: 500, totalItems: 0, totalPages: 1, items: [] }),
+        body: JSON.stringify({
+          page: 1,
+          perPage: 500,
+          totalItems: 0,
+          totalPages: 1,
+          items: [],
+        }),
       });
     });
 
