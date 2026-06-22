@@ -494,7 +494,7 @@ export default function FactsheetDetail() {
                 {statusMeta.label}
               </Badge>
               {isReviewed && (
-                <VerifiedCheck />
+                <VerifiedCheck className="h-6 w-6" />
               )}
             </div>
           </div>
