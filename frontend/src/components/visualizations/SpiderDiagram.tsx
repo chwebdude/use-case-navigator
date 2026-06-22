@@ -10,6 +10,7 @@ export interface SpiderDataPoint {
 interface SpiderDiagramProps {
   data: SpiderDataPoint[];
   metrics: string[];
+  metricDescriptions?: Record<string, string>;
   maxValue?: number;
   size?: number;
   showLabels?: boolean;
@@ -23,6 +24,7 @@ interface SpiderDiagramProps {
 export default function SpiderDiagram({
   data,
   metrics,
+  metricDescriptions,
   maxValue = 10,
   size = 400,
   showLabels = true,
@@ -40,6 +42,9 @@ export default function SpiderDiagram({
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
     null,
   );
+  const hoveredMetricDescription = hoveredPoint
+    ? metricDescriptions?.[hoveredPoint.metric]
+    : undefined;
 
   const numAxes = metrics.length;
   const centerX = size / 2;
@@ -221,6 +226,9 @@ export default function SpiderDiagram({
                 style={{ fontSize: "11px" }}
               >
                 {metric}
+                {metricDescriptions?.[metric] && (
+                  <title>{metricDescriptions[metric]}</title>
+                )}
               </text>
             );
           })}
@@ -310,6 +318,16 @@ export default function SpiderDiagram({
               .find((v) => v.metric === hoveredPoint.metric)
               ?.value.toFixed(1) ?? 0}
           </div>
+          {hoveredMetricDescription && (
+            <div
+              className="text-gray-400 max-w-[260px]"
+              title={hoveredMetricDescription}
+            >
+              {hoveredMetricDescription.length > 90
+                ? `${hoveredMetricDescription.slice(0, 90).trimEnd()}…`
+                : hoveredMetricDescription}
+            </div>
+          )}
         </div>
       )}
 

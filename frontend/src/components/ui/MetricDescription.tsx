@@ -18,10 +18,7 @@ export function MetricDescription({
     : normalizedDescription;
 
   return (
-    <p
-      className={className}
-      title={isTrimmed ? normalizedDescription : undefined}
-    >
+    <p className={className} title={normalizedDescription}>
       {displayDescription}
     </p>
   );

@@ -322,13 +322,13 @@ export default function FactsheetList() {
                       {metrics.map((metric) => {
                         const score = computeMetricScore(factsheet.id, metric);
                         return score !== null ? (
-                          <MetricBadge
-                            key={metric.id}
-                            name={metric.name}
-                            description={metric.description}
-                            score={score}
-                            variant="compact"
-                          />
+                          <div key={metric.id} title={metric.description || undefined}>
+                            <MetricBadge
+                              name={metric.name}
+                              score={score}
+                              variant="compact"
+                            />
+                          </div>
                         ) : null;
                       })}
                     </div>

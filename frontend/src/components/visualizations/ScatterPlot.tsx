@@ -18,9 +18,12 @@ interface ScatterPlotProps {
   points: ScatterPoint[];
   xLabel: string;
   yLabel: string;
+  xDescription?: string;
+  yDescription?: string;
   xTicks: AxisTick[];
   yTicks: AxisTick[];
   bubbleSizeLabel?: string;
+  bubbleSizeDescription?: string;
   width?: number;
   height?: number;
   showLegend?: boolean;
@@ -34,9 +37,12 @@ export default function ScatterPlot({
   points,
   xLabel,
   yLabel,
+  xDescription,
+  yDescription,
   xTicks,
   yTicks,
   bubbleSizeLabel,
+  bubbleSizeDescription,
   width = 720,
   height = 420,
   showLegend = true,
@@ -222,6 +228,7 @@ export default function ScatterPlot({
             className="fill-gray-700"
           >
             {xLabel}
+            {xDescription && <title>{xDescription}</title>}
           </text>
           <text
             x={-innerHeight / 2}
@@ -231,6 +238,7 @@ export default function ScatterPlot({
             className="fill-gray-700"
           >
             {yLabel}
+            {yDescription && <title>{yDescription}</title>}
           </text>
 
           {/* Tick labels */}
@@ -317,12 +325,36 @@ export default function ScatterPlot({
           <div className="text-gray-300">
             {xLabel}: {hovered.x ?? "Unknown"}
           </div>
+          {xDescription && (
+            <div className="text-gray-400 max-w-[260px]" title={xDescription}>
+              {xDescription.length > 90
+                ? `${xDescription.slice(0, 90).trimEnd()}…`
+                : xDescription}
+            </div>
+          )}
           <div className="text-gray-300">
             {yLabel}: {hovered.y ?? "Unknown"}
           </div>
+          {yDescription && (
+            <div className="text-gray-400 max-w-[260px]" title={yDescription}>
+              {yDescription.length > 90
+                ? `${yDescription.slice(0, 90).trimEnd()}…`
+                : yDescription}
+            </div>
+          )}
           {bubbleSizeLabel && typeof hovered.size === "number" && (
             <div className="text-gray-300">
               {bubbleSizeLabel}: {hovered.size}
+            </div>
+          )}
+          {bubbleSizeDescription && (
+            <div
+              className="text-gray-400 max-w-[260px]"
+              title={bubbleSizeDescription}
+            >
+              {bubbleSizeDescription.length > 90
+                ? `${bubbleSizeDescription.slice(0, 90).trimEnd()}…`
+                : bubbleSizeDescription}
             </div>
           )}
         </div>

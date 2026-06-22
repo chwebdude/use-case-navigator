@@ -218,6 +218,11 @@ export default function ScatterPage() {
     label: p.name,
   }));
 
+  const metricById = useMemo(
+    () => new Map(metrics.map((metric) => [metric.id, metric])),
+    [metrics],
+  );
+
   const metricAxisOptions = metrics.map((m) => ({
     value: m.id,
     label: m.name,
@@ -234,6 +239,15 @@ export default function ScatterPage() {
     bubbleSizeMode === "metrics"
       ? "Bubble Size (Metric, Optional)"
       : "Bubble Size (Property, Optional)";
+
+  const selectedMetricDescriptionX =
+    axisMode === "metrics" ? metricById.get(xAxis)?.description : undefined;
+  const selectedMetricDescriptionY =
+    axisMode === "metrics" ? metricById.get(yAxis)?.description : undefined;
+  const selectedBubbleMetricDescription =
+    bubbleSizeMode === "metrics"
+      ? metricById.get(bubbleSizeBy)?.description
+      : undefined;
 
   const xTicks: AxisTick[] = useMemo(() => {
     if (!xAxis) return [];
@@ -419,6 +433,7 @@ export default function ScatterPage() {
                   setXAxis(e.target.value)
                 }
                 placeholder={`Select ${axisMode}...`}
+                title={selectedMetricDescriptionX}
               />
             </div>
             <div className="w-56">
@@ -430,6 +445,7 @@ export default function ScatterPage() {
                   setYAxis(e.target.value)
                 }
                 placeholder={`Select ${axisMode}...`}
+                title={selectedMetricDescriptionY}
               />
             </div>
             <div className="w-72">
@@ -443,6 +459,7 @@ export default function ScatterPage() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                   setBubbleSizeBy(e.target.value)
                 }
+                title={selectedBubbleMetricDescription}
               />
             </div>
           </div>
@@ -475,6 +492,8 @@ export default function ScatterPage() {
                     : propertyDefinitions.find((p) => p.id === yAxis)?.name ||
                       "Y"
                 }
+                xDescription={selectedMetricDescriptionX}
+                yDescription={selectedMetricDescriptionY}
                 xTicks={xTicks}
                 yTicks={yTicks}
                 bubbleSizeLabel={
@@ -483,6 +502,7 @@ export default function ScatterPage() {
                         ?.label || "Bubble Size"
                     : undefined
                 }
+                bubbleSizeDescription={selectedBubbleMetricDescription}
                 height={340}
                 showLegend={true}
                 legendPosition="right"

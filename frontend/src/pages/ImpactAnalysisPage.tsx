@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { TrendingUp, ArrowUpDown } from "lucide-react";
-import { Card, CardTitle, Badge, Select, VerifiedCheck } from "../components/ui";
+import {
+  Card,
+  CardTitle,
+  Badge,
+  Select,
+  VerifiedCheck,
+  MetricDescription,
+} from "../components/ui";
 import { FilterBar } from "../components/FilterBar";
 import {
   type FactsheetExpanded,
@@ -429,6 +436,10 @@ export default function ImpactAnalysisPage() {
     ...metrics.map((m) => ({ value: m.id, label: m.name })),
   ];
 
+  const selectedMetricDescription = metricFilter
+    ? metrics.find((metric) => metric.id === metricFilter)?.description
+    : undefined;
+
   return (
     <div className="flex flex-col h-full">
       <div className="border-b border-gray-200 bg-white p-4">
@@ -479,6 +490,10 @@ export default function ImpactAnalysisPage() {
                 onChange={(e) => setMetricFilter(e.target.value)}
                 options={metricOptions}
                 className="w-64"
+              />
+              <MetricDescription
+                description={selectedMetricDescription}
+                className="max-w-64 text-xs text-gray-500 line-clamp-1"
               />
             </div>
 

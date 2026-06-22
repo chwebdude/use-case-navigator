@@ -382,6 +382,15 @@ export default function FactsheetDetailModal({
   }, [factsheet, metrics, propertyMap, typeColor]);
 
   const metricNames = useMemo(() => metrics.map((m) => m.name), [metrics]);
+  const metricDescriptionsByName = useMemo(
+    () =>
+      Object.fromEntries(
+        metrics
+          .filter((metric) => metric.description?.trim())
+          .map((metric) => [metric.name, metric.description!.trim()]),
+      ) as Record<string, string>,
+    [metrics],
+  );
 
   return (
     <Modal
@@ -524,6 +533,7 @@ export default function FactsheetDetailModal({
                   <SpiderDiagram
                     data={spiderData}
                     metrics={metricNames}
+                    metricDescriptions={metricDescriptionsByName}
                     maxValue={10}
                     size={280}
                     showLabels={true}
@@ -539,6 +549,7 @@ export default function FactsheetDetailModal({
                     <MetricBadge
                       key={metric.id}
                       name={metric.name}
+                      description={metric.description}
                       score={score}
                       variant="default"
                     />

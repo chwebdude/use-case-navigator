@@ -424,6 +424,15 @@ export default function FactsheetDetail() {
   }, [factsheet, metrics, propertyMap, typeColor]);
 
   const metricNames = useMemo(() => metrics.map((m) => m.name), [metrics]);
+  const metricDescriptionsByName = useMemo(
+    () =>
+      Object.fromEntries(
+        metrics
+          .filter((metric) => metric.description?.trim())
+          .map((metric) => [metric.name, metric.description!.trim()]),
+      ) as Record<string, string>,
+    [metrics],
+  );
 
   if (loading) {
     return (
@@ -836,6 +845,7 @@ export default function FactsheetDetail() {
                 <SpiderDiagram
                   data={spiderData}
                   metrics={metricNames}
+                  metricDescriptions={metricDescriptionsByName}
                   maxValue={10}
                   size={350}
                   showLabels={true}
@@ -852,6 +862,7 @@ export default function FactsheetDetail() {
                   <MetricBadge
                     key={metric.id}
                     name={metric.name}
+                    description={metric.description}
                     score={score}
                     variant="detailed"
                   />

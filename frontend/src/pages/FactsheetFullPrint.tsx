@@ -212,6 +212,15 @@ export default function FactsheetFullPrint() {
     () => metrics.map((metric) => metric.name),
     [metrics],
   );
+  const metricDescriptionsByName = useMemo(
+    () =>
+      Object.fromEntries(
+        metrics
+          .filter((metric) => metric.description?.trim())
+          .map((metric) => [metric.name, metric.description!.trim()]),
+      ) as Record<string, string>,
+    [metrics],
+  );
   const loadingAll = loading || loadingProperties || loadingMetrics;
 
   const handleExportPng = async () => {
@@ -462,6 +471,7 @@ export default function FactsheetFullPrint() {
                 <SpiderDiagram
                   data={spiderData}
                   metrics={metricNames}
+                  metricDescriptions={metricDescriptionsByName}
                   maxValue={10}
                   size={420}
                   showLabels
@@ -482,6 +492,7 @@ export default function FactsheetFullPrint() {
                   <MetricBadge
                     key={metric.id}
                     name={metric.name}
+                    description={metric.description}
                     score={score}
                     variant="detailed"
                   />

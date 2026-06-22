@@ -250,12 +250,13 @@ export default function Dashboard() {
                             {metrics.map((m) => {
                               const score = computeMetricScore(factsheet.id, m);
                               return score !== null ? (
-                                <MetricBadge
-                                  key={m.id}
-                                  name={m.name}
-                                  score={score}
-                                  variant="compact"
-                                />
+                                <div key={m.id} title={m.description || undefined}>
+                                  <MetricBadge
+                                    name={m.name}
+                                    score={score}
+                                    variant="compact"
+                                  />
+                                </div>
                               ) : null;
                             })}
                           </div>

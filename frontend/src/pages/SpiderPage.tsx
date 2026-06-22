@@ -535,17 +535,16 @@ export default function SpiderPage() {
                 (dimension) => {
                   const isSelected = selectedMetrics.has(dimension.id);
                   return (
-                    <button
+                    <Button
+                      type="button"
+                      variant={isSelected ? "primary" : "secondary"}
+                      size="sm"
                       key={dimension.id}
                       onClick={() => toggleDimension(dimension.id)}
-                      className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
-                        isSelected
-                          ? "bg-accent-500 text-white border-accent-500"
-                          : "bg-white text-gray-600 border-gray-300 hover:border-accent-300"
-                      }`}
+                      className="justify-start"
                     >
                       {dimension.name}
-                    </button>
+                    </Button>
                   );
                 },
               )}
@@ -705,7 +704,7 @@ export default function SpiderPage() {
                         return (
                           <div key={metric.id}>
                             <div className="flex justify-between text-sm mb-1">
-                              <span className="text-gray-600">
+                              <span className="text-gray-600 min-w-0 pr-3">
                                 {metric.name}
                               </span>
                               <span className="font-medium">
