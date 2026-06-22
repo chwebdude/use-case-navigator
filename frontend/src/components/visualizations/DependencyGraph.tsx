@@ -606,10 +606,11 @@ export default function DependencyGraph({
     });
 
     // Create edges for dependencies
+    const nodeIds = new Set(nodes.map((node) => node.id));
     dependencies.forEach((dep) => {
       // Only add edge if both nodes exist
-      const sourceExists = nodes.some((n) => n.id === `fs-${dep.factsheet}`);
-      const targetExists = nodes.some((n) => n.id === `fs-${dep.depends_on}`);
+      const sourceExists = nodeIds.has(`fs-${dep.factsheet}`);
+      const targetExists = nodeIds.has(`fs-${dep.depends_on}`);
 
       if (sourceExists && targetExists) {
         // Check if this edge connects related nodes (both source and target must be related)

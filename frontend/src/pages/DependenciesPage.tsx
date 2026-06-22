@@ -95,6 +95,7 @@ export default function DependenciesPage() {
     "png" | "svg" | null
   >(null);
   const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
+  const [isGraphRenderReady, setIsGraphRenderReady] = useState(false);
   const viewportHandlerRef = useRef<DependencyGraphViewportHandlers | null>(
     null,
   );
@@ -532,6 +533,32 @@ export default function DependenciesPage() {
     statusFilter !== "" ||
     Object.values(propertyFilters).some((v) => v !== "");
 
+  useEffect(() => {
+    if (loading || filteredFactsheets.length === 0) {
+      setIsGraphRenderReady(false);
+      return;
+    }
+
+    const markGraphReady = () => {
+      setIsGraphRenderReady(true);
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(markGraphReady, {
+        timeout: 400,
+      });
+
+      return () => {
+        window.cancelIdleCallback(idleId);
+      };
+    }
+
+    const timeoutId = window.setTimeout(markGraphReady, 120);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loading, filteredFactsheets.length]);
+
   return (
     <div className="h-full min-h-0 flex flex-col gap-4">
       {/* Page header */}
@@ -740,9 +767,11 @@ export default function DependenciesPage() {
       />
 
       {/* Graph */}
-      {loading ? (
+      {loading || (!isGraphRenderReady && filteredFactsheets.length > 0) ? (
         <Card className="flex-1 min-h-[320px] flex items-center justify-center">
-          <div className="animate-pulse text-gray-400">Loading graph...</div>
+          <div className="animate-pulse text-gray-400">
+            {loading ? "Loading graph..." : "Preparing graph..."}
+          </div>
         </Card>
       ) : filteredFactsheets.length === 0 ? (
         <Card className="flex-1 min-h-[320px] text-center py-16">
