@@ -11,6 +11,23 @@ A web application for managing AI use cases in an enterprise environment with re
 - **Dependency Visualization**: Interactive graph showing relationships between use cases and their dependencies (data, knowledge, system)
 - **Property Matrix**: Plot use cases on a configurable 2D matrix based on their properties
 
+### Dependency Graph Controls
+
+The dependency view and factsheet detail graph include a factsheet selector and
+relation modes. **Focus** follows upstream and downstream chains separately;
+**Connected component** includes every factsheet reachable through any mixture
+of dependency directions. Upstream-only, downstream-only, and direct-connection
+modes provide narrower views. Existing page filters still apply.
+
+Use the **Dependencies** menu to hide or restore individual edges, or right-click
+an edge to hide it. The eye button restores all hidden dependencies. Hiding is
+local to the current view, survives auto-align, and never deletes or updates
+records. Hidden edges do not change which factsheets belong to a component.
+
+Both graphs support PNG and SVG export of the displayed graph, including its
+current relation selection and hidden edges. These controls are not added to
+the factsheet detail modal.
+
 ## Tech Stack
 
 ### Backend

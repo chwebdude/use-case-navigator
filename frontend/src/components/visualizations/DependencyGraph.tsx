@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useEffect, useRef } from "react";
+import { useCallback, useMemo, useEffect, useRef, useState } from "react";
+import { Download, Eye, EyeOff } from "lucide-react";
 import {
   ReactFlow,
   type Node,
@@ -26,6 +27,10 @@ import type {
 import { useAppSettings } from "../../hooks/useAppSettings";
 import { getStatusMeta, getStatusTextColor } from "../../lib/statusConfig";
 import { VerifiedCheck } from "../ui";
+import {
+  getRelatedFactsheetIds,
+  type DependencyRelationMode,
+} from "../../lib/dependencyRelations";
 
 export interface ConnectionRequest {
   sourceId: string;
@@ -63,7 +68,11 @@ interface DependencyGraphProps {
   factsheetPropertyValues?: Map<string, Map<string, string>>;
   showComments?: boolean;
   focusedFactsheetId?: string | null;
+  onFocusedFactsheetChange?: (factsheetId: string | null) => void;
   unrelatedDisplayMode?: "dim" | "hide";
+  enableViewControls?: boolean;
+  enableExportControls?: boolean;
+  layoutKey?: number;
   onExportHandlerChange?: (
     handlers: DependencyGraphExportHandlers | null,
   ) => void;
@@ -462,10 +471,26 @@ export default function DependencyGraph({
   factsheetPropertyValues,
   showComments = true,
   focusedFactsheetId,
+  onFocusedFactsheetChange,
   unrelatedDisplayMode = "dim",
+  enableViewControls = false,
+  enableExportControls = false,
+  layoutKey = 0,
   onExportHandlerChange,
   onViewportHandlerChange,
 }: DependencyGraphProps) {
+  const [hiddenDependencyIds, setHiddenDependencyIds] = useState<string[]>([]);
+  const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(null);
+  const [relationMode, setRelationMode] = useState<DependencyRelationMode>("chain");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const activeFactsheetId = onFocusedFactsheetChange
+    ? focusedFactsheetId
+    : selectedFactsheetId ?? focusedFactsheetId;
+  const visibleDependencies = useMemo(
+    () => dependencies.filter((dependency) => !hiddenDependencyIds.includes(dependency.id)),
+    [dependencies, hiddenDependencyIds],
+  );
   const graphWrapperRef = useRef<HTMLDivElement>(null);
   const reactFlowInstanceRef = useRef<{
     getViewport: () => GraphViewportState;
@@ -485,57 +510,11 @@ export default function DependencyGraph({
     settings: { statuses: globalStatuses },
   } = useAppSettings();
 
-  // Calculate related factsheet IDs when a factsheet is focused
-  // Includes the full dependency chain (upstream and downstream)
   const relatedFactsheetIds = useMemo(() => {
-    if (!focusedFactsheetId) return null;
-
-    const related = new Set<string>();
-    related.add(focusedFactsheetId);
-
-    // Build adjacency lists for traversal
-    const downstream = new Map<string, string[]>(); // factsheet -> what it depends on
-    const upstream = new Map<string, string[]>(); // factsheet -> what depends on it
-
-    dependencies.forEach((dep) => {
-      if (!downstream.has(dep.factsheet)) {
-        downstream.set(dep.factsheet, []);
-      }
-      downstream.get(dep.factsheet)!.push(dep.depends_on);
-
-      if (!upstream.has(dep.depends_on)) {
-        upstream.set(dep.depends_on, []);
-      }
-      upstream.get(dep.depends_on)!.push(dep.factsheet);
-    });
-
-    // Traverse downstream (what the focused factsheet depends on, recursively)
-    const traverseDownstream = (id: string) => {
-      const deps = downstream.get(id) || [];
-      for (const depId of deps) {
-        if (!related.has(depId)) {
-          related.add(depId);
-          traverseDownstream(depId);
-        }
-      }
-    };
-
-    // Traverse upstream (what depends on the focused factsheet, recursively)
-    const traverseUpstream = (id: string) => {
-      const deps = upstream.get(id) || [];
-      for (const depId of deps) {
-        if (!related.has(depId)) {
-          related.add(depId);
-          traverseUpstream(depId);
-        }
-      }
-    };
-
-    traverseDownstream(focusedFactsheetId);
-    traverseUpstream(focusedFactsheetId);
-
-    return related;
-  }, [focusedFactsheetId, dependencies]);
+    if (!activeFactsheetId) return null;
+    return getRelatedFactsheetIds(activeFactsheetId, dependencies, relationMode);
+  }, [activeFactsheetId, dependencies, relationMode]);
+  const effectiveDisplayMode = relationMode === "chain" ? unrelatedDisplayMode : "hide";
 
   // Build property name lookup
   const propertyNameMap = useMemo(() => {
@@ -554,7 +533,7 @@ export default function DependencyGraph({
       // Skip unrelated nodes if hide mode is active
       if (
         relatedFactsheetIds &&
-        unrelatedDisplayMode === "hide" &&
+        effectiveDisplayMode === "hide" &&
         !relatedFactsheetIds.has(fs.id)
       ) {
         return;
@@ -607,7 +586,7 @@ export default function DependencyGraph({
 
     // Create edges for dependencies
     const nodeIds = new Set(nodes.map((node) => node.id));
-    dependencies.forEach((dep) => {
+    visibleDependencies.forEach((dep) => {
       // Only add edge if both nodes exist
       const sourceExists = nodeIds.has(`fs-${dep.factsheet}`);
       const targetExists = nodeIds.has(`fs-${dep.depends_on}`);
@@ -618,7 +597,7 @@ export default function DependencyGraph({
           relatedFactsheetIds === null ||
           (relatedFactsheetIds.has(dep.factsheet) &&
             relatedFactsheetIds.has(dep.depends_on));
-        const isDimmedEdge = !isRelatedEdge && unrelatedDisplayMode === "dim";
+        const isDimmedEdge = !isRelatedEdge && effectiveDisplayMode === "dim";
 
         edges.push({
           id: `e-${dep.id}`,
@@ -651,19 +630,30 @@ export default function DependencyGraph({
     return getLayoutedElements(nodes, edges);
   }, [
     factsheets,
-    dependencies,
+    visibleDependencies,
     displayProperties,
     factsheetPropertyValues,
     propertyNameMap,
     showComments,
     relatedFactsheetIds,
-    unrelatedDisplayMode,
+    effectiveDisplayMode,
     globalStatuses,
   ]);
 
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
+  const previousLayoutKeyRef = useRef(layoutKey);
+  useEffect(() => {
+    if (previousLayoutKeyRef.current === layoutKey) return;
+    previousLayoutKeyRef.current = layoutKey;
+    setNodes(computedNodes);
+    setEdges(computedEdges);
+    const frame = window.requestAnimationFrame(() => {
+      void reactFlowInstanceRef.current?.fitView({ padding: 0.25, minZoom: 0.02 });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [layoutKey, computedNodes, computedEdges, setNodes, setEdges]);
   const nodesRef = useRef<Node[]>(nodes);
   const edgesRef = useRef<Edge[]>(edges);
 
@@ -775,12 +765,16 @@ export default function DependencyGraph({
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault();
+      setSelectedFactsheetId(null);
       if (node.type === "factsheet" && onNodeRightClick) {
         const factsheetId = (node.data as { factsheetId: string }).factsheetId;
         onNodeRightClick(factsheetId);
+      } else if (enableViewControls && node.type === "factsheet") {
+        const factsheetId = (node.data as { factsheetId: string }).factsheetId;
+        setSelectedFactsheetId(activeFactsheetId === factsheetId ? "" : factsheetId);
       }
     },
-    [onNodeRightClick],
+    [onNodeRightClick, enableViewControls, activeFactsheetId],
   );
 
   const exportToPng = useCallback(async () => {
@@ -891,8 +885,80 @@ export default function DependencyGraph({
   return (
     <div
       ref={graphWrapperRef}
-      className="w-full h-full min-h-[200px] bg-gray-50"
+      className="relative flex flex-col w-full h-full min-h-[200px] bg-gray-50"
     >
+      {enableViewControls && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white p-2 pt-12 sm:pt-2 sm:pr-36 text-sm">
+          <select
+            aria-label="Graph factsheet"
+            className="min-w-0 max-w-full rounded border border-gray-300 p-1"
+            value={activeFactsheetId ?? ""}
+            onChange={(event) => {
+              if (onFocusedFactsheetChange) {
+                onFocusedFactsheetChange(event.target.value || null);
+              } else {
+                setSelectedFactsheetId(event.target.value);
+              }
+            }}
+          >
+            <option value="">All factsheets</option>
+            {factsheets.map((factsheet) => (
+              <option key={factsheet.id} value={factsheet.id}>{factsheet.name}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Graph relations"
+            className="min-w-0 max-w-full rounded border border-gray-300 p-1"
+            value={relationMode}
+            onChange={(event) => setRelationMode(event.target.value as DependencyRelationMode)}
+          >
+            <option value="chain">Focus: upstream and downstream</option>
+            <option value="connected">Connected component</option>
+            <option value="upstream">Upstream only</option>
+            <option value="downstream">Downstream only</option>
+            <option value="direct">Direct connections</option>
+          </select>
+          <details className="relative">
+            <summary className="flex cursor-pointer items-center gap-1 rounded border border-gray-300 p-1" title="Hide or restore individual dependencies">
+              <EyeOff className="h-4 w-4" /> Dependencies ({hiddenDependencyIds.length} hidden)
+            </summary>
+            <div className="absolute left-0 top-full z-30 mt-1 max-h-64 w-72 max-w-[75vw] overflow-auto border border-gray-200 bg-white p-2 shadow-lg">
+              {dependencies.map((dependency) => (
+                <label key={dependency.id} className="flex items-start gap-2 p-1">
+                  <input
+                    type="checkbox"
+                    checked={!hiddenDependencyIds.includes(dependency.id)}
+                    onChange={() => setHiddenDependencyIds((hidden) => hidden.includes(dependency.id)
+                      ? hidden.filter((dependencyId) => dependencyId !== dependency.id)
+                      : [...hidden, dependency.id])}
+                  />
+                  <span className="break-words">{factsheets.find((factsheet) => factsheet.id === dependency.factsheet)?.name} → {factsheets.find((factsheet) => factsheet.id === dependency.depends_on)?.name}</span>
+                </label>
+              ))}
+            </div>
+          </details>
+          {hiddenDependencyIds.length > 0 && (
+            <button type="button" title="Restore all hidden dependencies" aria-label="Restore all hidden dependencies" onClick={() => setHiddenDependencyIds([])} className="rounded border border-gray-300 p-1">
+              <Eye className="h-4 w-4" />
+            </button>
+          )}
+          {enableExportControls && (["png", "svg"] as const).map((format) => (
+            <button key={format} type="button" disabled={exporting} title={`Export ${format.toUpperCase()}`} aria-label={`Export ${format.toUpperCase()}`} className="flex items-center gap-1 rounded border border-gray-300 p-1 disabled:opacity-50" onClick={async () => {
+              setExporting(true);
+              setExportError("");
+              try {
+                await (format === "png" ? exportToPng() : exportToSvg());
+              } catch {
+                setExportError("Graph export failed. Please try again.");
+              } finally {
+                setExporting(false);
+              }
+            }}><Download className="h-4 w-4" />{format.toUpperCase()}</button>
+          ))}
+          {exportError && <p role="alert" className="text-red-600">{exportError}</p>}
+        </div>
+      )}
+      <div className="min-h-0 flex-1">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -901,6 +967,11 @@ export default function DependencyGraph({
         onNodeClick={handleNodeClick}
         onNodeContextMenu={handleNodeContextMenu}
         onEdgeClick={handleEdgeClick}
+        onEdgeContextMenu={enableViewControls ? (event, edge) => {
+          event.preventDefault();
+          setHiddenDependencyIds((hidden) => [...new Set([...hidden, edge.id.replace("e-", "")])]);
+        } : undefined}
+        deleteKeyCode={null}
         onConnect={handleConnect}
         nodeTypes={nodeTypes}
         onInit={(instance) => {
@@ -919,6 +990,7 @@ export default function DependencyGraph({
         <Controls fitViewOptions={{ padding: 0.25, minZoom: 0.02 }} />
         <Background color="#e5e7eb" gap={20} />
       </ReactFlow>
+      </div>
     </div>
   );
 }
