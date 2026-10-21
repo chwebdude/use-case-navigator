@@ -44,6 +44,29 @@ async function mockData(page: Page): Promise<void> {
 const graphNodes = (page: Page) => page.locator(".react-flow__node");
 const graphEdges = (page: Page) => page.locator(".react-flow__edge");
 
+async function clickEdge(page: Page, dependencyId: string, shift = false): Promise<void> {
+  const edgePath = page.locator(`.react-flow__edge[data-id="e-${dependencyId}"] .react-flow__edge-interaction`);
+  await edgePath.scrollIntoViewIfNeeded();
+  const point = await edgePath.evaluate((element) => {
+    const path = element as SVGPathElement;
+    for (const fraction of [0.5, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9]) {
+      const position = path.getPointAtLength(path.getTotalLength() * fraction);
+      const screen = new DOMPoint(position.x, position.y).matrixTransform(path.getScreenCTM()!);
+      if (document.elementFromPoint(screen.x, screen.y)?.closest(".react-flow__edge") === path.closest(".react-flow__edge")) {
+        return { x: screen.x, y: screen.y };
+      }
+    }
+    return null;
+  });
+  expect(point).not.toBeNull();
+  if (shift) await page.keyboard.down("Shift");
+  try {
+    await page.mouse.click(point!.x, point!.y);
+  } finally {
+    if (shift) await page.keyboard.up("Shift");
+  }
+}
+
 test.beforeEach(async ({ page }) => {
   await mockData(page);
 });
@@ -85,11 +108,11 @@ for (const path of ["/dependencies", "/factsheets/alpha"]) {
     await page.getByLabel("Graph relations").selectOption("connected");
     await expect(graphNodes(page)).toHaveCount(5);
     await expect(graphEdges(page)).toHaveCount(5);
-    await page.locator("summary").filter({ hasText: "Dependencies (" }).click();
-    await page.getByRole("checkbox", { name: "Alpha → Beta" }).uncheck();
+    await clickEdge(page, "ab");
+    await expect(page.getByRole("toolbar", { name: "Selected dependencies" })).toBeVisible();
+    await page.getByRole("button", { name: "Hide selected dependencies" }).click();
     await expect(graphEdges(page)).toHaveCount(4);
     await expect(graphNodes(page)).toHaveCount(5);
-    await page.locator("summary").filter({ hasText: "Dependencies (" }).click();
     if (path === "/dependencies") {
       await page.getByRole("button", { name: "More filters" }).click();
       await page.getByRole("button", { name: "Auto Align" }).click();
@@ -110,6 +133,22 @@ for (const path of ["/dependencies", "/factsheets/alpha"]) {
     await expect(graphEdges(page)).toHaveCount(5);
     await page.locator('.react-flow__edge[data-id="e-ab"] .react-flow__edge-interaction').dispatchEvent("contextmenu");
     await expect(graphEdges(page)).toHaveCount(4);
+    await page.getByRole("button", { name: "Restore all hidden dependencies" }).click();
+    await clickEdge(page, "ab");
+    await clickEdge(page, "gb", true);
+    await expect(page.locator(".react-flow__edge.selected")).toHaveCount(2);
+    await page.getByRole("button", { name: "Hide selected dependencies" }).click();
+    await expect(graphEdges(page)).toHaveCount(3);
+    await page.getByRole("button", { name: "Restore all hidden dependencies" }).click();
+    await clickEdge(page, "ab");
+    await page.getByRole("button", { name: "Clear dependency selection" }).click();
+    await expect(page.getByRole("toolbar", { name: "Selected dependencies" })).toHaveCount(0);
+    await expect(graphEdges(page)).toHaveCount(5);
+    if (path === "/dependencies") {
+      await clickEdge(page, "ab");
+      await page.getByRole("button", { name: "Edit dependency", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Edit Dependency" })).toBeVisible();
+    }
     expect(mutations).toEqual([]);
   });
 }

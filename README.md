@@ -19,8 +19,9 @@ relation modes. **Focus** follows upstream and downstream chains separately;
 of dependency directions. Upstream-only, downstream-only, and direct-connection
 modes provide narrower views. Existing page filters still apply.
 
-Use the **Dependencies** menu to hide or restore individual edges, or right-click
-an edge to hide it. The eye button restores all hidden dependencies. Hiding is
+Click an edge to select it, then use the nearby eye-off button to hide it.
+Shift-click selects multiple edges to hide together. Right-click an edge to hide
+it immediately. The eye button restores all hidden dependencies. Hiding is
 local to the current view, survives auto-align, and never deletes or updates
 records. Hidden edges do not change which factsheets belong to a component.
 

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useEffect, useRef, useState } from "react";
-import { Download, Eye, EyeOff } from "lucide-react";
+import { Download, Eye, EyeOff, Pencil, X } from "lucide-react";
 import {
   ReactFlow,
   type Node,
@@ -479,6 +479,11 @@ export default function DependencyGraph({
   onExportHandlerChange,
   onViewportHandlerChange,
 }: DependencyGraphProps) {
+  const [edgeSelection, setEdgeSelection] = useState<{
+    ids: string[];
+    x: number;
+    y: number;
+  } | null>(null);
   const [hiddenDependencyIds, setHiddenDependencyIds] = useState<string[]>([]);
   const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(null);
   const [relationMode, setRelationMode] = useState<DependencyRelationMode>("chain");
@@ -752,14 +757,24 @@ export default function DependencyGraph({
   );
 
   const handleEdgeClick = useCallback(
-    (_: React.MouseEvent, edge: Edge) => {
-      if (onEdgeClick) {
-        // Extract dependency ID from edge id (remove 'e-' prefix)
-        const dependencyId = edge.id.replace("e-", "");
-        onEdgeClick(dependencyId);
+    (event: React.MouseEvent, edge: Edge) => {
+      if (enableViewControls) {
+        const bounds = graphWrapperRef.current?.getBoundingClientRect();
+        if (!bounds) return;
+        setEdgeSelection((selection) => ({
+          ids: event.shiftKey && selection
+            ? selection.ids.includes(edge.id)
+              ? selection.ids.filter((id) => id !== edge.id)
+              : [...selection.ids, edge.id]
+            : [edge.id],
+          x: Math.max(8, Math.min(event.clientX - bounds.left + 12, bounds.width - 132)),
+          y: Math.max(8, Math.min(event.clientY - bounds.top + 12, bounds.height - 48)),
+        }));
+      } else {
+        onEdgeClick?.(edge.id.replace("e-", ""));
       }
     },
-    [onEdgeClick],
+    [onEdgeClick, enableViewControls],
   );
 
   const handleNodeContextMenu = useCallback(
@@ -886,6 +901,9 @@ export default function DependencyGraph({
     <div
       ref={graphWrapperRef}
       className="relative flex flex-col w-full h-full min-h-[200px] bg-gray-50"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setEdgeSelection(null);
+      }}
     >
       {enableViewControls && (
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white p-2 pt-12 sm:pt-2 sm:pr-36 text-sm">
@@ -918,28 +936,9 @@ export default function DependencyGraph({
             <option value="downstream">Downstream only</option>
             <option value="direct">Direct connections</option>
           </select>
-          <details className="relative">
-            <summary className="flex cursor-pointer items-center gap-1 rounded border border-gray-300 p-1" title="Hide or restore individual dependencies">
-              <EyeOff className="h-4 w-4" /> Dependencies ({hiddenDependencyIds.length} hidden)
-            </summary>
-            <div className="absolute left-0 top-full z-30 mt-1 max-h-64 w-72 max-w-[75vw] overflow-auto border border-gray-200 bg-white p-2 shadow-lg">
-              {dependencies.map((dependency) => (
-                <label key={dependency.id} className="flex items-start gap-2 p-1">
-                  <input
-                    type="checkbox"
-                    checked={!hiddenDependencyIds.includes(dependency.id)}
-                    onChange={() => setHiddenDependencyIds((hidden) => hidden.includes(dependency.id)
-                      ? hidden.filter((dependencyId) => dependencyId !== dependency.id)
-                      : [...hidden, dependency.id])}
-                  />
-                  <span className="break-words">{factsheets.find((factsheet) => factsheet.id === dependency.factsheet)?.name} → {factsheets.find((factsheet) => factsheet.id === dependency.depends_on)?.name}</span>
-                </label>
-              ))}
-            </div>
-          </details>
           {hiddenDependencyIds.length > 0 && (
             <button type="button" title="Restore all hidden dependencies" aria-label="Restore all hidden dependencies" onClick={() => setHiddenDependencyIds([])} className="rounded border border-gray-300 p-1">
-              <Eye className="h-4 w-4" />
+              <span className="flex items-center gap-1"><Eye className="h-4 w-4" />{hiddenDependencyIds.length}</span>
             </button>
           )}
           {enableExportControls && (["png", "svg"] as const).map((format) => (
@@ -958,18 +957,51 @@ export default function DependencyGraph({
           {exportError && <p role="alert" className="text-red-600">{exportError}</p>}
         </div>
       )}
+      {enableViewControls && edgeSelection && edgeSelection.ids.length > 0 && (
+        <div
+          role="toolbar"
+          aria-label="Selected dependencies"
+          className="absolute z-30 flex items-center gap-1 rounded border border-gray-200 bg-white p-1 shadow-lg"
+          style={{ left: edgeSelection.x, top: edgeSelection.y }}
+        >
+          <button type="button" title="Hide selected dependencies" aria-label="Hide selected dependencies" className="flex h-8 min-w-8 items-center justify-center gap-1 rounded px-2 hover:bg-gray-100" onClick={() => {
+            setHiddenDependencyIds((hidden) => [...new Set([...hidden, ...edgeSelection.ids.map((id) => id.replace("e-", ""))])]);
+            setEdgeSelection(null);
+          }}><EyeOff className="h-4 w-4" /><span className="text-xs">{edgeSelection.ids.length}</span></button>
+          {onEdgeClick && edgeSelection.ids.length === 1 && (
+            <button type="button" title="Edit dependency" aria-label="Edit dependency" className="flex h-8 w-8 items-center justify-center rounded hover:bg-gray-100" onClick={() => {
+              onEdgeClick(edgeSelection.ids[0].replace("e-", ""));
+              setEdgeSelection(null);
+            }}><Pencil className="h-4 w-4" /></button>
+          )}
+          <button type="button" title="Clear dependency selection" aria-label="Clear dependency selection" className="flex h-8 w-8 items-center justify-center rounded hover:bg-gray-100" onClick={() => setEdgeSelection(null)}><X className="h-4 w-4" /></button>
+        </div>
+      )}
       <div className="min-h-0 flex-1">
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={enableViewControls ? edges.map((edge) => ({
+          ...edge,
+          selected: edgeSelection?.ids.includes(edge.id) ?? false,
+          style: {
+            ...edge.style,
+            strokeWidth: edgeSelection?.ids.includes(edge.id) ? 4 : 2,
+          },
+        })) : edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeClick={handleNodeClick}
+        onNodeClick={(event, node) => {
+          setEdgeSelection(null);
+          handleNodeClick(event, node);
+        }}
+        onPaneClick={() => setEdgeSelection(null)}
+        onMoveStart={() => setEdgeSelection(null)}
         onNodeContextMenu={handleNodeContextMenu}
         onEdgeClick={handleEdgeClick}
         onEdgeContextMenu={enableViewControls ? (event, edge) => {
           event.preventDefault();
           setHiddenDependencyIds((hidden) => [...new Set([...hidden, edge.id.replace("e-", "")])]);
+          setEdgeSelection(null);
         } : undefined}
         deleteKeyCode={null}
         onConnect={handleConnect}
