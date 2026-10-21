@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useEffect, useRef, useState } from "react";
-import { Download, Eye, EyeOff, Pencil, X } from "lucide-react";
+import { Download, Eye, EyeOff, Pencil, Focus, Network } from "lucide-react";
 import {
   ReactFlow,
   type Node,
@@ -104,6 +104,8 @@ const NODE_WIDTH = 200;
 const NODE_BASE_HEIGHT = 80;
 const PROPERTY_LINE_HEIGHT = 20;
 const GRAPH_EXPORT_PADDING = 60;
+const EMPTY_DISPLAY_PROPERTIES: string[] = [];
+const EMPTY_PROPERTY_DEFINITIONS: PropertyDefinition[] = [];
 
 function getNodeWidth(node: Node): number {
   return node.measured?.width ?? node.width ?? NODE_WIDTH;
@@ -466,8 +468,8 @@ export default function DependencyGraph({
   onNodeRightClick,
   onConnect,
   onEdgeClick,
-  displayProperties = [],
-  propertyDefinitions = [],
+  displayProperties = EMPTY_DISPLAY_PROPERTIES,
+  propertyDefinitions = EMPTY_PROPERTY_DEFINITIONS,
   factsheetPropertyValues,
   showComments = true,
   focusedFactsheetId,
@@ -479,12 +481,16 @@ export default function DependencyGraph({
   onExportHandlerChange,
   onViewportHandlerChange,
 }: DependencyGraphProps) {
-  const [edgeSelection, setEdgeSelection] = useState<{
-    ids: string[];
+  const [contextMenu, setContextMenu] = useState<{
+    kind: "edge" | "node";
+    id: string;
     x: number;
     y: number;
   } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
   const [hiddenDependencyIds, setHiddenDependencyIds] = useState<string[]>([]);
+  const [hiddenFactsheetIds, setHiddenFactsheetIds] = useState<string[]>([]);
   const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(null);
   const [relationMode, setRelationMode] = useState<DependencyRelationMode>("chain");
   const [exporting, setExporting] = useState(false);
@@ -492,10 +498,6 @@ export default function DependencyGraph({
   const activeFactsheetId = onFocusedFactsheetChange
     ? focusedFactsheetId
     : selectedFactsheetId ?? focusedFactsheetId;
-  const visibleDependencies = useMemo(
-    () => dependencies.filter((dependency) => !hiddenDependencyIds.includes(dependency.id)),
-    [dependencies, hiddenDependencyIds],
-  );
   const graphWrapperRef = useRef<HTMLDivElement>(null);
   const reactFlowInstanceRef = useRef<{
     getViewport: () => GraphViewportState;
@@ -513,6 +515,7 @@ export default function DependencyGraph({
 
   const {
     settings: { statuses: globalStatuses },
+    loading: settingsLoading,
   } = useAppSettings();
 
   const relatedFactsheetIds = useMemo(() => {
@@ -591,7 +594,7 @@ export default function DependencyGraph({
 
     // Create edges for dependencies
     const nodeIds = new Set(nodes.map((node) => node.id));
-    visibleDependencies.forEach((dep) => {
+    dependencies.forEach((dep) => {
       // Only add edge if both nodes exist
       const sourceExists = nodeIds.has(`fs-${dep.factsheet}`);
       const targetExists = nodeIds.has(`fs-${dep.depends_on}`);
@@ -635,7 +638,7 @@ export default function DependencyGraph({
     return getLayoutedElements(nodes, edges);
   }, [
     factsheets,
-    visibleDependencies,
+    dependencies,
     displayProperties,
     factsheetPropertyValues,
     propertyNameMap,
@@ -648,27 +651,41 @@ export default function DependencyGraph({
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
+  const hiddenNodeIds = useMemo(() => new Set(hiddenFactsheetIds.map((id) => `fs-${id}`)), [hiddenFactsheetIds]);
+  const visibleNodes = useMemo(() => hiddenNodeIds.size === 0 ? nodes
+    : nodes.filter((node) => !hiddenNodeIds.has(node.id)), [nodes, hiddenNodeIds]);
+  const visibleEdges = useMemo(() => {
+    if (hiddenDependencyIds.length === 0 && hiddenNodeIds.size === 0) return edges;
+    const hidden = new Set(hiddenDependencyIds.map((id) => `e-${id}`));
+    return edges.filter((edge) => !hidden.has(edge.id) && !hiddenNodeIds.has(edge.source) && !hiddenNodeIds.has(edge.target));
+  }, [edges, hiddenDependencyIds, hiddenNodeIds]);
   const previousLayoutKeyRef = useRef(layoutKey);
   useEffect(() => {
     if (previousLayoutKeyRef.current === layoutKey) return;
     previousLayoutKeyRef.current = layoutKey;
-    setNodes(computedNodes);
+    const hidden = new Set(hiddenDependencyIds.map((id) => `e-${id}`));
+    const layout = getLayoutedElements(
+      computedNodes.filter((node) => !hiddenNodeIds.has(node.id)),
+      computedEdges.filter((edge) => !hidden.has(edge.id) && !hiddenNodeIds.has(edge.source) && !hiddenNodeIds.has(edge.target)),
+    );
+    const positionedNodes = new Map(layout.nodes.map((node) => [node.id, node]));
+    setNodes(computedNodes.map((node) => positionedNodes.get(node.id) ?? node));
     setEdges(computedEdges);
     const frame = window.requestAnimationFrame(() => {
       void reactFlowInstanceRef.current?.fitView({ padding: 0.25, minZoom: 0.02 });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [layoutKey, computedNodes, computedEdges, setNodes, setEdges]);
-  const nodesRef = useRef<Node[]>(nodes);
-  const edgesRef = useRef<Edge[]>(edges);
+  }, [layoutKey, computedNodes, computedEdges, hiddenDependencyIds, hiddenNodeIds, setNodes, setEdges]);
+  const nodesRef = useRef<Node[]>(visibleNodes);
+  const edgesRef = useRef<Edge[]>(visibleEdges);
 
   useEffect(() => {
-    nodesRef.current = nodes;
-  }, [nodes]);
+    nodesRef.current = visibleNodes;
+  }, [visibleNodes]);
 
   useEffect(() => {
-    edgesRef.current = edges;
-  }, [edges]);
+    edgesRef.current = visibleEdges;
+  }, [visibleEdges]);
 
   // Track previous state to detect meaningful changes
   const prevNodeStateRef = useRef<string>("");
@@ -715,12 +732,13 @@ export default function DependencyGraph({
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      closeContextMenu();
       if (node.type === "factsheet" && onNodeClick) {
         const factsheetId = (node.data as { factsheetId: string }).factsheetId;
         onNodeClick(factsheetId);
       }
     },
-    [onNodeClick],
+    [onNodeClick, closeContextMenu],
   );
 
   const handleConnect = useCallback(
@@ -757,28 +775,53 @@ export default function DependencyGraph({
   );
 
   const handleEdgeClick = useCallback(
-    (event: React.MouseEvent, edge: Edge) => {
-      if (enableViewControls) {
-        const bounds = graphWrapperRef.current?.getBoundingClientRect();
-        if (!bounds) return;
-        setEdgeSelection((selection) => ({
-          ids: event.shiftKey && selection
-            ? selection.ids.includes(edge.id)
-              ? selection.ids.filter((id) => id !== edge.id)
-              : [...selection.ids, edge.id]
-            : [edge.id],
-          x: Math.max(8, Math.min(event.clientX - bounds.left + 12, bounds.width - 132)),
-          y: Math.max(8, Math.min(event.clientY - bounds.top + 12, bounds.height - 48)),
-        }));
-      } else {
-        onEdgeClick?.(edge.id.replace("e-", ""));
-      }
+    (_: React.MouseEvent, edge: Edge) => {
+      closeContextMenu();
+      onEdgeClick?.(edge.id.replace("e-", ""));
     },
-    [onEdgeClick, enableViewControls],
+    [onEdgeClick, closeContextMenu],
   );
+
+  const openContextMenu = useCallback((event: React.MouseEvent, kind: "edge" | "node", id: string): void => {
+    if (!enableViewControls) return;
+    event.preventDefault();
+    const bounds = graphWrapperRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    setContextMenu({
+      kind,
+      id,
+      x: Math.max(4, Math.min(event.clientX - bounds.left, bounds.width - 216)),
+      y: Math.max(4, Math.min(event.clientY - bounds.top, bounds.height - 176)),
+    });
+  }, [enableViewControls]);
+
+  const handleEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge): void => {
+    openContextMenu(event, "edge", edge.id.replace("e-", ""));
+  }, [openContextMenu]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    contextMenuRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (!contextMenuRef.current?.contains(event.target as HTMLElement)) closeContextMenu();
+    };
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") closeContextMenu();
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenu, closeContextMenu]);
 
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
+      if (enableViewControls && node.type === "factsheet") {
+        openContextMenu(event, "node", (node.data as { factsheetId: string }).factsheetId);
+        return;
+      }
       event.preventDefault();
       setSelectedFactsheetId(null);
       if (node.type === "factsheet" && onNodeRightClick) {
@@ -789,8 +832,18 @@ export default function DependencyGraph({
         setSelectedFactsheetId(activeFactsheetId === factsheetId ? "" : factsheetId);
       }
     },
-    [onNodeRightClick, enableViewControls, activeFactsheetId],
+    [onNodeRightClick, enableViewControls, activeFactsheetId, openContextMenu],
   );
+
+  const focusFactsheet = (factsheetId: string, mode: DependencyRelationMode): void => {
+    setRelationMode(mode);
+    if (onFocusedFactsheetChange) {
+      onFocusedFactsheetChange(factsheetId);
+    } else {
+      setSelectedFactsheetId(factsheetId);
+    }
+    closeContextMenu();
+  };
 
   const exportToPng = useCallback(async () => {
     const currentNodes = nodesRef.current;
@@ -900,10 +953,8 @@ export default function DependencyGraph({
   return (
     <div
       ref={graphWrapperRef}
+      aria-busy={settingsLoading}
       className="relative flex flex-col w-full h-full min-h-[200px] bg-gray-50"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") setEdgeSelection(null);
-      }}
     >
       {enableViewControls && (
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white p-2 pt-12 sm:pt-2 sm:pr-36 text-sm">
@@ -936,9 +987,12 @@ export default function DependencyGraph({
             <option value="downstream">Downstream only</option>
             <option value="direct">Direct connections</option>
           </select>
-          {hiddenDependencyIds.length > 0 && (
-            <button type="button" title="Restore all hidden dependencies" aria-label="Restore all hidden dependencies" onClick={() => setHiddenDependencyIds([])} className="rounded border border-gray-300 p-1">
-              <span className="flex items-center gap-1"><Eye className="h-4 w-4" />{hiddenDependencyIds.length}</span>
+          {(hiddenDependencyIds.length > 0 || hiddenFactsheetIds.length > 0) && (
+            <button type="button" title={hiddenFactsheetIds.length > 0 ? "Restore all hidden items" : "Restore all hidden dependencies"} aria-label={hiddenFactsheetIds.length > 0 ? "Restore all hidden items" : "Restore all hidden dependencies"} onClick={() => {
+              setHiddenDependencyIds([]);
+              setHiddenFactsheetIds([]);
+            }} className="rounded border border-gray-300 p-1">
+              <span className="flex items-center gap-1"><Eye className="h-4 w-4" />{hiddenDependencyIds.length + hiddenFactsheetIds.length}</span>
             </button>
           )}
           {enableExportControls && (["png", "svg"] as const).map((format) => (
@@ -957,52 +1011,63 @@ export default function DependencyGraph({
           {exportError && <p role="alert" className="text-red-600">{exportError}</p>}
         </div>
       )}
-      {enableViewControls && edgeSelection && edgeSelection.ids.length > 0 && (
+      {enableViewControls && contextMenu && (
         <div
-          role="toolbar"
-          aria-label="Selected dependencies"
-          className="absolute z-30 flex items-center gap-1 rounded border border-gray-200 bg-white p-1 shadow-lg"
-          style={{ left: edgeSelection.x, top: edgeSelection.y }}
+          ref={contextMenuRef}
+          role="menu"
+          aria-label={contextMenu.kind === "edge" ? "Dependency actions" : "Factsheet actions"}
+          className="absolute z-30 w-52 max-w-full rounded border border-gray-200 bg-white p-1 text-sm shadow-lg"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onContextMenu={(event) => event.preventDefault()}
+          onKeyDown={(event) => {
+            if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            const items = Array.from(contextMenuRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+            const index = items.indexOf(document.activeElement as HTMLButtonElement);
+            const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+              : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+            items[next]?.focus();
+          }}
         >
-          <button type="button" title="Hide selected dependencies" aria-label="Hide selected dependencies" className="flex h-8 min-w-8 items-center justify-center gap-1 rounded px-2 hover:bg-gray-100" onClick={() => {
-            setHiddenDependencyIds((hidden) => [...new Set([...hidden, ...edgeSelection.ids.map((id) => id.replace("e-", ""))])]);
-            setEdgeSelection(null);
-          }}><EyeOff className="h-4 w-4" /><span className="text-xs">{edgeSelection.ids.length}</span></button>
-          {onEdgeClick && edgeSelection.ids.length === 1 && (
-            <button type="button" title="Edit dependency" aria-label="Edit dependency" className="flex h-8 w-8 items-center justify-center rounded hover:bg-gray-100" onClick={() => {
-              onEdgeClick(edgeSelection.ids[0].replace("e-", ""));
-              setEdgeSelection(null);
-            }}><Pencil className="h-4 w-4" /></button>
+          {contextMenu.kind === "edge" && <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => {
+            setHiddenDependencyIds((hidden) => [...new Set([...hidden, contextMenu.id])]);
+            closeContextMenu();
+          }}><EyeOff className="h-4 w-4" />Hide dependency</button>}
+          {contextMenu.kind === "edge" && onEdgeClick && (
+            <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => {
+              onEdgeClick(contextMenu.id);
+              closeContextMenu();
+            }}><Pencil className="h-4 w-4" />Edit dependency</button>
           )}
-          <button type="button" title="Clear dependency selection" aria-label="Clear dependency selection" className="flex h-8 w-8 items-center justify-center rounded hover:bg-gray-100" onClick={() => setEdgeSelection(null)}><X className="h-4 w-4" /></button>
+          {contextMenu.kind === "node" && <>
+            <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => {
+              setHiddenFactsheetIds((hidden) => [...new Set([...hidden, contextMenu.id])]);
+              closeContextMenu();
+            }}><EyeOff className="h-4 w-4" />Hide factsheet</button>
+            <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => focusFactsheet(contextMenu.id, "chain")}><Focus className="h-4 w-4" />Focus factsheet</button>
+            <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => focusFactsheet(contextMenu.id, "connected")}><Network className="h-4 w-4" />Connected factsheets</button>
+          </>}
+          {(hiddenDependencyIds.length > 0 || hiddenFactsheetIds.length > 0) && (
+            <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => {
+              setHiddenDependencyIds([]);
+              setHiddenFactsheetIds([]);
+              closeContextMenu();
+            }}><Eye className="h-4 w-4" />{hiddenFactsheetIds.length > 0 ? "Restore hidden items" : "Restore hidden dependencies"}</button>
+          )}
         </div>
       )}
       <div className="min-h-0 flex-1">
       <ReactFlow
-        nodes={nodes}
-        edges={enableViewControls ? edges.map((edge) => ({
-          ...edge,
-          selected: edgeSelection?.ids.includes(edge.id) ?? false,
-          style: {
-            ...edge.style,
-            strokeWidth: edgeSelection?.ids.includes(edge.id) ? 4 : 2,
-          },
-        })) : edges}
+        nodes={visibleNodes}
+        edges={visibleEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeClick={(event, node) => {
-          setEdgeSelection(null);
-          handleNodeClick(event, node);
-        }}
-        onPaneClick={() => setEdgeSelection(null)}
-        onMoveStart={() => setEdgeSelection(null)}
+        onNodeClick={handleNodeClick}
+        onPaneClick={closeContextMenu}
+        onMoveStart={closeContextMenu}
         onNodeContextMenu={handleNodeContextMenu}
         onEdgeClick={handleEdgeClick}
-        onEdgeContextMenu={enableViewControls ? (event, edge) => {
-          event.preventDefault();
-          setHiddenDependencyIds((hidden) => [...new Set([...hidden, edge.id.replace("e-", "")])]);
-          setEdgeSelection(null);
-        } : undefined}
+        onEdgeContextMenu={handleEdgeContextMenu}
         deleteKeyCode={null}
         onConnect={handleConnect}
         nodeTypes={nodeTypes}

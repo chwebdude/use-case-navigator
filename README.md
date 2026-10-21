@@ -19,11 +19,16 @@ relation modes. **Focus** follows upstream and downstream chains separately;
 of dependency directions. Upstream-only, downstream-only, and direct-connection
 modes provide narrower views. Existing page filters still apply.
 
-Click an edge to select it, then use the nearby eye-off button to hide it.
-Shift-click selects multiple edges to hide together. Right-click an edge to hide
-it immediately. The eye button restores all hidden dependencies. Hiding is
+Right-click an edge to open its menu, then choose **Hide dependency** or
+**Edit dependency**. Right-click a factsheet for **Hide factsheet**, **Focus factsheet**, or
+**Connected factsheets**. Escape or a click outside closes the menu. The eye
+button restores all hidden factsheets and dependencies. Hiding a factsheet also
+hides its incident edges without changing any records. Left-clicking an edge in the dependency
+view still opens its editor. Hiding is
 local to the current view, survives auto-align, and never deletes or updates
 records. Hidden edges do not change which factsheets belong to a component.
+Opening menus and hiding or restoring edges do not rerun graph layout or move
+factsheets; use **Auto Align** when a new layout is wanted.
 
 Both graphs support PNG and SVG export of the displayed graph, including its
 current relation selection and hidden edges. These controls are not added to

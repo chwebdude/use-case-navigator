@@ -17,7 +17,10 @@ const dependencies = [
   expand: { depends_on: factsheets.find((factsheet) => factsheet.id === dependency.depends_on) },
 }));
 
-async function mockData(page: Page): Promise<void> {
+async function mockData(page: Page, graphData?: {
+  factsheets: typeof factsheets;
+  dependencies: typeof dependencies;
+}): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem("ai-use-case-navigator-username", "Graph Tester");
   });
@@ -26,14 +29,19 @@ async function mockData(page: Page): Promise<void> {
     const match = url.pathname.match(/\/collections\/([^/]+)\/records(?:\/([^/]+))?/);
     if (!match) return route.fulfill({ json: {} });
     const collections: Record<string, { id: string }[]> = {
-      factsheets, dependencies, factsheet_types: [factsheetType],
+      factsheets: graphData?.factsheets ?? factsheets,
+      dependencies: graphData?.dependencies ?? dependencies,
+      factsheet_types: [factsheetType],
+      app_settings: [{ id: "settings", title: "Graph tests", icon: "Cpu", statuses: [
+        { id: "draft", label: "Draft", color: "#6b7280" },
+      ] }],
     };
     let records = collections[match[1]] ?? [];
     if (match[1] === "factsheets" && url.searchParams.get("filter")?.includes('id = "')) {
       records = records.filter((record) => url.searchParams.get("filter")!.includes(`"${record.id}"`));
     }
     if (match[1] === "dependencies" && url.searchParams.get("filter")?.startsWith("factsheet =")) {
-      records = dependencies.filter((dependency) => url.searchParams.get("filter")!.includes(`"${dependency.factsheet}"`));
+      records = (graphData?.dependencies ?? dependencies).filter((dependency) => url.searchParams.get("filter")!.includes(`"${dependency.factsheet}"`));
     }
     await route.fulfill({ json: match[2]
       ? records.find((record) => record.id === match[2]) ?? {}
@@ -44,7 +52,7 @@ async function mockData(page: Page): Promise<void> {
 const graphNodes = (page: Page) => page.locator(".react-flow__node");
 const graphEdges = (page: Page) => page.locator(".react-flow__edge");
 
-async function clickEdge(page: Page, dependencyId: string, shift = false): Promise<void> {
+async function clickEdge(page: Page, dependencyId: string, button: "left" | "right" = "right"): Promise<void> {
   const edgePath = page.locator(`.react-flow__edge[data-id="e-${dependencyId}"] .react-flow__edge-interaction`);
   await edgePath.scrollIntoViewIfNeeded();
   const point = await edgePath.evaluate((element) => {
@@ -59,16 +67,74 @@ async function clickEdge(page: Page, dependencyId: string, shift = false): Promi
     return null;
   });
   expect(point).not.toBeNull();
-  if (shift) await page.keyboard.down("Shift");
-  try {
-    await page.mouse.click(point!.x, point!.y);
-  } finally {
-    if (shift) await page.keyboard.up("Shift");
-  }
+  await page.mouse.click(point!.x, point!.y, { button });
 }
 
 test.beforeEach(async ({ page }) => {
   await mockData(page);
+});
+
+test("menu interactions do not rerun graph layout with 150 factsheets", async ({ page }, testInfo) => {
+  const extraFactsheets = Array.from({ length: 144 }, (_, index) => ({
+    ...factsheets[0], id: `extra${index}`, name: `Extra factsheet ${index}`,
+  }));
+  const extraDependencies = extraFactsheets.slice(10).map((factsheet, index) => ({
+    ...dependencies[0], id: `extraedge${index}`, factsheet: factsheet.id,
+    depends_on: extraFactsheets[index].id,
+  }));
+  await mockData(page, {
+    factsheets: [...factsheets, ...extraFactsheets],
+    dependencies: [...dependencies, ...extraDependencies],
+  });
+  await page.route(/\/src\/components\/visualizations\/DependencyGraph\.tsx(?:\?.*)?$/, async (route) => {
+    const response = await route.fetch();
+    const source = await response.text();
+    expect(source).toContain("dagre.layout(dagreGraph)");
+    await route.fulfill({ response, body: source.replace("dagre.layout(dagreGraph)",
+      "(window.__graphLayoutCalls = (window.__graphLayoutCalls || 0) + 1, dagre.layout(dagreGraph))") });
+  });
+  const initialResponses = ["factsheets", "dependencies", "factsheet_types", "app_settings",
+    "property_definitions", "property_options", "factsheet_properties"].map((collection) =>
+    page.waitForResponse((response) => response.url().includes(`/collections/${collection}/records`)));
+  await page.goto("/dependencies");
+  await Promise.all(initialResponses);
+  await expect(graphNodes(page)).toHaveCount(150);
+  await expect(page.locator(".react-flow").locator("..").locator("..")).toHaveAttribute("aria-busy", "false");
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  const layoutCalls = (): Promise<number> => page.evaluate(() =>
+    (window as Window & { __graphLayoutCalls: number }).__graphLayoutCalls);
+  await expect.poll(layoutCalls).toBeGreaterThan(0);
+  const before = await layoutCalls();
+  await clickEdge(page, "ab");
+  await expect(page.getByRole("menu", { name: "Dependency actions" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("large-graph-context-menu.png") });
+  expect(await layoutCalls()).toBe(before);
+  await page.keyboard.press("Escape");
+  expect(await layoutCalls()).toBe(before);
+  await clickEdge(page, "ab");
+  await page.getByRole("menuitem", { name: "Hide dependency", exact: true }).click();
+  await expect(graphEdges(page)).toHaveCount(138);
+  expect(await layoutCalls()).toBe(before);
+  await page.getByRole("button", { name: "Restore all hidden dependencies" }).click();
+  await expect(graphEdges(page)).toHaveCount(139);
+  expect(await layoutCalls()).toBe(before);
+  const gamma = graphNodes(page).filter({ hasText: "Gamma" });
+  await gamma.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Hide factsheet", exact: true }).click();
+  await expect(graphNodes(page)).toHaveCount(149);
+  expect(await layoutCalls()).toBe(before);
+  await page.getByRole("button", { name: "Restore all hidden items", exact: true }).click();
+  await expect(graphNodes(page)).toHaveCount(150);
+  expect(await layoutCalls()).toBe(before);
+  const node = graphNodes(page).first();
+  await node.scrollIntoViewIfNeeded();
+  const bounds = await node.boundingBox();
+  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds!.x + bounds!.width / 2 + 30, bounds!.y + bounds!.height / 2 + 20, { steps: 10 });
+  await page.mouse.up();
+  expect(await layoutCalls()).toBe(before);
+  console.log(`150-node graph: ${before} initial layouts, zero additional layouts for menu/hide/restore/drag.`);
 });
 
 test("connected view follows direction changes and cycles, with finer relation modes", async ({ page }, testInfo) => {
@@ -109,8 +175,9 @@ for (const path of ["/dependencies", "/factsheets/alpha"]) {
     await expect(graphNodes(page)).toHaveCount(5);
     await expect(graphEdges(page)).toHaveCount(5);
     await clickEdge(page, "ab");
-    await expect(page.getByRole("toolbar", { name: "Selected dependencies" })).toBeVisible();
-    await page.getByRole("button", { name: "Hide selected dependencies" }).click();
+    await expect(page.getByRole("menu", { name: "Dependency actions" })).toBeVisible();
+    await expect(graphEdges(page)).toHaveCount(5);
+    await page.getByRole("menuitem", { name: "Hide dependency", exact: true }).click();
     await expect(graphEdges(page)).toHaveCount(4);
     await expect(graphNodes(page)).toHaveCount(5);
     if (path === "/dependencies") {
@@ -131,24 +198,71 @@ for (const path of ["/dependencies", "/factsheets/alpha"]) {
       .querySelectorAll("path[marker-end]").length, svg)).toBe(4);
     await page.getByRole("button", { name: "Restore all hidden dependencies" }).click();
     await expect(graphEdges(page)).toHaveCount(5);
-    await page.locator('.react-flow__edge[data-id="e-ab"] .react-flow__edge-interaction').dispatchEvent("contextmenu");
+    await clickEdge(page, "ab");
+    await page.getByRole("menuitem", { name: "Hide dependency", exact: true }).click();
     await expect(graphEdges(page)).toHaveCount(4);
     await page.getByRole("button", { name: "Restore all hidden dependencies" }).click();
     await clickEdge(page, "ab");
-    await clickEdge(page, "gb", true);
-    await expect(page.locator(".react-flow__edge.selected")).toHaveCount(2);
-    await page.getByRole("button", { name: "Hide selected dependencies" }).click();
-    await expect(graphEdges(page)).toHaveCount(3);
-    await page.getByRole("button", { name: "Restore all hidden dependencies" }).click();
-    await clickEdge(page, "ab");
-    await page.getByRole("button", { name: "Clear dependency selection" }).click();
-    await expect(page.getByRole("toolbar", { name: "Selected dependencies" })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu", { name: "Dependency actions" })).toHaveCount(0);
     await expect(graphEdges(page)).toHaveCount(5);
     if (path === "/dependencies") {
       await clickEdge(page, "ab");
-      await page.getByRole("button", { name: "Edit dependency", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Edit dependency", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Edit Dependency" })).toBeVisible();
     }
+    expect(mutations).toEqual([]);
+  });
+
+  test(`right-click factsheet menu offers focus and connected views: ${path}`, async ({ page }) => {
+    await page.goto(path === "/dependencies" ? `${path}?unrelatedDisplayMode=hide` : path);
+    const alpha = graphNodes(page).filter({ hasText: "Alpha" });
+    await alpha.click({ button: "right" });
+    await expect(page.getByRole("menu", { name: "Factsheet actions" })).toBeVisible();
+    await page.getByRole("menuitem", { name: "Connected factsheets", exact: true }).click();
+    await expect(graphNodes(page)).toHaveCount(5);
+    await expect(page.getByLabel("Graph relations")).toHaveValue("connected");
+    await alpha.click({ button: "right" });
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("menuitem", { name: "Focus factsheet", exact: true })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("menuitem", { name: "Connected factsheets", exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu", { name: "Factsheet actions" })).toHaveCount(0);
+    if (path === "/dependencies") {
+      await clickEdge(page, "ab", "left");
+      await expect(page.getByRole("heading", { name: "Edit Dependency" })).toBeVisible();
+    }
+  });
+
+  test(`hides a single factsheet and its edges without deleting or exporting it: ${path}`, async ({ page }) => {
+    const mutations: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/collections/") && request.method() !== "GET") mutations.push(request.method());
+    });
+    await page.goto(path);
+    await page.getByLabel("Graph relations").selectOption("connected");
+    const gamma = graphNodes(page).filter({ hasText: "Gamma" });
+    await gamma.click({ button: "right" });
+    await expect(gamma).toBeVisible();
+    await page.getByRole("menuitem", { name: "Hide factsheet", exact: true }).click();
+    await expect(gamma).toHaveCount(0);
+    await expect(graphEdges(page)).toHaveCount(2);
+    await expect(graphNodes(page).filter({ hasText: "Delta" })).toBeVisible();
+    if (path === "/dependencies") {
+      await page.getByRole("button", { name: "More filters" }).click();
+      await page.getByRole("button", { name: "Auto Align" }).click();
+      await expect(gamma).toHaveCount(0);
+      await page.getByRole("button", { name: "Export Graph" }).click();
+    }
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export SVG", exact: true }).click();
+    const svg = await readFile((await (await downloadPromise).path())!, "utf8");
+    expect(svg).not.toContain("Gamma");
+    expect(svg).toContain("Delta");
+    await page.getByRole("button", { name: "Restore all hidden items", exact: true }).click();
+    await expect(gamma).toBeVisible();
+    await expect(graphEdges(page)).toHaveCount(5);
     expect(mutations).toEqual([]);
   });
 }

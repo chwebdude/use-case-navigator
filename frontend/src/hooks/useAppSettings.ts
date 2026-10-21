@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { RecordModel, RecordSubscription } from "pocketbase";
 import pb from "../lib/pocketbase";
 import type { StatusDefinition } from "../types";
@@ -127,7 +127,7 @@ export function useAppSettings() {
   const [record, setRecord] = useState<AppSettingsRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const settings: AppSettings = record
+  const settings = useMemo<AppSettings>(() => record
     ? {
         title: record.title,
         icon: record.icon,
@@ -159,7 +159,7 @@ export function useAppSettings() {
         llmModel: record.llm_model || undefined,
         elasticApmServerUrl: record.elastic_apm_server_url || undefined,
       }
-    : DEFAULT_SETTINGS;
+    : DEFAULT_SETTINGS, [record]);
 
   const fetchSettings = useCallback(async () => {
     try {
