@@ -838,7 +838,9 @@ export default function DependenciesPage() {
           </Button>
 
           <DependencyGraph
-            key={layoutKey}
+            layoutKey={layoutKey}
+            enableViewControls
+            onFocusedFactsheetChange={setFocusedFactsheetId}
             factsheets={filteredFactsheets}
             dependencies={filteredDependencies}
             onNodeClick={handleNodeClick}

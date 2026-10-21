@@ -38,6 +38,7 @@ import { useUser } from "../hooks/useUser";
 import pb from "../lib/pocketbase";
 import { getStatusMeta, getStatusTextColor } from "../lib/statusConfig";
 import { isPropertyVisibleForType } from "../lib/propertyVisibility";
+import { getRelatedFactsheetIds } from "../lib/dependencyRelations";
 import type {
   Factsheet,
   FactsheetType,
@@ -103,50 +104,7 @@ export default function FactsheetDetail() {
     pb.collection("dependencies")
       .getFullList<Dependency>()
       .then((deps) => {
-        // Build adjacency lists for traversal
-        const downstream = new Map<string, string[]>(); // factsheet -> what it depends on
-        const upstream = new Map<string, string[]>(); // factsheet -> what depends on it
-
-        deps.forEach((dep) => {
-          if (!downstream.has(dep.factsheet)) {
-            downstream.set(dep.factsheet, []);
-          }
-          downstream.get(dep.factsheet)!.push(dep.depends_on);
-
-          if (!upstream.has(dep.depends_on)) {
-            upstream.set(dep.depends_on, []);
-          }
-          upstream.get(dep.depends_on)!.push(dep.factsheet);
-        });
-
-        // Find all related factsheet IDs (full chain)
-        const related = new Set<string>();
-        related.add(id);
-
-        // Traverse downstream (what the focused factsheet depends on, recursively)
-        const traverseDownstream = (factsheetId: string) => {
-          const children = downstream.get(factsheetId) || [];
-          for (const childId of children) {
-            if (!related.has(childId)) {
-              related.add(childId);
-              traverseDownstream(childId);
-            }
-          }
-        };
-
-        // Traverse upstream (what depends on the focused factsheet, recursively)
-        const traverseUpstream = (factsheetId: string) => {
-          const parents = upstream.get(factsheetId) || [];
-          for (const parentId of parents) {
-            if (!related.has(parentId)) {
-              related.add(parentId);
-              traverseUpstream(parentId);
-            }
-          }
-        };
-
-        traverseDownstream(id);
-        traverseUpstream(id);
+        const related = getRelatedFactsheetIds(id, deps, "connected");
 
         // Filter dependencies to only include those between related factsheets
         const relevantDeps = deps.filter(
@@ -767,6 +725,10 @@ export default function FactsheetDetail() {
               </Button>
 
               <DependencyGraph
+                key={id}
+                enableViewControls
+                enableExportControls
+                focusedFactsheetId={id}
                 factsheets={relatedFactsheets}
                 dependencies={allDependencies}
                 onNodeClick={setSelectedFactsheetId}
