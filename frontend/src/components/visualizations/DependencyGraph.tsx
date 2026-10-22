@@ -1082,7 +1082,7 @@ export default function DependencyGraph({
               closeContextMenu();
             }}><EyeOff className="h-4 w-4" />Hide factsheet</button>
             <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => {
-              const connectedIds = getRelatedFactsheetIds(contextMenu.id, dependencies, "connected");
+              const connectedIds = getRelatedFactsheetIds(contextMenu.id, dependencies, "direct");
               setAddedFactsheetIds((added) => [...new Set([...added, ...connectedIds])]);
               setHiddenFactsheetIds((hidden) => hidden.filter((id) => !connectedIds.has(id)));
               closeContextMenu();
