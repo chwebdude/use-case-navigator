@@ -666,10 +666,10 @@ export default function DependencyGraph({
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
-  const addedFactsheetIdSet = useMemo(() => new Set(addedFactsheetIds), [addedFactsheetIds]);
-  const hiddenNodeIds = useMemo(() => new Set(hiddenFactsheetIds
-    .filter((id) => !addedFactsheetIdSet.has(id))
-    .map((id) => `fs-${id}`)), [hiddenFactsheetIds, addedFactsheetIdSet]);
+  const hiddenNodeIds = useMemo(
+    () => new Set(hiddenFactsheetIds.map((id) => `fs-${id}`)),
+    [hiddenFactsheetIds],
+  );
   const visibleNodes = useMemo(() => hiddenNodeIds.size === 0 ? nodes
     : nodes.filter((node) => !hiddenNodeIds.has(node.id)), [nodes, hiddenNodeIds]);
   const visibleEdges = useMemo(() => {
