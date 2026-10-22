@@ -20,8 +20,11 @@ of dependency directions. Upstream-only, downstream-only, and direct-connection
 modes provide narrower views. Existing page filters still apply.
 
 Right-click an edge to open its menu, then choose **Hide dependency** or
-**Edit dependency**. Right-click a factsheet for **Hide factsheet**, **Focus factsheet**, or
-**Connected factsheets**. Escape or a click outside closes the menu. The eye
+**Edit dependency**. Right-click a factsheet for **Hide factsheet**, **Focus factsheet**,
+**Connected factsheets**, or **Add connected factsheets**. The additive action
+reveals that factsheet's full connected component without changing the current
+focus or relation mode, or restoring unrelated hidden factsheets. Escape or a
+click outside closes the menu. The eye
 button restores all hidden factsheets and dependencies. Hiding a factsheet also
 hides its incident edges without changing any records. Left-clicking an edge in the dependency
 view still opens its editor. Hiding is

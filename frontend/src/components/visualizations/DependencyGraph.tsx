@@ -23,6 +23,7 @@ import type {
   FactsheetExpanded,
   Dependency,
   PropertyDefinition,
+  DependencyGraphViewState,
 } from "../../types";
 import { useAppSettings } from "../../hooks/useAppSettings";
 import { getStatusMeta, getStatusTextColor } from "../../lib/statusConfig";
@@ -73,6 +74,10 @@ interface DependencyGraphProps {
   enableViewControls?: boolean;
   enableExportControls?: boolean;
   layoutKey?: number;
+  initialView?: DependencyGraphViewState;
+  onViewStateHandlerChange?: (
+    handler: (() => DependencyGraphViewState) | null,
+  ) => void;
   onExportHandlerChange?: (
     handlers: DependencyGraphExportHandlers | null,
   ) => void;
@@ -478,6 +483,8 @@ export default function DependencyGraph({
   enableViewControls = false,
   enableExportControls = false,
   layoutKey = 0,
+  initialView,
+  onViewStateHandlerChange,
   onExportHandlerChange,
   onViewportHandlerChange,
 }: DependencyGraphProps) {
@@ -489,10 +496,11 @@ export default function DependencyGraph({
   } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
-  const [hiddenDependencyIds, setHiddenDependencyIds] = useState<string[]>([]);
-  const [hiddenFactsheetIds, setHiddenFactsheetIds] = useState<string[]>([]);
+  const [hiddenDependencyIds, setHiddenDependencyIds] = useState<string[]>(initialView?.hiddenDependencyIds ?? []);
+  const [hiddenFactsheetIds, setHiddenFactsheetIds] = useState<string[]>(initialView?.hiddenFactsheetIds ?? []);
+  const [addedFactsheetIds, setAddedFactsheetIds] = useState<string[]>(initialView?.addedFactsheetIds ?? []);
   const [selectedFactsheetId, setSelectedFactsheetId] = useState<string | null>(null);
-  const [relationMode, setRelationMode] = useState<DependencyRelationMode>("chain");
+  const [relationMode, setRelationMode] = useState<DependencyRelationMode>(initialView?.relationMode ?? "chain");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
   const activeFactsheetId = onFocusedFactsheetChange
@@ -538,11 +546,13 @@ export default function DependencyGraph({
 
     // Create factsheet nodes
     factsheets.forEach((fs) => {
+      const isAddedToView = addedFactsheetIds.includes(fs.id);
       // Skip unrelated nodes if hide mode is active
       if (
         relatedFactsheetIds &&
         effectiveDisplayMode === "hide" &&
-        !relatedFactsheetIds.has(fs.id)
+        !relatedFactsheetIds.has(fs.id) &&
+        !isAddedToView
       ) {
         return;
       }
@@ -572,7 +582,9 @@ export default function DependencyGraph({
 
       // Determine if node should be dimmed
       const isDimmed =
-        relatedFactsheetIds !== null && !relatedFactsheetIds.has(fs.id);
+        relatedFactsheetIds !== null &&
+        !relatedFactsheetIds.has(fs.id) &&
+        !isAddedToView;
 
       nodes.push({
         id: `fs-${fs.id}`,
@@ -604,7 +616,9 @@ export default function DependencyGraph({
         const isRelatedEdge =
           relatedFactsheetIds === null ||
           (relatedFactsheetIds.has(dep.factsheet) &&
-            relatedFactsheetIds.has(dep.depends_on));
+            relatedFactsheetIds.has(dep.depends_on)) ||
+          (addedFactsheetIds.includes(dep.factsheet) &&
+            addedFactsheetIds.includes(dep.depends_on));
         const isDimmedEdge = !isRelatedEdge && effectiveDisplayMode === "dim";
 
         edges.push({
@@ -645,13 +659,17 @@ export default function DependencyGraph({
     showComments,
     relatedFactsheetIds,
     effectiveDisplayMode,
+    addedFactsheetIds,
     globalStatuses,
   ]);
 
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
-  const hiddenNodeIds = useMemo(() => new Set(hiddenFactsheetIds.map((id) => `fs-${id}`)), [hiddenFactsheetIds]);
+  const addedFactsheetIdSet = useMemo(() => new Set(addedFactsheetIds), [addedFactsheetIds]);
+  const hiddenNodeIds = useMemo(() => new Set(hiddenFactsheetIds
+    .filter((id) => !addedFactsheetIdSet.has(id))
+    .map((id) => `fs-${id}`)), [hiddenFactsheetIds, addedFactsheetIdSet]);
   const visibleNodes = useMemo(() => hiddenNodeIds.size === 0 ? nodes
     : nodes.filter((node) => !hiddenNodeIds.has(node.id)), [nodes, hiddenNodeIds]);
   const visibleEdges = useMemo(() => {
@@ -690,6 +708,7 @@ export default function DependencyGraph({
   // Track previous state to detect meaningful changes
   const prevNodeStateRef = useRef<string>("");
   const prevEdgeStateRef = useRef<string>("");
+  const initialPositionsAppliedRef = useRef(false);
 
   // Sync state with computed values when props change
   useEffect(() => {
@@ -720,15 +739,33 @@ export default function DependencyGraph({
     // Update if node state changed (IDs, dimmed status, or properties)
     if (prevNodeStateRef.current !== nodeState) {
       prevNodeStateRef.current = nodeState;
-      setNodes(computedNodes);
+      setNodes(!initialPositionsAppliedRef.current && initialView
+        ? computedNodes.map((node) => ({
+          ...node,
+          position: initialView.positions[node.id] ?? node.position,
+        }))
+        : computedNodes);
     }
     // Update if edge state changed (IDs, dimmed status, or labels)
     if (prevEdgeStateRef.current !== edgeState) {
       prevEdgeStateRef.current = edgeState;
       setEdges(computedEdges);
     }
+    if (!settingsLoading) initialPositionsAppliedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [computedNodes, computedEdges]);
+  }, [computedNodes, computedEdges, settingsLoading]);
+
+  useEffect(() => {
+    onViewStateHandlerChange?.(() => ({
+      positions: Object.fromEntries(nodes.map((node) => [node.id, { ...node.position }])),
+      viewport: reactFlowInstanceRef.current?.getViewport() ?? null,
+      relationMode,
+      hiddenDependencyIds: [...hiddenDependencyIds],
+      hiddenFactsheetIds: [...hiddenFactsheetIds],
+      addedFactsheetIds: [...addedFactsheetIds],
+    }));
+    return () => onViewStateHandlerChange?.(null);
+  }, [nodes, relationMode, hiddenDependencyIds, hiddenFactsheetIds, addedFactsheetIds, onViewStateHandlerChange]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -1044,6 +1081,12 @@ export default function DependencyGraph({
               setHiddenFactsheetIds((hidden) => [...new Set([...hidden, contextMenu.id])]);
               closeContextMenu();
             }}><EyeOff className="h-4 w-4" />Hide factsheet</button>
+            <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => {
+              const connectedIds = getRelatedFactsheetIds(contextMenu.id, dependencies, "connected");
+              setAddedFactsheetIds((added) => [...new Set([...added, ...connectedIds])]);
+              setHiddenFactsheetIds((hidden) => hidden.filter((id) => !connectedIds.has(id)));
+              closeContextMenu();
+            }}><Network className="h-4 w-4" />Add connected factsheets</button>
             <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => focusFactsheet(contextMenu.id, "chain")}><Focus className="h-4 w-4" />Focus factsheet</button>
             <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => focusFactsheet(contextMenu.id, "connected")}><Network className="h-4 w-4" />Connected factsheets</button>
           </>}
@@ -1074,7 +1117,8 @@ export default function DependencyGraph({
         onInit={(instance) => {
           reactFlowInstanceRef.current = instance;
         }}
-        fitView
+        defaultViewport={initialView?.viewport ?? undefined}
+        fitView={!initialView?.viewport}
         fitViewOptions={{
           padding: 0.25,
           minZoom: 0.02,

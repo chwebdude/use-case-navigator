@@ -224,6 +224,8 @@ for (const path of ["/dependencies", "/factsheets/alpha"]) {
     await expect(page.getByLabel("Graph relations")).toHaveValue("connected");
     await alpha.click({ button: "right" });
     await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("menuitem", { name: "Add connected factsheets", exact: true })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
     await expect(page.getByRole("menuitem", { name: "Focus factsheet", exact: true })).toBeFocused();
     await page.keyboard.press("ArrowDown");
     await expect(page.getByRole("menuitem", { name: "Connected factsheets", exact: true })).toBeFocused();
@@ -264,6 +266,34 @@ for (const path of ["/dependencies", "/factsheets/alpha"]) {
     await expect(gamma).toBeVisible();
     await expect(graphEdges(page)).toHaveCount(5);
     expect(mutations).toEqual([]);
+  });
+
+  test(`adds connected factsheets without replacing the current view: ${path}`, async ({ page }) => {
+    await page.goto(path === "/dependencies" ? `${path}?unrelatedDisplayMode=hide` : path);
+    if (path === "/dependencies") {
+      await graphNodes(page).filter({ hasText: "Isolated" }).click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Hide factsheet", exact: true }).click();
+      await expect(graphNodes(page).filter({ hasText: "Isolated" })).toHaveCount(0);
+      await page.getByLabel("Graph factsheet").selectOption("alpha");
+      await page.getByLabel("Graph relations").selectOption("direct");
+      await expect(graphNodes(page)).toHaveCount(3);
+    } else {
+      await page.getByLabel("Graph relations").selectOption("direct");
+      await expect(graphNodes(page)).toHaveCount(3);
+      await graphNodes(page).filter({ hasText: "Beta" }).click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Hide factsheet", exact: true }).click();
+      await expect(graphNodes(page).filter({ hasText: "Beta" })).toHaveCount(0);
+    }
+
+    await graphNodes(page).filter({ hasText: "Alpha" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Add connected factsheets", exact: true }).click();
+    await expect(graphNodes(page)).toHaveCount(5);
+    await expect(page.getByLabel("Graph relations")).toHaveValue("direct");
+    await expect(graphNodes(page).filter({ hasText: "Isolated" })).toHaveCount(0);
+    await expect(graphNodes(page).filter({ hasText: "Delta" })).toBeVisible();
+    if (path === "/factsheets/alpha") {
+      await expect(graphNodes(page).filter({ hasText: "Gamma" })).toBeVisible();
+    }
   });
 }
 
