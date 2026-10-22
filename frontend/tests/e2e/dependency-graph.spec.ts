@@ -159,6 +159,47 @@ test("connected view follows direction changes and cycles, with finer relation m
   await expect(graphNodes(page)).toHaveCount(6);
 });
 
+test("adding a connected factsheet does not move existing factsheets", async ({ page }) => {
+  await page.goto("/dependencies?unrelatedDisplayMode=hide");
+  await page.getByLabel("Graph factsheet").selectOption("alpha");
+  await page.getByLabel("Graph relations").selectOption("chain");
+  await expect(graphNodes(page)).toHaveCount(3);
+
+  const positionsBefore = await page.locator(".react-flow__node").evaluateAll((elements) =>
+    Object.fromEntries(elements.map((element) => [
+      (element as HTMLElement).dataset.id,
+      (element as HTMLElement).style.transform,
+    ])),
+  );
+
+  await graphNodes(page).filter({ hasText: "Beta" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Add connected factsheets", exact: true }).click();
+  await expect(graphNodes(page)).toHaveCount(4);
+  const gamma = graphNodes(page).filter({ hasText: "Gamma" });
+  await expect(gamma).toBeVisible();
+
+  const positionsAfter = await page.locator(".react-flow__node").evaluateAll((elements) =>
+    Object.fromEntries(elements.map((element) => [
+      (element as HTMLElement).dataset.id,
+      (element as HTMLElement).style.transform,
+    ])),
+  );
+  for (const [factsheetId, position] of Object.entries(positionsBefore)) {
+    expect(positionsAfter[factsheetId]).toBe(position);
+  }
+  const overlapsExistingNode = await gamma.evaluate((element) => {
+    const added = element.getBoundingClientRect();
+    return Array.from(document.querySelectorAll<HTMLElement>(".react-flow__node"))
+      .filter((node) => node !== element)
+      .some((node) => {
+        const existing = node.getBoundingClientRect();
+        return added.left < existing.right && added.right > existing.left &&
+          added.top < existing.bottom && added.bottom > existing.top;
+      });
+  });
+  expect(overlapsExistingNode).toBe(false);
+});
+
 for (const path of ["/dependencies", "/factsheets/alpha"]) {
   test(`hides and restores edges without mutations and exports only the visible graph: ${path}`, async ({ page }) => {
     const mutations: string[] = [];
