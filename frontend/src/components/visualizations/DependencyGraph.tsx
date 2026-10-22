@@ -739,12 +739,19 @@ export default function DependencyGraph({
     // Update if node state changed (IDs, dimmed status, or properties)
     if (prevNodeStateRef.current !== nodeState) {
       prevNodeStateRef.current = nodeState;
-      setNodes(!initialPositionsAppliedRef.current && initialView
-        ? computedNodes.map((node) => ({
-          ...node,
-          position: initialView.positions[node.id] ?? node.position,
-        }))
-        : computedNodes);
+      setNodes((currentNodes) => {
+        const currentNodesById = new Map(
+          currentNodes.map((node) => [node.id, node]),
+        );
+        return computedNodes.map((node) => {
+          const currentNode = currentNodesById.get(node.id);
+          const savedPosition = !initialPositionsAppliedRef.current
+            ? initialView?.positions[node.id]
+            : undefined;
+          const position = savedPosition ?? currentNode?.position ?? node.position;
+          return position === node.position ? node : { ...node, position };
+        });
+      });
     }
     // Update if edge state changed (IDs, dimmed status, or labels)
     if (prevEdgeStateRef.current !== edgeState) {
