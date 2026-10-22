@@ -1,4 +1,32 @@
 import type { RecordModel } from "pocketbase";
+import type { DependencyRelationMode } from "../lib/dependencyRelations";
+
+export interface DependencyGraphViewState {
+  positions: Record<string, { x: number; y: number }>;
+  viewport: { x: number; y: number; zoom: number } | null;
+  relationMode: DependencyRelationMode;
+  hiddenDependencyIds: string[];
+  hiddenFactsheetIds: string[];
+  addedFactsheetIds: string[];
+}
+
+export interface DependencyViewFilters {
+  search: string;
+  typeFilter: string[];
+  statusFilter: string;
+  verifiedOnly: string;
+  propertyFilters: Record<string, string>;
+  displayProperties: string[];
+  showComments: boolean;
+  focusedFactsheetId: string | null;
+  unrelatedDisplayMode: "dim" | "hide";
+}
+
+export interface SavedDependencyView extends RecordModel {
+  name: string;
+  filters: DependencyViewFilters;
+  graph: DependencyGraphViewState;
+}
 
 export type HiddenField =
   | "description"
