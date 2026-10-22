@@ -666,10 +666,10 @@ export default function DependencyGraph({
   // Use state hooks for React Flow
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
-  const addedFactsheetIdSet = useMemo(() => new Set(addedFactsheetIds), [addedFactsheetIds]);
-  const hiddenNodeIds = useMemo(() => new Set(hiddenFactsheetIds
-    .filter((id) => !addedFactsheetIdSet.has(id))
-    .map((id) => `fs-${id}`)), [hiddenFactsheetIds, addedFactsheetIdSet]);
+  const hiddenNodeIds = useMemo(
+    () => new Set(hiddenFactsheetIds.map((id) => `fs-${id}`)),
+    [hiddenFactsheetIds],
+  );
   const visibleNodes = useMemo(() => hiddenNodeIds.size === 0 ? nodes
     : nodes.filter((node) => !hiddenNodeIds.has(node.id)), [nodes, hiddenNodeIds]);
   const visibleEdges = useMemo(() => {
@@ -1082,7 +1082,7 @@ export default function DependencyGraph({
               closeContextMenu();
             }}><EyeOff className="h-4 w-4" />Hide factsheet</button>
             <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100" onClick={() => {
-              const connectedIds = getRelatedFactsheetIds(contextMenu.id, dependencies, "connected");
+              const connectedIds = getRelatedFactsheetIds(contextMenu.id, dependencies, "direct");
               setAddedFactsheetIds((added) => [...new Set([...added, ...connectedIds])]);
               setHiddenFactsheetIds((hidden) => hidden.filter((id) => !connectedIds.has(id)));
               closeContextMenu();

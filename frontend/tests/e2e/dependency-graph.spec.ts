@@ -287,13 +287,19 @@ for (const path of ["/dependencies", "/factsheets/alpha"]) {
 
     await graphNodes(page).filter({ hasText: "Alpha" }).click({ button: "right" });
     await page.getByRole("menuitem", { name: "Add connected factsheets", exact: true }).click();
-    await expect(graphNodes(page)).toHaveCount(5);
+    await expect(graphNodes(page)).toHaveCount(3);
     await expect(page.getByLabel("Graph relations")).toHaveValue("direct");
     await expect(graphNodes(page).filter({ hasText: "Isolated" })).toHaveCount(0);
-    await expect(graphNodes(page).filter({ hasText: "Delta" })).toBeVisible();
-    if (path === "/factsheets/alpha") {
-      await expect(graphNodes(page).filter({ hasText: "Gamma" })).toBeVisible();
-    }
+    await expect(graphNodes(page).filter({ hasText: "Beta" })).toBeVisible();
+    await expect(graphNodes(page).filter({ hasText: "Epsilon" })).toBeVisible();
+    await expect(graphNodes(page).filter({ hasText: "Gamma" })).toHaveCount(0);
+    await expect(graphNodes(page).filter({ hasText: "Delta" })).toHaveCount(0);
+
+    await graphNodes(page).filter({ hasText: "Beta" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Hide factsheet", exact: true }).click();
+    await expect(graphNodes(page).filter({ hasText: "Beta" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Restore all hidden items", exact: true }).click();
+    await expect(graphNodes(page).filter({ hasText: "Beta" })).toBeVisible();
   });
 }
 
